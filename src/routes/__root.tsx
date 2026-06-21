@@ -77,14 +77,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "Mansouj Operation System" },
+      { name: "description", content: "Mansouj Operation is an e-commerce management system for Shopify businesses." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "Mansouj Operation System" },
+      { property: "og:description", content: "Mansouj Operation is an e-commerce management system for Shopify businesses." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Mansouj Operation System" },
+      { name: "twitter:description", content: "Mansouj Operation is an e-commerce management system for Shopify businesses." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4da2fbb8-e2c3-4588-835d-e3eabf8c37d9/id-preview-de249613--54c2d0ec-24bc-4ff6-b063-403855dbdef4.lovable.app-1782041513777.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4da2fbb8-e2c3-4588-835d-e3eabf8c37d9/id-preview-de249613--54c2d0ec-24bc-4ff6-b063-403855dbdef4.lovable.app-1782041513777.png" },
     ],
     links: [
       {
