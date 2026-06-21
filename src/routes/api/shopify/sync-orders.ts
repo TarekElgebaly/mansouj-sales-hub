@@ -85,10 +85,10 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
 
           await supabaseAdmin.from("migration_logs").insert({
             source: "shopify",
-            kind: "sync-orders",
+            entity: "orders",
             status: errors.length ? "partial" : "success",
-            message: `imported=${imported} updated=${updated} errors=${errors.length}`,
-            details: { errors: errors.slice(0, 20) },
+            message: `imported=${imported} updated=${updated} errors=${errors.length}${errors.length ? " | " + errors.slice(0, 3).join(" | ") : ""}`,
+            rows_processed: imported + updated,
           } as never);
 
           await supabaseAdmin
