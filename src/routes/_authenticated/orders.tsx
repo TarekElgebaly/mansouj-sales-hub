@@ -14,8 +14,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { CONFIRMATION_STATUSES, ORDER_STATUSES, egp, fmtDate, statusTone } from "@/lib/format";
-import { Download, LayoutGrid, Table as TableIcon } from "lucide-react";
+import { useUser } from "@/hooks/use-user";
+import { Download, LayoutGrid, Plus, Table as TableIcon } from "lucide-react";
 import Papa from "papaparse";
 import { toast } from "sonner";
 
