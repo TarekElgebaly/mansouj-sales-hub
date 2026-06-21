@@ -95,7 +95,12 @@ function OrdersPage() {
 
   return (
     <AppShell title="Orders" search={search} onSearch={setSearch}
-      actions={<Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-4 w-4 mr-1" />Export CSV</Button>}>
+      actions={
+        <div className="flex items-center gap-2">
+          {canOps && <Button size="sm" onClick={() => setOpenNew(true)}><Plus className="h-4 w-4 mr-1" />New Order</Button>}
+          <Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-4 w-4 mr-1" />Export CSV</Button>
+        </div>
+      }>
       <Card>
         <CardContent className="p-3 flex flex-wrap items-center gap-2">
           <Select value={city} onValueChange={setCity}><SelectTrigger className="w-36 h-9"><SelectValue placeholder="City" /></SelectTrigger>
