@@ -17,7 +17,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { CONFIRMATION_STATUSES, ORDER_STATUSES, egp, fmtDate, statusTone } from "@/lib/format";
 import { useUser } from "@/hooks/use-user";
-import { Download, LayoutGrid, Plus, Table as TableIcon } from "lucide-react";
+import { Download, LayoutGrid, Plus, RefreshCw, Table as TableIcon } from "lucide-react";
 import Papa from "papaparse";
 import { toast } from "sonner";
 
@@ -37,6 +37,33 @@ function OrdersPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openId, setOpenId] = useState<string | null>(null);
   const [openNew, setOpenNew] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  const pullShopify = async () => {
+    setSyncing(true);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) { toast.error("Please sign in again."); return; }
+      const res = await fetch("/api/shopify/sync-orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ limit: 100 }),
+      });
+      const json = await res.json() as { ok: boolean; imported?: number; updated?: number; error?: string; errors?: string[] };
+      if (json.ok) {
+        toast.success(`Pulled from Shopify — ${json.imported ?? 0} new, ${json.updated ?? 0} updated${json.errors?.length ? `, ${json.errors.length} errors` : ""}`);
+        qc.invalidateQueries({ queryKey: ["orders"] });
+        qc.invalidateQueries({ queryKey: ["order-items"] });
+      } else {
+        toast.error(json.error ?? "Shopify sync failed");
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const { data: orders } = useQuery({
     queryKey: ["orders"],
@@ -98,6 +125,12 @@ function OrdersPage() {
       actions={
         <div className="flex items-center gap-2">
           {canOps && <Button size="sm" onClick={() => setOpenNew(true)}><Plus className="h-4 w-4 mr-1" />New Order</Button>}
+          {canOps && (
+            <Button size="sm" variant="outline" onClick={pullShopify} disabled={syncing}>
+              <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} />
+              {syncing ? "Pulling…" : "Pull from Shopify"}
+            </Button>
+          )}
           <Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-4 w-4 mr-1" />Export CSV</Button>
         </div>
       }>
