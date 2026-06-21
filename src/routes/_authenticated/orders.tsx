@@ -206,6 +206,7 @@ function OrdersPage() {
           )}
         </SheetContent>
       </Sheet>
+      <NewOrderDialog open={openNew} onOpenChange={setOpenNew} onCreated={() => qc.invalidateQueries({ queryKey: ["orders"] })} />
     </AppShell>
   );
 }
