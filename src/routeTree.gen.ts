@@ -21,6 +21,10 @@ import { Route as AuthenticatedFinanceRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCustomersRouteImport } from './routes/_authenticated/customers'
 import { Route as AuthenticatedAreasRouteImport } from './routes/_authenticated/areas'
+import { Route as ApiShopifySyncStatusRouteImport } from './routes/api/shopify/sync-status'
+import { Route as ApiShopifySyncOrdersRouteImport } from './routes/api/shopify/sync-orders'
+import { Route as ApiShopifyWebhooksOrdersUpdatedRouteImport } from './routes/api/shopify/webhooks/orders-updated'
+import { Route as ApiShopifyWebhooksOrdersCreateRouteImport } from './routes/api/shopify/webhooks/orders-create'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -81,6 +85,28 @@ const AuthenticatedAreasRoute = AuthenticatedAreasRouteImport.update({
   path: '/areas',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiShopifySyncStatusRoute = ApiShopifySyncStatusRouteImport.update({
+  id: '/api/shopify/sync-status',
+  path: '/api/shopify/sync-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiShopifySyncOrdersRoute = ApiShopifySyncOrdersRouteImport.update({
+  id: '/api/shopify/sync-orders',
+  path: '/api/shopify/sync-orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiShopifyWebhooksOrdersUpdatedRoute =
+  ApiShopifyWebhooksOrdersUpdatedRouteImport.update({
+    id: '/api/shopify/webhooks/orders-updated',
+    path: '/api/shopify/webhooks/orders-updated',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiShopifyWebhooksOrdersCreateRoute =
+  ApiShopifyWebhooksOrdersCreateRouteImport.update({
+    id: '/api/shopify/webhooks/orders-create',
+    path: '/api/shopify/webhooks/orders-create',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -94,6 +120,10 @@ export interface FileRoutesByFullPath {
   '/orders': typeof AuthenticatedOrdersRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shopify': typeof AuthenticatedShopifyRoute
+  '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
+  '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
+  '/api/shopify/webhooks/orders-create': typeof ApiShopifyWebhooksOrdersCreateRoute
+  '/api/shopify/webhooks/orders-updated': typeof ApiShopifyWebhooksOrdersUpdatedRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -107,6 +137,10 @@ export interface FileRoutesByTo {
   '/orders': typeof AuthenticatedOrdersRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shopify': typeof AuthenticatedShopifyRoute
+  '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
+  '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
+  '/api/shopify/webhooks/orders-create': typeof ApiShopifyWebhooksOrdersCreateRoute
+  '/api/shopify/webhooks/orders-updated': typeof ApiShopifyWebhooksOrdersUpdatedRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -122,6 +156,10 @@ export interface FileRoutesById {
   '/_authenticated/orders': typeof AuthenticatedOrdersRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/shopify': typeof AuthenticatedShopifyRoute
+  '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
+  '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
+  '/api/shopify/webhooks/orders-create': typeof ApiShopifyWebhooksOrdersCreateRoute
+  '/api/shopify/webhooks/orders-updated': typeof ApiShopifyWebhooksOrdersUpdatedRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -137,6 +175,10 @@ export interface FileRouteTypes {
     | '/orders'
     | '/settings'
     | '/shopify'
+    | '/api/shopify/sync-orders'
+    | '/api/shopify/sync-status'
+    | '/api/shopify/webhooks/orders-create'
+    | '/api/shopify/webhooks/orders-updated'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -150,6 +192,10 @@ export interface FileRouteTypes {
     | '/orders'
     | '/settings'
     | '/shopify'
+    | '/api/shopify/sync-orders'
+    | '/api/shopify/sync-status'
+    | '/api/shopify/webhooks/orders-create'
+    | '/api/shopify/webhooks/orders-updated'
   id:
     | '__root__'
     | '/'
@@ -164,12 +210,20 @@ export interface FileRouteTypes {
     | '/_authenticated/orders'
     | '/_authenticated/settings'
     | '/_authenticated/shopify'
+    | '/api/shopify/sync-orders'
+    | '/api/shopify/sync-status'
+    | '/api/shopify/webhooks/orders-create'
+    | '/api/shopify/webhooks/orders-updated'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiShopifySyncOrdersRoute: typeof ApiShopifySyncOrdersRoute
+  ApiShopifySyncStatusRoute: typeof ApiShopifySyncStatusRoute
+  ApiShopifyWebhooksOrdersCreateRoute: typeof ApiShopifyWebhooksOrdersCreateRoute
+  ApiShopifyWebhooksOrdersUpdatedRoute: typeof ApiShopifyWebhooksOrdersUpdatedRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -258,6 +312,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAreasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/shopify/sync-status': {
+      id: '/api/shopify/sync-status'
+      path: '/api/shopify/sync-status'
+      fullPath: '/api/shopify/sync-status'
+      preLoaderRoute: typeof ApiShopifySyncStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/shopify/sync-orders': {
+      id: '/api/shopify/sync-orders'
+      path: '/api/shopify/sync-orders'
+      fullPath: '/api/shopify/sync-orders'
+      preLoaderRoute: typeof ApiShopifySyncOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/shopify/webhooks/orders-updated': {
+      id: '/api/shopify/webhooks/orders-updated'
+      path: '/api/shopify/webhooks/orders-updated'
+      fullPath: '/api/shopify/webhooks/orders-updated'
+      preLoaderRoute: typeof ApiShopifyWebhooksOrdersUpdatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/shopify/webhooks/orders-create': {
+      id: '/api/shopify/webhooks/orders-create'
+      path: '/api/shopify/webhooks/orders-create'
+      fullPath: '/api/shopify/webhooks/orders-create'
+      preLoaderRoute: typeof ApiShopifyWebhooksOrdersCreateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -292,6 +374,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiShopifySyncOrdersRoute: ApiShopifySyncOrdersRoute,
+  ApiShopifySyncStatusRoute: ApiShopifySyncStatusRoute,
+  ApiShopifyWebhooksOrdersCreateRoute: ApiShopifyWebhooksOrdersCreateRoute,
+  ApiShopifyWebhooksOrdersUpdatedRoute: ApiShopifyWebhooksOrdersUpdatedRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
