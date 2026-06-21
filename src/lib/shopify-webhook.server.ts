@@ -136,8 +136,6 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     items.reduce((s, l) => s + (Number(l.price) || 0) * (l.quantity ?? 0), 0);
   const shipCost = shippingCost(payload);
   const packagingCost = 0;
-  const profit = totalSelling - itemsCost;
-  const netProfit = profit - shipCost - packagingCost;
 
   const orderRow = {
     shopify_order_id: shopifyOrderId,
@@ -146,25 +144,23 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     order_date: (payload.created_at ?? payload.processed_at ?? new Date().toISOString()).slice(0, 10),
     customer_id: customerId,
     customer_full_name: customerName,
-    phone,
+    phone: phone ?? "",
     second_phone: null,
     city,
     area,
     full_address: address,
     payment_gateway: payload.gateway ?? payload.payment_gateway_names?.[0] ?? null,
-    confirmation_status: "pending",
+    confirmation_status: "Fresh Calls",
     order_status: payload.cancelled_at
-      ? "cancelled"
+      ? "Cancelled"
       : payload.fulfillment_status === "fulfilled"
-        ? "fulfilled"
-        : "new",
+        ? "Delivered"
+        : "New",
     internal_notes: payload.note ?? null,
     total_selling_price: totalSelling,
     items_cost: itemsCost,
     shipping_cost: shipCost,
     packaging_cost: packagingCost,
-    profit,
-    net_profit: netProfit,
     tags: payload.tags
       ? payload.tags.split(",").map((t) => t.trim()).filter(Boolean)
       : [],
@@ -189,9 +185,13 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
       const unit = Number(l.price) || 0;
       const color = l.properties?.find((p) => p.name?.toLowerCase() === "color")?.value ?? null;
       const size = l.properties?.find((p) => p.name?.toLowerCase() === "size")?.value ?? null;
+      const sku =
+        l.sku && l.sku.trim().length > 0
+          ? l.sku
+          : `shopify-variant-${l.variant_id ?? "unknown"}`;
       return {
         order_id: orderId,
-        sku: l.sku ?? null,
+        sku,
         product_name: l.title ?? l.name ?? "Unknown",
         variant: l.variant_title ?? null,
         color,
@@ -199,8 +199,6 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
         quantity: qty,
         unit_selling_price: unit,
         unit_cost: 0,
-        total_selling_price: unit * qty,
-        total_cost: 0,
       };
     });
     const { error: itemsErr } = await supabaseAdmin.from("order_items").insert(rows as never);
