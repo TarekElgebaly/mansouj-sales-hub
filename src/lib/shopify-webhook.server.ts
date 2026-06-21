@@ -172,7 +172,7 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
 
   const { data: upserted, error: upsertErr } = await supabaseAdmin
     .from("orders")
-    .upsert(orderRow, { onConflict: "shopify_order_id" })
+    .upsert(orderRow as never, { onConflict: "shopify_order_id" })
     .select("id")
     .single();
 
@@ -203,7 +203,7 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
         total_cost: 0,
       };
     });
-    const { error: itemsErr } = await supabaseAdmin.from("order_items").insert(rows);
+    const { error: itemsErr } = await supabaseAdmin.from("order_items").insert(rows as never);
     if (itemsErr) throw new Error(`order_items insert failed: ${itemsErr.message}`);
   }
 

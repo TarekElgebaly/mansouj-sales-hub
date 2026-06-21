@@ -23,8 +23,8 @@ import { Route as AuthenticatedCustomersRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAreasRouteImport } from './routes/_authenticated/areas'
 import { Route as ApiShopifySyncStatusRouteImport } from './routes/api/shopify/sync-status'
 import { Route as ApiShopifySyncOrdersRouteImport } from './routes/api/shopify/sync-orders'
-import { Route as ApiShopifyWebhooksOrdersUpdatedRouteImport } from './routes/api/shopify/webhooks/orders-updated'
-import { Route as ApiShopifyWebhooksOrdersCreateRouteImport } from './routes/api/shopify/webhooks/orders-create'
+import { Route as ApiPublicShopifyWebhooksOrdersUpdatedRouteImport } from './routes/api/public/shopify/webhooks/orders-updated'
+import { Route as ApiPublicShopifyWebhooksOrdersCreateRouteImport } from './routes/api/public/shopify/webhooks/orders-create'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -95,16 +95,16 @@ const ApiShopifySyncOrdersRoute = ApiShopifySyncOrdersRouteImport.update({
   path: '/api/shopify/sync-orders',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiShopifyWebhooksOrdersUpdatedRoute =
-  ApiShopifyWebhooksOrdersUpdatedRouteImport.update({
-    id: '/api/shopify/webhooks/orders-updated',
-    path: '/api/shopify/webhooks/orders-updated',
+const ApiPublicShopifyWebhooksOrdersUpdatedRoute =
+  ApiPublicShopifyWebhooksOrdersUpdatedRouteImport.update({
+    id: '/api/public/shopify/webhooks/orders-updated',
+    path: '/api/public/shopify/webhooks/orders-updated',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiShopifyWebhooksOrdersCreateRoute =
-  ApiShopifyWebhooksOrdersCreateRouteImport.update({
-    id: '/api/shopify/webhooks/orders-create',
-    path: '/api/shopify/webhooks/orders-create',
+const ApiPublicShopifyWebhooksOrdersCreateRoute =
+  ApiPublicShopifyWebhooksOrdersCreateRouteImport.update({
+    id: '/api/public/shopify/webhooks/orders-create',
+    path: '/api/public/shopify/webhooks/orders-create',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -122,8 +122,8 @@ export interface FileRoutesByFullPath {
   '/shopify': typeof AuthenticatedShopifyRoute
   '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
-  '/api/shopify/webhooks/orders-create': typeof ApiShopifyWebhooksOrdersCreateRoute
-  '/api/shopify/webhooks/orders-updated': typeof ApiShopifyWebhooksOrdersUpdatedRoute
+  '/api/public/shopify/webhooks/orders-create': typeof ApiPublicShopifyWebhooksOrdersCreateRoute
+  '/api/public/shopify/webhooks/orders-updated': typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -139,8 +139,8 @@ export interface FileRoutesByTo {
   '/shopify': typeof AuthenticatedShopifyRoute
   '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
-  '/api/shopify/webhooks/orders-create': typeof ApiShopifyWebhooksOrdersCreateRoute
-  '/api/shopify/webhooks/orders-updated': typeof ApiShopifyWebhooksOrdersUpdatedRoute
+  '/api/public/shopify/webhooks/orders-create': typeof ApiPublicShopifyWebhooksOrdersCreateRoute
+  '/api/public/shopify/webhooks/orders-updated': typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -158,8 +158,8 @@ export interface FileRoutesById {
   '/_authenticated/shopify': typeof AuthenticatedShopifyRoute
   '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
-  '/api/shopify/webhooks/orders-create': typeof ApiShopifyWebhooksOrdersCreateRoute
-  '/api/shopify/webhooks/orders-updated': typeof ApiShopifyWebhooksOrdersUpdatedRoute
+  '/api/public/shopify/webhooks/orders-create': typeof ApiPublicShopifyWebhooksOrdersCreateRoute
+  '/api/public/shopify/webhooks/orders-updated': typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -177,8 +177,8 @@ export interface FileRouteTypes {
     | '/shopify'
     | '/api/shopify/sync-orders'
     | '/api/shopify/sync-status'
-    | '/api/shopify/webhooks/orders-create'
-    | '/api/shopify/webhooks/orders-updated'
+    | '/api/public/shopify/webhooks/orders-create'
+    | '/api/public/shopify/webhooks/orders-updated'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -194,8 +194,8 @@ export interface FileRouteTypes {
     | '/shopify'
     | '/api/shopify/sync-orders'
     | '/api/shopify/sync-status'
-    | '/api/shopify/webhooks/orders-create'
-    | '/api/shopify/webhooks/orders-updated'
+    | '/api/public/shopify/webhooks/orders-create'
+    | '/api/public/shopify/webhooks/orders-updated'
   id:
     | '__root__'
     | '/'
@@ -212,8 +212,8 @@ export interface FileRouteTypes {
     | '/_authenticated/shopify'
     | '/api/shopify/sync-orders'
     | '/api/shopify/sync-status'
-    | '/api/shopify/webhooks/orders-create'
-    | '/api/shopify/webhooks/orders-updated'
+    | '/api/public/shopify/webhooks/orders-create'
+    | '/api/public/shopify/webhooks/orders-updated'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -222,8 +222,8 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ApiShopifySyncOrdersRoute: typeof ApiShopifySyncOrdersRoute
   ApiShopifySyncStatusRoute: typeof ApiShopifySyncStatusRoute
-  ApiShopifyWebhooksOrdersCreateRoute: typeof ApiShopifyWebhooksOrdersCreateRoute
-  ApiShopifyWebhooksOrdersUpdatedRoute: typeof ApiShopifyWebhooksOrdersUpdatedRoute
+  ApiPublicShopifyWebhooksOrdersCreateRoute: typeof ApiPublicShopifyWebhooksOrdersCreateRoute
+  ApiPublicShopifyWebhooksOrdersUpdatedRoute: typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -326,18 +326,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiShopifySyncOrdersRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/shopify/webhooks/orders-updated': {
-      id: '/api/shopify/webhooks/orders-updated'
-      path: '/api/shopify/webhooks/orders-updated'
-      fullPath: '/api/shopify/webhooks/orders-updated'
-      preLoaderRoute: typeof ApiShopifyWebhooksOrdersUpdatedRouteImport
+    '/api/public/shopify/webhooks/orders-updated': {
+      id: '/api/public/shopify/webhooks/orders-updated'
+      path: '/api/public/shopify/webhooks/orders-updated'
+      fullPath: '/api/public/shopify/webhooks/orders-updated'
+      preLoaderRoute: typeof ApiPublicShopifyWebhooksOrdersUpdatedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/shopify/webhooks/orders-create': {
-      id: '/api/shopify/webhooks/orders-create'
-      path: '/api/shopify/webhooks/orders-create'
-      fullPath: '/api/shopify/webhooks/orders-create'
-      preLoaderRoute: typeof ApiShopifyWebhooksOrdersCreateRouteImport
+    '/api/public/shopify/webhooks/orders-create': {
+      id: '/api/public/shopify/webhooks/orders-create'
+      path: '/api/public/shopify/webhooks/orders-create'
+      fullPath: '/api/public/shopify/webhooks/orders-create'
+      preLoaderRoute: typeof ApiPublicShopifyWebhooksOrdersCreateRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -376,19 +376,11 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ApiShopifySyncOrdersRoute: ApiShopifySyncOrdersRoute,
   ApiShopifySyncStatusRoute: ApiShopifySyncStatusRoute,
-  ApiShopifyWebhooksOrdersCreateRoute: ApiShopifyWebhooksOrdersCreateRoute,
-  ApiShopifyWebhooksOrdersUpdatedRoute: ApiShopifyWebhooksOrdersUpdatedRoute,
+  ApiPublicShopifyWebhooksOrdersCreateRoute:
+    ApiPublicShopifyWebhooksOrdersCreateRoute,
+  ApiPublicShopifyWebhooksOrdersUpdatedRoute:
+    ApiPublicShopifyWebhooksOrdersUpdatedRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
