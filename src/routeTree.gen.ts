@@ -9,38 +9,239 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedShopifyRouteImport } from './routes/_authenticated/shopify'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedOrdersRouteImport } from './routes/_authenticated/orders'
+import { Route as AuthenticatedInventoryRouteImport } from './routes/_authenticated/inventory'
+import { Route as AuthenticatedImportRouteImport } from './routes/_authenticated/import'
+import { Route as AuthenticatedFinanceRouteImport } from './routes/_authenticated/finance'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedCustomersRouteImport } from './routes/_authenticated/customers'
+import { Route as AuthenticatedAreasRouteImport } from './routes/_authenticated/areas'
+import { Route as ApiShopifySyncStatusRouteImport } from './routes/api/shopify/sync-status'
+import { Route as ApiShopifySyncOrdersRouteImport } from './routes/api/shopify/sync-orders'
+import { Route as ApiShopifyWebhooksOrdersUpdatedRouteImport } from './routes/api/shopify/webhooks/orders-updated'
+import { Route as ApiShopifyWebhooksOrdersCreateRouteImport } from './routes/api/shopify/webhooks/orders-create'
 
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedShopifyRoute = AuthenticatedShopifyRouteImport.update({
+  id: '/shopify',
+  path: '/shopify',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedOrdersRoute = AuthenticatedOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedInventoryRoute = AuthenticatedInventoryRouteImport.update({
+  id: '/inventory',
+  path: '/inventory',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedImportRoute = AuthenticatedImportRouteImport.update({
+  id: '/import',
+  path: '/import',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedFinanceRoute = AuthenticatedFinanceRouteImport.update({
+  id: '/finance',
+  path: '/finance',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCustomersRoute = AuthenticatedCustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAreasRoute = AuthenticatedAreasRouteImport.update({
+  id: '/areas',
+  path: '/areas',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const ApiShopifySyncStatusRoute = ApiShopifySyncStatusRouteImport.update({
+  id: '/api/shopify/sync-status',
+  path: '/api/shopify/sync-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiShopifySyncOrdersRoute = ApiShopifySyncOrdersRouteImport.update({
+  id: '/api/shopify/sync-orders',
+  path: '/api/shopify/sync-orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiShopifyWebhooksOrdersUpdatedRoute =
+  ApiShopifyWebhooksOrdersUpdatedRouteImport.update({
+    id: '/api/shopify/webhooks/orders-updated',
+    path: '/api/shopify/webhooks/orders-updated',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiShopifyWebhooksOrdersCreateRoute =
+  ApiShopifyWebhooksOrdersCreateRouteImport.update({
+    id: '/api/shopify/webhooks/orders-create',
+    path: '/api/shopify/webhooks/orders-create',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/areas': typeof AuthenticatedAreasRoute
+  '/customers': typeof AuthenticatedCustomersRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/finance': typeof AuthenticatedFinanceRoute
+  '/import': typeof AuthenticatedImportRoute
+  '/inventory': typeof AuthenticatedInventoryRoute
+  '/orders': typeof AuthenticatedOrdersRoute
+  '/settings': typeof AuthenticatedSettingsRoute
+  '/shopify': typeof AuthenticatedShopifyRoute
+  '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
+  '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
+  '/api/shopify/webhooks/orders-create': typeof ApiShopifyWebhooksOrdersCreateRoute
+  '/api/shopify/webhooks/orders-updated': typeof ApiShopifyWebhooksOrdersUpdatedRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/areas': typeof AuthenticatedAreasRoute
+  '/customers': typeof AuthenticatedCustomersRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/finance': typeof AuthenticatedFinanceRoute
+  '/import': typeof AuthenticatedImportRoute
+  '/inventory': typeof AuthenticatedInventoryRoute
+  '/orders': typeof AuthenticatedOrdersRoute
+  '/settings': typeof AuthenticatedSettingsRoute
+  '/shopify': typeof AuthenticatedShopifyRoute
+  '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
+  '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
+  '/api/shopify/webhooks/orders-create': typeof ApiShopifyWebhooksOrdersCreateRoute
+  '/api/shopify/webhooks/orders-updated': typeof ApiShopifyWebhooksOrdersUpdatedRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/_authenticated/areas': typeof AuthenticatedAreasRoute
+  '/_authenticated/customers': typeof AuthenticatedCustomersRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/finance': typeof AuthenticatedFinanceRoute
+  '/_authenticated/import': typeof AuthenticatedImportRoute
+  '/_authenticated/inventory': typeof AuthenticatedInventoryRoute
+  '/_authenticated/orders': typeof AuthenticatedOrdersRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/shopify': typeof AuthenticatedShopifyRoute
+  '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
+  '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
+  '/api/shopify/webhooks/orders-create': typeof ApiShopifyWebhooksOrdersCreateRoute
+  '/api/shopify/webhooks/orders-updated': typeof ApiShopifyWebhooksOrdersUpdatedRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/areas'
+    | '/customers'
+    | '/dashboard'
+    | '/finance'
+    | '/import'
+    | '/inventory'
+    | '/orders'
+    | '/settings'
+    | '/shopify'
+    | '/api/shopify/sync-orders'
+    | '/api/shopify/sync-status'
+    | '/api/shopify/webhooks/orders-create'
+    | '/api/shopify/webhooks/orders-updated'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/areas'
+    | '/customers'
+    | '/dashboard'
+    | '/finance'
+    | '/import'
+    | '/inventory'
+    | '/orders'
+    | '/settings'
+    | '/shopify'
+    | '/api/shopify/sync-orders'
+    | '/api/shopify/sync-status'
+    | '/api/shopify/webhooks/orders-create'
+    | '/api/shopify/webhooks/orders-updated'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/areas'
+    | '/_authenticated/customers'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/finance'
+    | '/_authenticated/import'
+    | '/_authenticated/inventory'
+    | '/_authenticated/orders'
+    | '/_authenticated/settings'
+    | '/_authenticated/shopify'
+    | '/api/shopify/sync-orders'
+    | '/api/shopify/sync-status'
+    | '/api/shopify/webhooks/orders-create'
+    | '/api/shopify/webhooks/orders-updated'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  ApiShopifySyncOrdersRoute: typeof ApiShopifySyncOrdersRoute
+  ApiShopifySyncStatusRoute: typeof ApiShopifySyncStatusRoute
+  ApiShopifyWebhooksOrdersCreateRoute: typeof ApiShopifyWebhooksOrdersCreateRoute
+  ApiShopifyWebhooksOrdersUpdatedRoute: typeof ApiShopifyWebhooksOrdersUpdatedRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +249,136 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/shopify': {
+      id: '/_authenticated/shopify'
+      path: '/shopify'
+      fullPath: '/shopify'
+      preLoaderRoute: typeof AuthenticatedShopifyRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/orders': {
+      id: '/_authenticated/orders'
+      path: '/orders'
+      fullPath: '/orders'
+      preLoaderRoute: typeof AuthenticatedOrdersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/inventory': {
+      id: '/_authenticated/inventory'
+      path: '/inventory'
+      fullPath: '/inventory'
+      preLoaderRoute: typeof AuthenticatedInventoryRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/import': {
+      id: '/_authenticated/import'
+      path: '/import'
+      fullPath: '/import'
+      preLoaderRoute: typeof AuthenticatedImportRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/finance': {
+      id: '/_authenticated/finance'
+      path: '/finance'
+      fullPath: '/finance'
+      preLoaderRoute: typeof AuthenticatedFinanceRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/customers': {
+      id: '/_authenticated/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof AuthenticatedCustomersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/areas': {
+      id: '/_authenticated/areas'
+      path: '/areas'
+      fullPath: '/areas'
+      preLoaderRoute: typeof AuthenticatedAreasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/shopify/sync-status': {
+      id: '/api/shopify/sync-status'
+      path: '/api/shopify/sync-status'
+      fullPath: '/api/shopify/sync-status'
+      preLoaderRoute: typeof ApiShopifySyncStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/shopify/sync-orders': {
+      id: '/api/shopify/sync-orders'
+      path: '/api/shopify/sync-orders'
+      fullPath: '/api/shopify/sync-orders'
+      preLoaderRoute: typeof ApiShopifySyncOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/shopify/webhooks/orders-updated': {
+      id: '/api/shopify/webhooks/orders-updated'
+      path: '/api/shopify/webhooks/orders-updated'
+      fullPath: '/api/shopify/webhooks/orders-updated'
+      preLoaderRoute: typeof ApiShopifyWebhooksOrdersUpdatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/shopify/webhooks/orders-create': {
+      id: '/api/shopify/webhooks/orders-create'
+      path: '/api/shopify/webhooks/orders-create'
+      fullPath: '/api/shopify/webhooks/orders-create'
+      preLoaderRoute: typeof ApiShopifyWebhooksOrdersCreateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAreasRoute: typeof AuthenticatedAreasRoute
+  AuthenticatedCustomersRoute: typeof AuthenticatedCustomersRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedFinanceRoute: typeof AuthenticatedFinanceRoute
+  AuthenticatedImportRoute: typeof AuthenticatedImportRoute
+  AuthenticatedInventoryRoute: typeof AuthenticatedInventoryRoute
+  AuthenticatedOrdersRoute: typeof AuthenticatedOrdersRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedShopifyRoute: typeof AuthenticatedShopifyRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAreasRoute: AuthenticatedAreasRoute,
+  AuthenticatedCustomersRoute: AuthenticatedCustomersRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedFinanceRoute: AuthenticatedFinanceRoute,
+  AuthenticatedImportRoute: AuthenticatedImportRoute,
+  AuthenticatedInventoryRoute: AuthenticatedInventoryRoute,
+  AuthenticatedOrdersRoute: AuthenticatedOrdersRoute,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedShopifyRoute: AuthenticatedShopifyRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
+  ApiShopifySyncOrdersRoute: ApiShopifySyncOrdersRoute,
+  ApiShopifySyncStatusRoute: ApiShopifySyncStatusRoute,
+  ApiShopifyWebhooksOrdersCreateRoute: ApiShopifyWebhooksOrdersCreateRoute,
+  ApiShopifyWebhooksOrdersUpdatedRoute: ApiShopifyWebhooksOrdersUpdatedRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
