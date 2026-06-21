@@ -28,6 +28,7 @@ export const Route = createFileRoute("/_authenticated/orders")({
 
 function OrdersPage() {
   const qc = useQueryClient();
+  const { canOps } = useUser();
   const [search, setSearch] = useState("");
   const [city, setCity] = useState<string>("all");
   const [confStatus, setConfStatus] = useState<string>("all");
@@ -35,6 +36,7 @@ function OrdersPage() {
   const [shipping, setShipping] = useState<string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openId, setOpenId] = useState<string | null>(null);
+  const [openNew, setOpenNew] = useState(false);
 
   const { data: orders } = useQuery({
     queryKey: ["orders"],
