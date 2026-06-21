@@ -436,6 +436,9 @@ export type Database = {
       shopify_sync_settings: {
         Row: {
           id: number
+          last_error: string | null
+          last_orders_imported: number | null
+          last_orders_updated: number | null
           last_sync_at: string | null
           last_sync_status: string | null
           store_url: string | null
@@ -444,6 +447,9 @@ export type Database = {
         }
         Insert: {
           id?: number
+          last_error?: string | null
+          last_orders_imported?: number | null
+          last_orders_updated?: number | null
           last_sync_at?: string | null
           last_sync_status?: string | null
           store_url?: string | null
@@ -452,6 +458,9 @@ export type Database = {
         }
         Update: {
           id?: number
+          last_error?: string | null
+          last_orders_imported?: number | null
+          last_orders_updated?: number | null
           last_sync_at?: string | null
           last_sync_status?: string | null
           store_url?: string | null
