@@ -211,6 +211,120 @@ function OrdersPage() {
   );
 }
 
+function NewOrderDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (v: boolean) => void; onCreated?: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [orderNumber, setOrderNumber] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [city, setCity] = useState("");
+  const [area, setArea] = useState("");
+  const [address, setAddress] = useState("");
+  const [sku, setSku] = useState("");
+  const [productName, setProductName] = useState("");
+  const [qty, setQty] = useState(1);
+  const [price, setPrice] = useState("");
+  const [cost, setCost] = useState("");
+
+  const reset = () => {
+    setOrderNumber(""); setName(""); setPhone(""); setCity(""); setArea(""); setAddress("");
+    setSku(""); setProductName(""); setQty(1); setPrice(""); setCost("");
+  };
+
+  const submit = async () => {
+    if (!orderNumber.trim() || !name.trim() || !phone.trim() || !sku.trim() || !productName.trim()) {
+      toast.error("Please fill in order number, customer name, phone, SKU and product name.");
+      return;
+    }
+    const unitPrice = Number(price);
+    const unitCost = Number(cost);
+    if (!unitPrice || unitPrice <= 0) { toast.error("Please enter a valid unit selling price."); return; }
+    if (unitCost < 0) { toast.error("Unit cost cannot be negative."); return; }
+
+    setSaving(true);
+    const totalSelling = unitPrice * qty;
+    const totalCost = unitCost * qty;
+
+    const { data: orderData, error: orderErr } = await supabase.from("orders").insert({
+      order_number: orderNumber.trim(),
+      customer_full_name: name.trim(),
+      phone: phone.trim(),
+      city: city.trim() || null,
+      area: area.trim() || null,
+      full_address: address.trim() || null,
+      total_selling_price: totalSelling,
+      items_cost: totalCost,
+      confirmation_status: "Fresh Calls",
+      order_status: "New",
+    }).select("id").single();
+
+    if (orderErr || !orderData) {
+      setSaving(false);
+      toast.error(orderErr?.message ?? "Failed to create order");
+      return;
+    }
+
+    const { error: itemErr } = await supabase.from("order_items").insert({
+      order_id: orderData.id,
+      sku: sku.trim(),
+      product_name: productName.trim(),
+      quantity: qty,
+      unit_selling_price: unitPrice,
+      unit_cost: unitCost,
+    });
+
+    if (itemErr) {
+      setSaving(false);
+      toast.error(itemErr.message);
+      return;
+    }
+
+    toast.success("Order created");
+    reset();
+    onOpenChange(false);
+    onCreated?.();
+    setSaving(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>New Order</DialogTitle>
+          <DialogDescription>Create a simple manual order.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Order #</Label><Input value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} placeholder="ORD-001" /></div>
+            <div><Label>Phone</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="01xxxxxxxx" /></div>
+          </div>
+          <div><Label>Customer name</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>City</Label><Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Cairo" /></div>
+            <div><Label>Area</Label><Input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Nasr City" /></div>
+          </div>
+          <div><Label>Full address</Label><Textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={2} /></div>
+          <div className="border rounded-md p-3 space-y-3">
+            <div className="font-medium text-sm">Item</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>SKU</Label><Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="SKU-123" /></div>
+              <div><Label>Product name</Label><Input value={productName} onChange={(e) => setProductName(e.target.value)} placeholder="Product name" /></div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div><Label>Qty</Label><Input type="number" min={1} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value)))} /></div>
+              <div><Label>Unit price (EGP)</Label><Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} /></div>
+              <div><Label>Unit cost (EGP)</Label><Input type="number" min={0} value={cost} onChange={(e) => setCost(e.target.value)} /></div>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
+          <Button onClick={submit} disabled={saving}>{saving ? "Saving…" : "Create order"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function OrderDetail({ order, items, onChanged }: any) {
   const [confirm, setConfirm] = useState(order.confirmation_status);
   const [status, setStatus] = useState(order.order_status);
