@@ -7,7 +7,7 @@ import {
   validateShopDomain,
 } from "@/lib/shopify-auth.server";
 
-export const Route = createFileRoute("/api/shopify/auth/start")({
+export const Route = createFileRoute("/api/shopify/auth/start" as never)({
   server: {
     handlers: {
       GET: async ({ request }) => {
@@ -20,15 +20,21 @@ export const Route = createFileRoute("/api/shopify/auth/start")({
 
         const configuredShop = process.env.SHOPIFY_SHOP_DOMAIN;
         if (!configuredShop) {
-          return Response.json({ ok: false, error: "Missing SHOPIFY_SHOP_DOMAIN." }, { status: 500 });
+          return Response.json(
+            { ok: false, error: "Missing SHOPIFY_SHOP_DOMAIN." },
+            { status: 500 },
+          );
         }
 
         const url = new URL(request.url);
         const shop = normalizeShopDomain(url.searchParams.get("shop") || configuredShop);
         if (!validateShopDomain(shop)) {
           return Response.json(
-            { ok: false, error: "Invalid shop domain. Expected a domain ending with .myshopify.com." },
-            { status: 400 }
+            {
+              ok: false,
+              error: "Invalid shop domain. Expected a domain ending with .myshopify.com.",
+            },
+            { status: 400 },
           );
         }
 
@@ -38,7 +44,7 @@ export const Route = createFileRoute("/api/shopify/auth/start")({
         }
 
         const { state, stateHash } = createOAuthState();
-        await supabaseAdmin.from("shopify_sync_settings").upsert(
+        await supabaseAdmin.from("shopify_installations").upsert(
           {
             id: 1,
             shop_domain: shop,
@@ -49,7 +55,7 @@ export const Route = createFileRoute("/api/shopify/auth/start")({
             oauth_state_expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
             updated_at: new Date().toISOString(),
           } as never,
-          { onConflict: "id" }
+          { onConflict: "id" },
         );
 
         await supabaseAdmin
@@ -59,6 +65,9 @@ export const Route = createFileRoute("/api/shopify/auth/start")({
             shop_domain: shop,
             install_status: "pending",
             token_stored: false,
+            last_sync_status: "idle",
+            last_error: null,
+            last_connection_test_status: "pending",
             last_connection_test_error: null,
           } as never)
           .eq("id", 1);
