@@ -125,6 +125,11 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             .eq("id", 1);
           return Response.json({ ok: false, error: msg }, { status: 500 });
         }
+        } catch (outer) {
+          console.error("sync-orders fatal:", outer);
+          const msg = outer instanceof Error ? outer.message : String(outer);
+          return Response.json({ ok: false, error: msg }, { status: 500 });
+        }
       },
     },
   },
