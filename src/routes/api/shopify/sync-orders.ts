@@ -38,17 +38,31 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             .eq("id", 1)
             .maybeSingle();
 
+          const configuredDomain = normalizeShopDomain(
+            process.env.SHOPIFY_SHOP_DOMAIN || process.env.SHOPIFY_STORE_DOMAIN || "",
+          );
+          const installedDomain = normalizeShopDomain(installation?.shop_domain || "");
+          const settingsDomain = normalizeShopDomain(
+            settings?.shop_domain || settings?.store_url || "",
+          );
+          if (configuredDomain && installedDomain && configuredDomain !== installedDomain) {
+            const msg = `Configured Shopify store is ${configuredDomain}, but the saved OAuth install is for ${installedDomain}. Reinstall the Shopify app for ${configuredDomain}.`;
+            await supabaseAdmin
+              .from("shopify_sync_settings")
+              .update({
+                last_sync_at: new Date().toISOString(),
+                last_sync_status: "error",
+                last_error: msg,
+              })
+              .eq("id", 1);
+            return Response.json({ ok: false, error: msg }, { status: 400 });
+          }
+
           let accessToken =
             installation?.access_token && installation.access_token !== "pending"
               ? installation.access_token
               : "";
-          let domain =
-            installation?.shop_domain ||
-            settings?.shop_domain ||
-            settings?.store_url ||
-            process.env.SHOPIFY_SHOP_DOMAIN ||
-            process.env.SHOPIFY_STORE_DOMAIN ||
-            "";
+          let domain = configuredDomain || installedDomain || settingsDomain;
 
           // Temporary fallback for older deployments that still use manual token secrets.
           if (!accessToken) {
