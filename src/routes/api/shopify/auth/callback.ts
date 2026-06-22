@@ -49,7 +49,7 @@ export const Route = createFileRoute("/api/shopify/auth/callback")({
         }
 
         const { data: install } = await supabaseAdmin
-          .from("shopify_installations")
+          .from("shopify_sync_settings")
           .select("oauth_state_hash,oauth_state_expires_at,shop_domain")
           .eq("id", 1)
           .maybeSingle();
@@ -90,7 +90,7 @@ export const Route = createFileRoute("/api/shopify/auth/callback")({
         const installedAt = new Date().toISOString();
         const status = missing.length ? "connected_missing_scopes" : "connected";
 
-        await supabaseAdmin.from("shopify_installations").upsert(
+        await supabaseAdmin.from("shopify_sync_settings").upsert(
           {
             id: 1,
             shop_domain: shop,
