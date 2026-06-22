@@ -44,6 +44,13 @@ function FinancePage() {
       .order("order_date", { ascending: false })
       .order("created_at", { ascending: false })).data ?? [],
   });
+  const { data: items } = useQuery({
+    queryKey: ["order-items"],
+    queryFn: async () => (await supabase.from("order_items").select("*")).data ?? [],
+  });
+
+  const openOrder = orders?.find((o) => o.id === openId);
+  const openItems = items?.filter((i) => i.order_id === openId) ?? [];
 
   const cities = useMemo(
     () => Array.from(new Set((orders ?? []).map((o) => o.city).filter(Boolean))) as string[],
