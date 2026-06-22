@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { processShopifyOrder, type ShopifyOrderPayload } from "@/lib/shopify-webhook.server";
+import { getShopifyApiVersion, normalizeShopDomain } from "@/lib/shopify-auth.server";
 
 export const Route = createFileRoute("/api/shopify/sync-orders")({
   server: {
@@ -24,23 +25,25 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
           .maybeSingle();
         if (!roleRow) return new Response("Forbidden", { status: 403 });
 
-        const apiVersion = process.env.SHOPIFY_API_VERSION || "2025-07";
-        const accessToken =
-          process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SHOPIFY_ACCESS_TOKEN;
-        let domain = process.env.SHOPIFY_STORE_DOMAIN || "";
+        const apiVersion = getShopifyApiVersion();
+        const { data: installation } = await supabaseAdmin
+          .from("shopify_installations")
+          .select("shop_domain,access_token,install_status")
+          .eq("id", 1)
+          .maybeSingle();
 
-        if (!domain) {
-          const { data: settings } = await supabaseAdmin
-            .from("shopify_sync_settings")
-            .select("store_url")
-            .eq("id", 1)
-            .maybeSingle();
-          domain = (settings?.store_url ?? "").replace(/^https?:\/\//, "").replace(/\/+$/, "");
+        let accessToken = installation?.access_token || "";
+        let domain = installation?.shop_domain || process.env.SHOPIFY_SHOP_DOMAIN || process.env.SHOPIFY_STORE_DOMAIN || "";
+
+        // Temporary fallback for older deployments that still use manual token secrets.
+        if (!accessToken || accessToken === "pending") {
+          accessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SHOPIFY_ACCESS_TOKEN || "";
         }
+        domain = normalizeShopDomain(domain);
 
-        if (!domain || !accessToken) {
+        if (!domain || !accessToken || accessToken === "pending") {
           return Response.json(
-            { ok: false, error: "Shopify is not configured (missing domain or access token)." },
+            { ok: false, error: "Shopify is not configured. Connect Shopify first, then test the connection." },
             { status: 400 }
           );
         }
