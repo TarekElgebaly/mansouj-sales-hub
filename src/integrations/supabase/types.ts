@@ -517,10 +517,13 @@ export type Database = {
       shopify_sync_settings: {
         Row: {
           access_token: string | null
-          granted_scopes: string | null
+          granted_scopes: string[] | null
           id: number
           install_status: string | null
           installed_at: string | null
+          last_connection_test_at: string | null
+          last_connection_test_error: string | null
+          last_connection_test_status: string | null
           last_error: string | null
           last_orders_imported: number | null
           last_orders_updated: number | null
@@ -529,17 +532,23 @@ export type Database = {
           last_test_at: string | null
           last_test_message: string | null
           last_test_ok: boolean | null
+          oauth_state_expires_at: string | null
+          oauth_state_hash: string | null
           shop_domain: string | null
           store_url: string | null
+          token_stored: boolean
           updated_at: string
           webhook_endpoint: string | null
         }
         Insert: {
           access_token?: string | null
-          granted_scopes?: string | null
+          granted_scopes?: string[] | null
           id?: number
           install_status?: string | null
           installed_at?: string | null
+          last_connection_test_at?: string | null
+          last_connection_test_error?: string | null
+          last_connection_test_status?: string | null
           last_error?: string | null
           last_orders_imported?: number | null
           last_orders_updated?: number | null
@@ -548,17 +557,23 @@ export type Database = {
           last_test_at?: string | null
           last_test_message?: string | null
           last_test_ok?: boolean | null
+          oauth_state_expires_at?: string | null
+          oauth_state_hash?: string | null
           shop_domain?: string | null
           store_url?: string | null
+          token_stored?: boolean
           updated_at?: string
           webhook_endpoint?: string | null
         }
         Update: {
           access_token?: string | null
-          granted_scopes?: string | null
+          granted_scopes?: string[] | null
           id?: number
           install_status?: string | null
           installed_at?: string | null
+          last_connection_test_at?: string | null
+          last_connection_test_error?: string | null
+          last_connection_test_status?: string | null
           last_error?: string | null
           last_orders_imported?: number | null
           last_orders_updated?: number | null
@@ -567,8 +582,11 @@ export type Database = {
           last_test_at?: string | null
           last_test_message?: string | null
           last_test_ok?: boolean | null
+          oauth_state_expires_at?: string | null
+          oauth_state_hash?: string | null
           shop_domain?: string | null
           store_url?: string | null
+          token_stored?: boolean
           updated_at?: string
           webhook_endpoint?: string | null
         }
