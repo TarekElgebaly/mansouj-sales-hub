@@ -14,6 +14,15 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
         const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
         if (userErr || !userData?.user) return new Response("Unauthorized", { status: 401 });
 
+        // Require admin or operations role to trigger a Shopify sync.
+        const { data: roleRow } = await supabaseAdmin
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userData.user.id)
+          .in("role", ["admin", "operations"])
+          .maybeSingle();
+        if (!roleRow) return new Response("Forbidden", { status: 403 });
+
         const apiVersion = process.env.SHOPIFY_API_VERSION || "2025-07";
         const accessToken =
           process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SHOPIFY_ACCESS_TOKEN;
