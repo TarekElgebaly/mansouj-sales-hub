@@ -89,6 +89,66 @@ export type Database = {
         }
         Relationships: []
       }
+      employees: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          monthly_salary: number
+          name: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          monthly_salary?: number
+          name: string
+          role: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          monthly_salary?: number
+          name?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      expenses: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          description: string | null
+          expense_date: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          category: string
+          created_at?: string
+          description?: string | null
+          expense_date?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          description?: string | null
+          expense_date?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       inventory: {
         Row: {
           barcode: string | null
