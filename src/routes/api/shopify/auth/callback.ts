@@ -122,6 +122,7 @@ export const Route = createFileRoute("/api/shopify/auth/callback" as never)({
           .update({
             store_url: shop,
             shop_domain: shop,
+            access_token: tokenJson.access_token,
             granted_scopes: grantedScopes,
             install_status: status,
             installed_at: installedAt,
