@@ -58,28 +58,26 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             return Response.json({ ok: false, error: msg }, { status: 400 });
           }
 
-          let accessToken =
+          const accessToken =
             installation?.access_token && installation.access_token !== "pending"
               ? installation.access_token
               : "";
           let domain = configuredDomain || installedDomain || settingsDomain;
-
-          // Temporary fallback for older deployments that still use manual token secrets.
-          if (!accessToken) {
-            accessToken =
-              process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SHOPIFY_ACCESS_TOKEN || "";
-          }
           domain = normalizeShopDomain(domain);
 
           if (!domain || !accessToken || accessToken === "pending") {
-            return Response.json(
-              {
-                ok: false,
-                error:
-                  "Shopify is not configured. Connect Shopify first, then test the connection.",
-              },
-              { status: 400 },
-            );
+            const msg = `No valid Shopify OAuth token is stored for ${domain || "this store"}. Reinstall the Shopify app so a fresh Admin API token can be saved.`;
+            await supabaseAdmin
+              .from("shopify_sync_settings")
+              .update({
+                install_status: "reinstall_required",
+                token_stored: false,
+                last_sync_at: new Date().toISOString(),
+                last_sync_status: "error",
+                last_error: msg,
+              } as never)
+              .eq("id", 1);
+            return Response.json({ ok: false, error: msg }, { status: 400 });
           }
 
           const body = await request.json().catch(() => ({}) as { limit?: number; since?: string });
@@ -109,6 +107,22 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             });
             if (!res.ok) {
               const text = await res.text();
+              if (res.status === 401) {
+                const msg = `Stored Shopify OAuth token was rejected for ${domain}. Reinstall the Shopify app for this store so a fresh Admin API token can be saved.`;
+                await supabaseAdmin
+                  .from("shopify_sync_settings")
+                  .update({
+                    install_status: "invalid_token_reinstall_required",
+                    token_stored: false,
+                    last_connection_test_status: "invalid_token",
+                    last_connection_test_error: msg,
+                    last_sync_at: new Date().toISOString(),
+                    last_sync_status: "error",
+                    last_error: msg,
+                  } as never)
+                  .eq("id", 1);
+                return Response.json({ ok: false, error: msg }, { status: 401 });
+              }
               throw new Error(`Shopify ${res.status}: ${text.slice(0, 300)}`);
             }
             const json = (await res.json()) as { orders: ShopifyOrderPayload[] };
