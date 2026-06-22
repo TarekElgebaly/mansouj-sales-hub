@@ -1,31 +1,12 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { egp } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { EXPENSE_CATEGORIES } from "./expenses-tab";
-
-type Range = "today" | "week" | "month" | "custom";
-
-function rangeBounds(r: Range, customFrom: string, customTo: string): { from: string; to: string } {
-  const today = new Date();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  if (r === "today") return { from: iso(today), to: iso(today) };
-  if (r === "week") {
-    const start = new Date(today); start.setDate(today.getDate() - today.getDay());
-    return { from: iso(start), to: iso(today) };
-  }
-  if (r === "month") {
-    const start = new Date(today.getFullYear(), today.getMonth(), 1);
-    return { from: iso(start), to: iso(today) };
-  }
-  return { from: customFrom, to: customTo };
-}
+import { usePeriod } from "./period-filter";
 
 const num = (v: unknown): number | null => {
   if (v === null || v === undefined || v === "") return null;
@@ -35,12 +16,7 @@ const num = (v: unknown): number | null => {
 };
 
 export function ProfitLossTab() {
-  const today = new Date().toISOString().slice(0, 10);
-  const monthAgo = new Date(); monthAgo.setDate(monthAgo.getDate() - 30);
-  const [range, setRange] = useState<Range>("month");
-  const [customFrom, setCustomFrom] = useState(monthAgo.toISOString().slice(0, 10));
-  const [customTo, setCustomTo] = useState(today);
-  const { from, to } = rangeBounds(range, customFrom, customTo);
+  const { from, to, label } = usePeriod();
 
   const { data: orders } = useQuery({
     queryKey: ["pl-orders", from, to],
@@ -74,14 +50,8 @@ export function ProfitLossTab() {
     }, 0);
   }, [orders]);
 
-  // Payroll: months covered by the range × active monthly salaries
-  const months = useMemo(() => {
-    const f = new Date(from); const t = new Date(to);
-    const days = Math.max(1, Math.round((t.getTime() - f.getTime()) / 86400000) + 1);
-    return days / 30;
-  }, [from, to]);
-  const monthlyPayroll = (employees ?? []).filter((e) => e.active).reduce((s, e) => s + Number(e.monthly_salary || 0), 0);
-  const payroll = monthlyPayroll * months;
+  // Payroll = sum of active monthly salaries (one selected month)
+  const payroll = (employees ?? []).filter((e) => e.active).reduce((s, e) => s + Number(e.monthly_salary || 0), 0);
 
   const byCategory = useMemo(() => {
     const map: Record<string, number> = {};
@@ -101,26 +71,8 @@ export function ProfitLossTab() {
 
   return (
     <>
-      <Card>
-        <CardContent className="p-3 flex flex-wrap items-end gap-2">
-          <div className="flex gap-1">
-            {(["today", "week", "month", "custom"] as Range[]).map((r) => (
-              <Button key={r} size="sm" variant={range === r ? "default" : "outline"} onClick={() => setRange(r)}>
-                {r === "today" ? "Today" : r === "week" ? "This Week" : r === "month" ? "This Month" : "Custom"}
-              </Button>
-            ))}
-          </div>
-          {range === "custom" && (
-            <>
-              <div><Label className="text-xs">From</Label><Input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="w-44 h-9" /></div>
-              <div><Label className="text-xs">To</Label><Input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="w-44 h-9" /></div>
-            </>
-          )}
-          <div className="ml-auto text-xs text-muted-foreground">{from} → {to}</div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+      <div className="text-xs text-muted-foreground mb-2">Showing: {label}</div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard label="Profit" value={netProfit} tone />
         <StatCard label="Operating Expenses" value={operatingExpenses} />
         <StatCard label="Net Profit" value={operatingProfit} tone />
