@@ -63,6 +63,7 @@ export const Route = createFileRoute("/api/shopify/auth/start" as never)({
           .update({
             store_url: shop,
             shop_domain: shop,
+            access_token: "pending",
             install_status: "pending",
             token_stored: false,
             last_sync_status: "idle",
