@@ -32,7 +32,7 @@ async function requireOpsUser(request: Request) {
   return { ok: true as const, supabaseAdmin };
 }
 
-export const Route = createFileRoute("/api/shopify/test-connection")({
+export const Route = createFileRoute("/api/shopify/test-connection" as never)({
   server: {
     handlers: {
       GET: async ({ request }) => {
@@ -41,7 +41,7 @@ export const Route = createFileRoute("/api/shopify/test-connection")({
         const { supabaseAdmin } = auth;
 
         const { data: install } = await supabaseAdmin
-          .from("shopify_sync_settings")
+          .from("shopify_installations")
           .select("shop_domain,access_token,granted_scopes,install_status")
           .eq("id", 1)
           .maybeSingle();
@@ -90,13 +90,16 @@ export const Route = createFileRoute("/api/shopify/test-connection")({
             const text = await shopRes.text();
             const message =
               shopRes.status === 401
-                ? "Invalid or expired token."
+                ? `Stored Shopify OAuth token was rejected for ${installedDomain}. Reinstall the Shopify app for this store so a fresh Admin API token can be saved.`
                 : `Shopify shop test failed: ${shopRes.status} ${text.slice(0, 160)}`;
             await supabaseAdmin
               .from("shopify_sync_settings")
               .update({
+                install_status:
+                  shopRes.status === 401 ? "invalid_token_reinstall_required" : "error",
+                token_stored: shopRes.status === 401 ? false : true,
                 last_connection_test_at: new Date().toISOString(),
-                last_connection_test_status: "error",
+                last_connection_test_status: shopRes.status === 401 ? "invalid_token" : "error",
                 last_connection_test_error: message,
               } as never)
               .eq("id", 1);
@@ -114,13 +117,16 @@ export const Route = createFileRoute("/api/shopify/test-connection")({
             const text = await scopesRes.text();
             const message =
               scopesRes.status === 401
-                ? "Invalid or expired token."
+                ? `Stored Shopify OAuth token was rejected for ${installedDomain}. Reinstall the Shopify app for this store so a fresh Admin API token can be saved.`
                 : `Could not read granted scopes: ${scopesRes.status} ${text.slice(0, 160)}`;
             await supabaseAdmin
               .from("shopify_sync_settings")
               .update({
+                install_status:
+                  scopesRes.status === 401 ? "invalid_token_reinstall_required" : "error",
+                token_stored: scopesRes.status === 401 ? false : true,
                 last_connection_test_at: new Date().toISOString(),
-                last_connection_test_status: "error",
+                last_connection_test_status: scopesRes.status === 401 ? "invalid_token" : "error",
                 last_connection_test_error: message,
               } as never)
               .eq("id", 1);
