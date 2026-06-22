@@ -15,7 +15,7 @@ type TokenResponse = {
   error_description?: string;
 };
 
-export const Route = createFileRoute("/api/shopify/auth/callback")({
+export const Route = createFileRoute("/api/shopify/auth/callback" as never)({
   server: {
     handlers: {
       GET: async ({ request }) => {
@@ -27,7 +27,10 @@ export const Route = createFileRoute("/api/shopify/auth/callback")({
           return Response.json({ ok: false, error: "Missing SHOPIFY_CLIENT_ID." }, { status: 500 });
         }
         if (!clientSecret) {
-          return Response.json({ ok: false, error: "Missing SHOPIFY_CLIENT_SECRET." }, { status: 500 });
+          return Response.json(
+            { ok: false, error: "Missing SHOPIFY_CLIENT_SECRET." },
+            { status: 500 },
+          );
         }
 
         const url = new URL(request.url);
@@ -42,14 +45,17 @@ export const Route = createFileRoute("/api/shopify/auth/callback")({
           return Response.json({ ok: false, error: "Invalid shop domain." }, { status: 400 });
         }
         if (!code) {
-          return Response.json({ ok: false, error: "Missing authorization code." }, { status: 400 });
+          return Response.json(
+            { ok: false, error: "Missing authorization code." },
+            { status: 400 },
+          );
         }
         if (!state) {
           return Response.json({ ok: false, error: "Invalid state/nonce." }, { status: 400 });
         }
 
         const { data: install } = await supabaseAdmin
-          .from("shopify_sync_settings")
+          .from("shopify_installations")
           .select("oauth_state_hash,oauth_state_expires_at,shop_domain")
           .eq("id", 1)
           .maybeSingle();
@@ -57,7 +63,12 @@ export const Route = createFileRoute("/api/shopify/auth/callback")({
         const stateExpired =
           !install?.oauth_state_expires_at ||
           new Date(install.oauth_state_expires_at).getTime() < Date.now();
-        if (!install || install.shop_domain !== shop || stateExpired || install.oauth_state_hash !== hashSecret(state)) {
+        if (
+          !install ||
+          install.shop_domain !== shop ||
+          stateExpired ||
+          install.oauth_state_hash !== hashSecret(state)
+        ) {
           return Response.json({ ok: false, error: "Invalid state/nonce." }, { status: 401 });
         }
 
@@ -76,9 +87,10 @@ export const Route = createFileRoute("/api/shopify/auth/callback")({
             {
               ok: false,
               error: "Token exchange failed.",
-              details: tokenJson.error_description || tokenJson.error || `Shopify ${tokenRes.status}`,
+              details:
+                tokenJson.error_description || tokenJson.error || `Shopify ${tokenRes.status}`,
             },
-            { status: 502 }
+            { status: 502 },
           );
         }
 
@@ -90,7 +102,7 @@ export const Route = createFileRoute("/api/shopify/auth/callback")({
         const installedAt = new Date().toISOString();
         const status = missing.length ? "connected_missing_scopes" : "connected";
 
-        await supabaseAdmin.from("shopify_sync_settings").upsert(
+        await supabaseAdmin.from("shopify_installations").upsert(
           {
             id: 1,
             shop_domain: shop,
@@ -102,7 +114,7 @@ export const Route = createFileRoute("/api/shopify/auth/callback")({
             oauth_state_expires_at: null,
             updated_at: installedAt,
           } as never,
-          { onConflict: "id" }
+          { onConflict: "id" },
         );
 
         await supabaseAdmin
@@ -114,8 +126,12 @@ export const Route = createFileRoute("/api/shopify/auth/callback")({
             install_status: status,
             installed_at: installedAt,
             token_stored: true,
+            last_sync_status: "idle",
+            last_error: null,
             last_connection_test_status: missing.length ? "missing_scopes" : "success",
-            last_connection_test_error: missing.length ? `Missing required scopes: ${missing.join(", ")}` : null,
+            last_connection_test_error: missing.length
+              ? `Missing required scopes: ${missing.join(", ")}`
+              : null,
           } as never)
           .eq("id", 1);
 
