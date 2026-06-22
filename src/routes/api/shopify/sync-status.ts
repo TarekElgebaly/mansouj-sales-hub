@@ -18,9 +18,6 @@ export const Route = createFileRoute("/api/shopify/sync-status")({
           .maybeSingle();
 
         const installedShopDomain = normalizeShopDomain(settings?.shop_domain || "");
-        const configuredShopDomain = normalizeShopDomain(
-          process.env.SHOPIFY_SHOP_DOMAIN || process.env.SHOPIFY_STORE_DOMAIN || "",
-        );
         const activeShopDomain =
           configuredShopDomain || installedShopDomain || normalizeShopDomain(settings?.store_url || "") || "";
         const domainMismatch = Boolean(
