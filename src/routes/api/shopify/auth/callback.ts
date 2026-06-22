@@ -15,6 +15,41 @@ type TokenResponse = {
   error_description?: string;
 };
 
+function restartInstallResponse(origin: string, shop: string, message: string, status = 401) {
+  const restartUrl = new URL("/api/shopify/auth/start", origin);
+  restartUrl.searchParams.set("shop", shop);
+  return new Response(
+    `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Restart Shopify install</title>
+    <style>
+      body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #f8fafc; color: #0f172a; }
+      main { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+      section { max-width: 520px; width: 100%; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08); }
+      h1 { font-size: 22px; margin: 0 0 12px; }
+      p { color: #475569; line-height: 1.5; margin: 0 0 20px; }
+      a { display: inline-block; background: #111827; color: white; text-decoration: none; padding: 10px 14px; border-radius: 8px; font-weight: 600; }
+      code { background: #f1f5f9; padding: 2px 6px; border-radius: 5px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <h1>Restart Shopify install</h1>
+        <p>${message}</p>
+        <p>Store: <code>${shop}</code></p>
+        <a href="${restartUrl.toString()}">Start Shopify install again</a>
+      </section>
+    </main>
+  </body>
+</html>`,
+    { status, headers: { "Content-Type": "text/html; charset=utf-8" } },
+  );
+}
+
 export const Route = createFileRoute("/api/shopify/auth/callback" as never)({
   server: {
     handlers: {
@@ -51,7 +86,12 @@ export const Route = createFileRoute("/api/shopify/auth/callback" as never)({
           );
         }
         if (!state) {
-          return Response.json({ ok: false, error: "Invalid state/nonce." }, { status: 400 });
+          return restartInstallResponse(
+            url.origin,
+            shop,
+            "The Shopify install session is missing its security state. Start the install again from a fresh link.",
+            400,
+          );
         }
 
         const { data: install } = await supabaseAdmin
@@ -69,7 +109,11 @@ export const Route = createFileRoute("/api/shopify/auth/callback" as never)({
           stateExpired ||
           install.oauth_state_hash !== hashSecret(state)
         ) {
-          return Response.json({ ok: false, error: "Invalid state/nonce." }, { status: 401 });
+          return restartInstallResponse(
+            url.origin,
+            shop,
+            "The Shopify install session expired or an older install tab was used. Start the install again and complete it from the newest tab.",
+          );
         }
 
         const tokenRes = await fetch(`https://${shop}/admin/oauth/access_token`, {
