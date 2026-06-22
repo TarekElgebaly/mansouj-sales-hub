@@ -34,7 +34,9 @@ function FinancePage() {
   const [to, setTo] = useState(today);
   const [orderStatus, setOrderStatus] = useState<string>("all");
   const [city, setCity] = useState<string>("all");
+  const [openId, setOpenId] = useState<string | null>(null);
 
+  const qc = useQueryClient();
   const { data: orders } = useQuery({
     queryKey: ["orders-finance", from, to],
     queryFn: async () => (await supabase.from("orders").select("*")
