@@ -1,5 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getShopifyApiVersion, missingScopes } from "@/lib/shopify-auth.server";
+import {
+  getShopifyApiVersion,
+  missingScopes,
+  normalizeShopDomain,
+} from "@/lib/shopify-auth.server";
 
 type AccessScopeResponse = {
   access_scopes?: Array<{ handle: string }>;
@@ -9,7 +13,8 @@ async function requireOpsUser(request: Request) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const authHeader = request.headers.get("authorization") ?? "";
   const token = authHeader.replace(/^Bearer\s+/i, "");
-  if (!token) return { ok: false as const, response: new Response("Unauthorized", { status: 401 }) };
+  if (!token)
+    return { ok: false as const, response: new Response("Unauthorized", { status: 401 }) };
 
   const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
   if (userErr || !userData?.user) {
@@ -27,7 +32,7 @@ async function requireOpsUser(request: Request) {
   return { ok: true as const, supabaseAdmin };
 }
 
-export const Route = createFileRoute("/api/shopify/test-connection")({
+export const Route = createFileRoute("/api/shopify/test-connection" as never)({
   server: {
     handlers: {
       GET: async ({ request }) => {
@@ -36,7 +41,7 @@ export const Route = createFileRoute("/api/shopify/test-connection")({
         const { supabaseAdmin } = auth;
 
         const { data: install } = await supabaseAdmin
-          .from("shopify_sync_settings")
+          .from("shopify_installations")
           .select("shop_domain,access_token,granted_scopes,install_status")
           .eq("id", 1)
           .maybeSingle();
@@ -44,7 +49,32 @@ export const Route = createFileRoute("/api/shopify/test-connection")({
         if (!install?.shop_domain || !install?.access_token || install.access_token === "pending") {
           return Response.json(
             { success: false, error: "Invalid or expired token. Reinstall the Shopify app first." },
-            { status: 400 }
+            { status: 400 },
+          );
+        }
+
+        const configuredDomain = normalizeShopDomain(
+          process.env.SHOPIFY_SHOP_DOMAIN || process.env.SHOPIFY_STORE_DOMAIN || "",
+        );
+        const installedDomain = normalizeShopDomain(install.shop_domain);
+        if (configuredDomain && installedDomain !== configuredDomain) {
+          const message = `Configured Shopify store is ${configuredDomain}, but the saved OAuth install is for ${installedDomain}. Reinstall the Shopify app for ${configuredDomain}.`;
+          await supabaseAdmin
+            .from("shopify_sync_settings")
+            .update({
+              install_status: "wrong_store_reinstall_required",
+              last_connection_test_at: new Date().toISOString(),
+              last_connection_test_status: "wrong_store",
+              last_connection_test_error: message,
+            } as never)
+            .eq("id", 1);
+          return Response.json(
+            {
+              success: false,
+              shop_domain: configuredDomain,
+              error: message,
+            },
+            { status: 400 },
           );
         }
 
@@ -52,7 +82,10 @@ export const Route = createFileRoute("/api/shopify/test-connection")({
         const headers = { "X-Shopify-Access-Token": install.access_token };
 
         try {
-          const shopRes = await fetch(`https://${install.shop_domain}/admin/api/${apiVersion}/shop.json`, { headers });
+          const shopRes = await fetch(
+            `https://${installedDomain}/admin/api/${apiVersion}/shop.json`,
+            { headers },
+          );
           if (!shopRes.ok) {
             const text = await shopRes.text();
             const message =
@@ -67,10 +100,16 @@ export const Route = createFileRoute("/api/shopify/test-connection")({
                 last_connection_test_error: message,
               } as never)
               .eq("id", 1);
-            return Response.json({ success: false, error: message }, { status: shopRes.status === 401 ? 401 : 502 });
+            return Response.json(
+              { success: false, error: message },
+              { status: shopRes.status === 401 ? 401 : 502 },
+            );
           }
 
-          const scopesRes = await fetch(`https://${install.shop_domain}/admin/oauth/access_scopes.json`, { headers });
+          const scopesRes = await fetch(
+            `https://${installedDomain}/admin/oauth/access_scopes.json`,
+            { headers },
+          );
           if (!scopesRes.ok) {
             const text = await scopesRes.text();
             const message =
@@ -85,11 +124,17 @@ export const Route = createFileRoute("/api/shopify/test-connection")({
                 last_connection_test_error: message,
               } as never)
               .eq("id", 1);
-            return Response.json({ success: false, error: message }, { status: scopesRes.status === 401 ? 401 : 502 });
+            return Response.json(
+              { success: false, error: message },
+              { status: scopesRes.status === 401 ? 401 : 502 },
+            );
           }
 
           const scopesJson = (await scopesRes.json()) as AccessScopeResponse;
-          const grantedScopes = scopesJson.access_scopes?.map((scope) => scope.handle).filter(Boolean) ?? install.granted_scopes ?? [];
+          const grantedScopes =
+            scopesJson.access_scopes?.map((scope) => scope.handle).filter(Boolean) ??
+            install.granted_scopes ??
+            [];
           const missing = missingScopes(grantedScopes);
           const success = missing.length === 0;
           const error = success ? null : `Missing required scopes: ${missing.join(", ")}`;
@@ -107,7 +152,7 @@ export const Route = createFileRoute("/api/shopify/test-connection")({
 
           return Response.json({
             success,
-            shop_domain: install.shop_domain,
+            shop_domain: installedDomain,
             api_version: apiVersion,
             granted_scopes: grantedScopes,
             missing_required_scopes: missing,
