@@ -187,6 +187,23 @@ function FinancePage() {
           </Table>
         </CardContent>
       </Card>
+
+      <Sheet open={!!openId} onOpenChange={(o) => !o && setOpenId(null)}>
+        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+          {openOrder && (
+            <>
+              <SheetHeader>
+                <SheetTitle>{openOrder.order_number}</SheetTitle>
+                <SheetDescription>{openOrder.customer_full_name} · {fmtDate(openOrder.order_date)}</SheetDescription>
+              </SheetHeader>
+              <OrderDetail order={openOrder} items={openItems} onChanged={() => {
+                qc.invalidateQueries({ queryKey: ["orders-finance"] });
+                qc.invalidateQueries({ queryKey: ["order-items"] });
+              }} />
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </AppShell>
   );
 }
