@@ -89,6 +89,66 @@ export type Database = {
         }
         Relationships: []
       }
+      employees: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          monthly_salary: number
+          name: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          monthly_salary?: number
+          name: string
+          role: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          monthly_salary?: number
+          name?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      expenses: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          description: string | null
+          expense_date: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          category: string
+          created_at?: string
+          description?: string | null
+          expense_date?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          description?: string | null
+          expense_date?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       inventory: {
         Row: {
           barcode: string | null
@@ -433,99 +493,84 @@ export type Database = {
         }
         Relationships: []
       }
+      shopify_oauth_states: {
+        Row: {
+          created_at: string
+          expires_at: string
+          shop_domain: string
+          state: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          shop_domain: string
+          state: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          shop_domain?: string
+          state?: string
+        }
+        Relationships: []
+      }
       shopify_sync_settings: {
         Row: {
-          granted_scopes: string[] | null
+          access_token: string | null
+          granted_scopes: string | null
           id: number
           install_status: string | null
           installed_at: string | null
-          last_connection_test_at: string | null
-          last_connection_test_error: string | null
-          last_connection_test_status: string | null
           last_error: string | null
           last_orders_imported: number | null
           last_orders_updated: number | null
           last_sync_at: string | null
           last_sync_status: string | null
+          last_test_at: string | null
+          last_test_message: string | null
+          last_test_ok: boolean | null
           shop_domain: string | null
           store_url: string | null
-          token_stored: boolean | null
           updated_at: string
           webhook_endpoint: string | null
         }
         Insert: {
-          granted_scopes?: string[] | null
+          access_token?: string | null
+          granted_scopes?: string | null
           id?: number
           install_status?: string | null
           installed_at?: string | null
-          last_connection_test_at?: string | null
-          last_connection_test_error?: string | null
-          last_connection_test_status?: string | null
           last_error?: string | null
           last_orders_imported?: number | null
           last_orders_updated?: number | null
           last_sync_at?: string | null
           last_sync_status?: string | null
+          last_test_at?: string | null
+          last_test_message?: string | null
+          last_test_ok?: boolean | null
           shop_domain?: string | null
           store_url?: string | null
-          token_stored?: boolean | null
           updated_at?: string
           webhook_endpoint?: string | null
         }
         Update: {
-          granted_scopes?: string[] | null
+          access_token?: string | null
+          granted_scopes?: string | null
           id?: number
           install_status?: string | null
           installed_at?: string | null
-          last_connection_test_at?: string | null
-          last_connection_test_error?: string | null
-          last_connection_test_status?: string | null
           last_error?: string | null
           last_orders_imported?: number | null
           last_orders_updated?: number | null
           last_sync_at?: string | null
           last_sync_status?: string | null
+          last_test_at?: string | null
+          last_test_message?: string | null
+          last_test_ok?: boolean | null
           shop_domain?: string | null
           store_url?: string | null
-          token_stored?: boolean | null
           updated_at?: string
           webhook_endpoint?: string | null
-        }
-        Relationships: []
-      }
-      shopify_installations: {
-        Row: {
-          access_token: string
-          granted_scopes: string[]
-          id: number
-          install_status: string
-          installed_at: string
-          oauth_state_expires_at: string | null
-          oauth_state_hash: string | null
-          shop_domain: string
-          updated_at: string
-        }
-        Insert: {
-          access_token: string
-          granted_scopes?: string[]
-          id?: number
-          install_status?: string
-          installed_at?: string
-          oauth_state_expires_at?: string | null
-          oauth_state_hash?: string | null
-          shop_domain: string
-          updated_at?: string
-        }
-        Update: {
-          access_token?: string
-          granted_scopes?: string[]
-          id?: number
-          install_status?: string
-          installed_at?: string
-          oauth_state_expires_at?: string | null
-          oauth_state_hash?: string | null
-          shop_domain?: string
-          updated_at?: string
         }
         Relationships: []
       }
