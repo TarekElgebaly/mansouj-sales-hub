@@ -60,6 +60,7 @@ export function PayrollTab() {
     <>
       <Card>
         <CardContent className="p-3 flex items-center gap-3">
+          <div className="text-xs text-muted-foreground self-center">{label}</div>
           <div className="text-sm text-muted-foreground">{rows.length} employees · Active monthly payroll: <span className="font-semibold text-foreground">{egp(activeTotal)}</span></div>
           <div className="ml-auto">
             <Button onClick={() => { setEditing(null); setOpen(true); }}>
