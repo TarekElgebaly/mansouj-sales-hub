@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmtDateTime } from "@/lib/format";
@@ -11,11 +10,35 @@ export const Route = createFileRoute("/_authenticated/shopify")({
   component: ShopifyPage,
 });
 
+type ShopifySyncStatus = {
+  api_version?: string;
+  shop_domain?: string | null;
+  configured_shop_domain?: string | null;
+  installed_shop_domain?: string | null;
+  domain_mismatch?: boolean;
+  install_status?: string | null;
+  token_stored?: boolean | null;
+  granted_scopes?: string[] | null;
+  installed_at?: string | null;
+  last_sync_at?: string | null;
+  last_sync_status?: string | null;
+  last_orders_imported?: number | null;
+  last_orders_updated?: number | null;
+  last_connection_test_at?: string | null;
+  last_connection_test_status?: string | null;
+  last_error?: string | null;
+  last_connection_test_error?: string | null;
+  updated_at?: string | null;
+};
+
 function ShopifyPage() {
   const { data: settings, isLoading } = useQuery({
     queryKey: ["shopify-settings"],
-    queryFn: async () =>
-      (await supabase.from("shopify_sync_settings").select("*").eq("id", 1).maybeSingle()).data,
+    queryFn: async () => {
+      const res = await fetch("/api/shopify/sync-status");
+      if (!res.ok) throw new Error("Could not load Shopify sync status.");
+      return (await res.json()) as ShopifySyncStatus;
+    },
     refetchInterval: 15000,
   });
 
@@ -27,7 +50,7 @@ function ShopifyPage() {
     Boolean(settings?.token_stored);
   const hasError =
     syncStatus === "error" || Boolean(settings?.last_error || settings?.last_connection_test_error);
-  const shopDomain = settings?.shop_domain ?? settings?.store_url ?? "Not connected";
+  const shopDomain = settings?.shop_domain ?? "Not connected";
 
   return (
     <main className="min-h-screen bg-muted/30 px-4 py-6 md:px-8">
@@ -64,6 +87,10 @@ function ShopifyPage() {
               <>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <StatusItem label="Connected shop" value={shopDomain} />
+                  {settings?.configured_shop_domain &&
+                    settings.configured_shop_domain !== shopDomain && (
+                      <StatusItem label="Configured shop" value={settings.configured_shop_domain} />
+                    )}
                   <StatusItem label="Install status" value={installStatus} />
                   <StatusItem
                     label="Admin API token"
