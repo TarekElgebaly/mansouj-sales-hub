@@ -75,7 +75,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
                 last_sync_at: new Date().toISOString(),
                 last_sync_status: "error",
                 last_error: msg,
-              } as never)
+              })
               .eq("id", 1);
             return Response.json({ ok: false, error: msg }, { status: 400 });
           }
