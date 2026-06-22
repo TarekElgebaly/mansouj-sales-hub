@@ -32,7 +32,7 @@ async function requireOpsUser(request: Request) {
   return { ok: true as const, supabaseAdmin };
 }
 
-export const Route = createFileRoute("/api/shopify/test-connection" as never)({
+export const Route = createFileRoute("/api/shopify/test-connection")({
   server: {
     handlers: {
       GET: async ({ request }) => {
