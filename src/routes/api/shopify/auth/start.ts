@@ -1,49 +1,73 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { randomBytes } from "node:crypto";
+import {
+  buildShopifyAuthUrl,
+  createOAuthState,
+  getShopifyScopes,
+  normalizeShopDomain,
+  validateShopDomain,
+} from "@/lib/shopify-auth.server";
 
-function isValidShopDomain(d: string): boolean {
-  // Accept only "<store>.myshopify.com" with safe chars.
-  return /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i.test(d);
-}
-
-export const Route = createFileRoute("/api/shopify/auth/start")({
+export const Route = createFileRoute("/api/shopify/auth/start" as never)({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
         const clientId = process.env.SHOPIFY_CLIENT_ID;
-        const scopes = process.env.SHOPIFY_SCOPES;
-        const defaultShop = process.env.SHOPIFY_SHOP_DOMAIN;
-
-        if (!clientId) return new Response("Missing SHOPIFY_CLIENT_ID", { status: 500 });
-        if (!scopes) return new Response("Missing SHOPIFY_SCOPES", { status: 500 });
-
-        const url = new URL(request.url);
-        let shop = (url.searchParams.get("shop") || defaultShop || "").trim().toLowerCase();
-        shop = shop.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-        if (!shop) return new Response("Missing shop. Provide ?shop=<store>.myshopify.com or set SHOPIFY_SHOP_DOMAIN.", { status: 400 });
-        if (!isValidShopDomain(shop)) {
-          return new Response(`Invalid shop domain "${shop}". Must end with .myshopify.com`, { status: 400 });
+        if (!clientId) {
+          return Response.json({ ok: false, error: "Missing SHOPIFY_CLIENT_ID." }, { status: 500 });
         }
 
-        const state = randomBytes(32).toString("hex");
+        const configuredShop = process.env.SHOPIFY_SHOP_DOMAIN;
+        if (!configuredShop) {
+          return Response.json({ ok: false, error: "Missing SHOPIFY_SHOP_DOMAIN." }, { status: 500 });
+        }
 
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        // Clean any old/expired states for tidiness (best-effort).
-        await supabaseAdmin.from("shopify_oauth_states").delete().lt("expires_at", new Date().toISOString());
-        const { error: insErr } = await supabaseAdmin
-          .from("shopify_oauth_states")
-          .insert({ state, shop_domain: shop });
-        if (insErr) return new Response(`Failed to store OAuth state: ${insErr.message}`, { status: 500 });
+        const url = new URL(request.url);
+        const shop = normalizeShopDomain(url.searchParams.get("shop") || configuredShop);
+        if (!validateShopDomain(shop)) {
+          return Response.json(
+            { ok: false, error: "Invalid shop domain. Expected a domain ending with .myshopify.com." },
+            { status: 400 }
+          );
+        }
 
-        const redirectUri = `${url.origin}/api/shopify/auth/callback`;
-        const authorize = new URL(`https://${shop}/admin/oauth/authorize`);
-        authorize.searchParams.set("client_id", clientId);
-        authorize.searchParams.set("scope", scopes);
-        authorize.searchParams.set("redirect_uri", redirectUri);
-        authorize.searchParams.set("state", state);
-        authorize.searchParams.set("grant_options[]", "");
+        const scopes = getShopifyScopes();
+        if (!process.env.SHOPIFY_SCOPES || scopes.length === 0) {
+          return Response.json({ ok: false, error: "Missing SHOPIFY_SCOPES." }, { status: 500 });
+        }
 
-        return Response.redirect(authorize.toString(), 302);
+        const { state, stateHash } = createOAuthState();
+        await supabaseAdmin.from("shopify_installations").upsert(
+          {
+            id: 1,
+            shop_domain: shop,
+            access_token: "pending",
+            granted_scopes: [],
+            install_status: "pending",
+            oauth_state_hash: stateHash,
+            oauth_state_expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+            updated_at: new Date().toISOString(),
+          } as never,
+          { onConflict: "id" }
+        );
+
+        await supabaseAdmin
+          .from("shopify_sync_settings")
+          .update({
+            store_url: shop,
+            shop_domain: shop,
+            install_status: "pending",
+            token_stored: false,
+            last_connection_test_error: null,
+          } as never)
+          .eq("id", 1);
+
+        const redirectUri =
+          process.env.SHOPIFY_REDIRECT_URI || `${url.origin}/api/shopify/auth/callback`;
+        const authUrl = buildShopifyAuthUrl({ shop, clientId, scopes, redirectUri, state });
+
+        return Response.redirect(authUrl.toString(), 302);
       },
     },
   },
