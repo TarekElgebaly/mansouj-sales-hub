@@ -7,127 +7,147 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
     handlers: {
       POST: async ({ request }) => {
         try {
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-        // Require an authenticated user (any signed-in app user can trigger).
-        const authHeader = request.headers.get("authorization") ?? "";
-        const token = authHeader.replace(/^Bearer\s+/i, "");
-        if (!token) return new Response("Unauthorized", { status: 401 });
-        const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
-        if (userErr || !userData?.user) return new Response("Unauthorized", { status: 401 });
+          // Require an authenticated user (any signed-in app user can trigger).
+          const authHeader = request.headers.get("authorization") ?? "";
+          const token = authHeader.replace(/^Bearer\s+/i, "");
+          if (!token) return new Response("Unauthorized", { status: 401 });
+          const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
+          if (userErr || !userData?.user) return new Response("Unauthorized", { status: 401 });
 
-        // Require admin or operations role to trigger a Shopify sync.
-        const { data: roleRow } = await supabaseAdmin
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", userData.user.id)
-          .in("role", ["admin", "operations"])
-          .maybeSingle();
-        if (!roleRow) return new Response("Forbidden", { status: 403 });
+          // Require admin or operations role to trigger a Shopify sync.
+          const { data: roleRow } = await supabaseAdmin
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", userData.user.id)
+            .in("role", ["admin", "operations"])
+            .maybeSingle();
+          if (!roleRow) return new Response("Forbidden", { status: 403 });
 
-        const apiVersion = getShopifyApiVersion();
-        const { data: installation } = await supabaseAdmin
-          .from("shopify_installations")
-          .select("shop_domain,access_token,install_status")
-          .eq("id", 1)
-          .maybeSingle();
+          const apiVersion = getShopifyApiVersion();
+          const { data: installation } = await supabaseAdmin
+            .from("shopify_installations")
+            .select("shop_domain,access_token")
+            .eq("id", 1)
+            .maybeSingle();
 
-        let accessToken = installation?.access_token || "";
-        let domain = installation?.shop_domain || process.env.SHOPIFY_SHOP_DOMAIN || process.env.SHOPIFY_STORE_DOMAIN || "";
+          const { data: settings } = await supabaseAdmin
+            .from("shopify_sync_settings")
+            .select("shop_domain,store_url")
+            .eq("id", 1)
+            .maybeSingle();
 
-        // Temporary fallback for older deployments that still use manual token secrets.
-        if (!accessToken || accessToken === "pending") {
-          accessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SHOPIFY_ACCESS_TOKEN || "";
-        }
-        domain = normalizeShopDomain(domain);
+          let accessToken =
+            installation?.access_token && installation.access_token !== "pending"
+              ? installation.access_token
+              : "";
+          let domain =
+            installation?.shop_domain ||
+            settings?.shop_domain ||
+            settings?.store_url ||
+            process.env.SHOPIFY_SHOP_DOMAIN ||
+            process.env.SHOPIFY_STORE_DOMAIN ||
+            "";
 
-        if (!domain || !accessToken || accessToken === "pending") {
-          return Response.json(
-            { ok: false, error: "Shopify is not configured. Connect Shopify first, then test the connection." },
-            { status: 400 }
-          );
-        }
-
-        const body = await request.json().catch(() => ({}) as { limit?: number; since?: string });
-        const limit = Math.min(Math.max(Number(body?.limit) || 50, 1), 250);
-
-        // Mark in-progress
-        await supabaseAdmin
-          .from("shopify_sync_settings")
-          .update({ last_sync_status: "running", last_error: null })
-          .eq("id", 1);
-
-        const url = new URL(`https://${domain}/admin/api/${apiVersion}/orders.json`);
-        url.searchParams.set("status", "any");
-        url.searchParams.set("limit", String(limit));
-        if (body?.since) url.searchParams.set("updated_at_min", body.since);
-
-        let imported = 0;
-        let updated = 0;
-        const errors: string[] = [];
-
-        try {
-          const res = await fetch(url.toString(), {
-            headers: {
-              "X-Shopify-Access-Token": accessToken,
-              "Content-Type": "application/json",
-            },
-          });
-          if (!res.ok) {
-            const text = await res.text();
-            throw new Error(`Shopify ${res.status}: ${text.slice(0, 300)}`);
+          // Temporary fallback for older deployments that still use manual token secrets.
+          if (!accessToken) {
+            accessToken =
+              process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SHOPIFY_ACCESS_TOKEN || "";
           }
-          const json = (await res.json()) as { orders: ShopifyOrderPayload[] };
-          const orders = json.orders ?? [];
+          domain = normalizeShopDomain(domain);
 
-          for (const order of orders) {
-            try {
-              const sid = String(order.id);
-              const { data: existing } = await supabaseAdmin
-                .from("orders")
-                .select("id")
-                .eq("shopify_order_id", sid)
-                .maybeSingle();
-              await processShopifyOrder(order);
-              if (existing?.id) updated++;
-              else imported++;
-            } catch (e) {
-              errors.push(`order ${order.id}: ${(e as Error).message}`);
+          if (!domain || !accessToken || accessToken === "pending") {
+            return Response.json(
+              {
+                ok: false,
+                error:
+                  "Shopify is not configured. Connect Shopify first, then test the connection.",
+              },
+              { status: 400 },
+            );
+          }
+
+          const body = await request.json().catch(() => ({}) as { limit?: number; since?: string });
+          const limit = Math.min(Math.max(Number(body?.limit) || 50, 1), 250);
+
+          // Mark in-progress
+          await supabaseAdmin
+            .from("shopify_sync_settings")
+            .update({ last_sync_status: "running", last_error: null })
+            .eq("id", 1);
+
+          const url = new URL(`https://${domain}/admin/api/${apiVersion}/orders.json`);
+          url.searchParams.set("status", "any");
+          url.searchParams.set("limit", String(limit));
+          if (body?.since) url.searchParams.set("updated_at_min", body.since);
+
+          let imported = 0;
+          let updated = 0;
+          const errors: string[] = [];
+
+          try {
+            const res = await fetch(url.toString(), {
+              headers: {
+                "X-Shopify-Access-Token": accessToken,
+                "Content-Type": "application/json",
+              },
+            });
+            if (!res.ok) {
+              const text = await res.text();
+              throw new Error(`Shopify ${res.status}: ${text.slice(0, 300)}`);
             }
+            const json = (await res.json()) as { orders: ShopifyOrderPayload[] };
+            const orders = json.orders ?? [];
+
+            for (const order of orders) {
+              try {
+                const sid = String(order.id);
+                const { data: existing } = await supabaseAdmin
+                  .from("orders")
+                  .select("id")
+                  .eq("shopify_order_id", sid)
+                  .maybeSingle();
+                await processShopifyOrder(order);
+                if (existing?.id) updated++;
+                else imported++;
+              } catch (e) {
+                errors.push(`order ${order.id}: ${(e as Error).message}`);
+              }
+            }
+
+            await supabaseAdmin.from("migration_logs").insert({
+              source: "shopify",
+              entity: "orders",
+              status: errors.length ? "partial" : "success",
+              message: `imported=${imported} updated=${updated} errors=${errors.length}${errors.length ? " | " + errors.slice(0, 3).join(" | ") : ""}`,
+              rows_processed: imported + updated,
+            } as never);
+
+            await supabaseAdmin
+              .from("shopify_sync_settings")
+              .update({
+                last_sync_at: new Date().toISOString(),
+                last_sync_status: errors.length ? "partial" : "success",
+                last_orders_imported: imported,
+                last_orders_updated: updated,
+                last_error: errors.length ? errors.slice(0, 5).join(" | ") : null,
+              })
+              .eq("id", 1);
+
+            return Response.json({ ok: true, imported, updated, errors });
+          } catch (e) {
+            const msg = (e as Error).message;
+            await supabaseAdmin
+              .from("shopify_sync_settings")
+              .update({
+                last_sync_at: new Date().toISOString(),
+                last_sync_status: "error",
+                last_error: msg,
+              })
+              .eq("id", 1);
+            return Response.json({ ok: false, error: msg }, { status: 500 });
           }
-
-          await supabaseAdmin.from("migration_logs").insert({
-            source: "shopify",
-            entity: "orders",
-            status: errors.length ? "partial" : "success",
-            message: `imported=${imported} updated=${updated} errors=${errors.length}${errors.length ? " | " + errors.slice(0, 3).join(" | ") : ""}`,
-            rows_processed: imported + updated,
-          } as never);
-
-          await supabaseAdmin
-            .from("shopify_sync_settings")
-            .update({
-              last_sync_at: new Date().toISOString(),
-              last_sync_status: errors.length ? "partial" : "success",
-              last_orders_imported: imported,
-              last_orders_updated: updated,
-              last_error: errors.length ? errors.slice(0, 5).join(" | ") : null,
-            })
-            .eq("id", 1);
-
-          return Response.json({ ok: true, imported, updated, errors });
-        } catch (e) {
-          const msg = (e as Error).message;
-          await supabaseAdmin
-            .from("shopify_sync_settings")
-            .update({
-              last_sync_at: new Date().toISOString(),
-              last_sync_status: "error",
-              last_error: msg,
-            })
-            .eq("id", 1);
-          return Response.json({ ok: false, error: msg }, { status: 500 });
-        }
         } catch (outer) {
           console.error("sync-orders fatal:", outer);
           const msg = outer instanceof Error ? outer.message : String(outer);
