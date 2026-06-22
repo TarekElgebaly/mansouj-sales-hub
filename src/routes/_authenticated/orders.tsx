@@ -20,6 +20,7 @@ import { useUser } from "@/hooks/use-user";
 import { Download, LayoutGrid, Plus, RefreshCw, Table as TableIcon } from "lucide-react";
 import Papa from "papaparse";
 import { toast } from "sonner";
+import { OrderDetail } from "@/components/order-detail";
 
 export const Route = createFileRoute("/_authenticated/orders")({
   head: () => ({ meta: [{ title: "Orders — Mansouj" }] }),
