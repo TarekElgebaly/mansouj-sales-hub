@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,6 +9,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { ORDER_STATUSES, egp, fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { OrderDetail } from "@/components/order-detail";
+import { usePeriod } from "./period-filter";
 
 const num = (v: unknown): number | null => {
   if (v === null || v === undefined || v === "") return null;
@@ -20,10 +20,7 @@ const num = (v: unknown): number | null => {
 const cell = (v: number | null) => (v === null ? <span className="text-muted-foreground">—</span> : egp(v));
 
 export function OrdersProfitTab() {
-  const today = new Date().toISOString().slice(0, 10);
-  const monthAgo = new Date(); monthAgo.setDate(monthAgo.getDate() - 30);
-  const [from, setFrom] = useState(monthAgo.toISOString().slice(0, 10));
-  const [to, setTo] = useState(today);
+  const { from, to, label } = usePeriod();
   const [orderStatus, setOrderStatus] = useState<string>("all");
   const [city, setCity] = useState<string>("all");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -81,14 +78,7 @@ export function OrdersProfitTab() {
     <>
       <Card>
         <CardContent className="p-3 flex flex-wrap items-end gap-3">
-          <div>
-            <Label className="text-xs">From</Label>
-            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-44 h-9" />
-          </div>
-          <div>
-            <Label className="text-xs">To</Label>
-            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-44 h-9" />
-          </div>
+          <div className="text-xs text-muted-foreground self-center">{label}</div>
           <div>
             <Label className="text-xs">Status</Label>
             <Select value={orderStatus} onValueChange={setOrderStatus}>
