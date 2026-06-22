@@ -12,7 +12,7 @@ export const Route = createFileRoute("/api/shopify/sync-status")({
         );
 
         const { data: installation } = await supabaseAdmin
-          .from("shopify_sync_settings")
+          .from("shopify_installations")
           .select("shop_domain,access_token,granted_scopes,install_status,installed_at,updated_at")
           .eq("id", 1)
           .maybeSingle();
@@ -23,7 +23,13 @@ export const Route = createFileRoute("/api/shopify/sync-status")({
           .eq("id", 1)
           .maybeSingle();
 
-        const installedShopDomain = normalizeShopDomain(installation?.shop_domain || "");
+        const settingsAccessToken =
+          typeof (settings as { access_token?: unknown } | null)?.access_token === "string"
+            ? ((settings as { access_token?: string } | null)?.access_token ?? "")
+            : "";
+        const installedShopDomain = normalizeShopDomain(
+          settings?.shop_domain || installation?.shop_domain || "",
+        );
         const settingsShopDomain = normalizeShopDomain(
           settings?.shop_domain || settings?.store_url || "",
         );
@@ -35,7 +41,8 @@ export const Route = createFileRoute("/api/shopify/sync-status")({
             configuredShopDomain !== installedShopDomain,
         );
         const tokenStored = Boolean(
-          installation?.access_token && installation.access_token !== "pending",
+          (settingsAccessToken && settingsAccessToken !== "pending") ||
+            (installation?.access_token && installation.access_token !== "pending"),
         );
         const mismatchMessage = domainMismatch
           ? `Configured Shopify store is ${configuredShopDomain}, but the saved OAuth install is for ${installedShopDomain}. Reinstall the Shopify app for ${configuredShopDomain}.`
