@@ -75,7 +75,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
                 last_sync_at: new Date().toISOString(),
                 last_sync_status: "error",
                 last_error: msg,
-              } as never)
+              })
               .eq("id", 1);
             return Response.json({ ok: false, error: msg }, { status: 400 });
           }
@@ -119,7 +119,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
                     last_sync_at: new Date().toISOString(),
                     last_sync_status: "error",
                     last_error: msg,
-                  } as never)
+                  })
                   .eq("id", 1);
                 return Response.json({ ok: false, error: msg }, { status: 401 });
               }
@@ -150,7 +150,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
               status: errors.length ? "partial" : "success",
               message: `imported=${imported} updated=${updated} errors=${errors.length}${errors.length ? " | " + errors.slice(0, 3).join(" | ") : ""}`,
               rows_processed: imported + updated,
-            } as never);
+            });
 
             await supabaseAdmin
               .from("shopify_sync_settings")

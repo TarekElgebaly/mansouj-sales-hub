@@ -7,7 +7,7 @@ import {
   validateShopDomain,
 } from "@/lib/shopify-auth.server";
 
-export const Route = createFileRoute("/api/shopify/auth/start" as never)({
+export const Route = createFileRoute("/api/shopify/auth/start")({
   server: {
     handlers: {
       GET: async ({ request }) => {
@@ -44,19 +44,6 @@ export const Route = createFileRoute("/api/shopify/auth/start" as never)({
         }
 
         const { state, stateHash } = createOAuthState();
-        await supabaseAdmin.from("shopify_installations").upsert(
-          {
-            id: 1,
-            shop_domain: shop,
-            access_token: "pending",
-            granted_scopes: [],
-            install_status: "pending",
-            oauth_state_hash: stateHash,
-            oauth_state_expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-            updated_at: new Date().toISOString(),
-          } as never,
-          { onConflict: "id" },
-        );
 
         await supabaseAdmin
           .from("shopify_sync_settings")
@@ -64,13 +51,17 @@ export const Route = createFileRoute("/api/shopify/auth/start" as never)({
             store_url: shop,
             shop_domain: shop,
             access_token: "pending",
+            granted_scopes: [],
             install_status: "pending",
             token_stored: false,
             last_sync_status: "idle",
             last_error: null,
             last_connection_test_status: "pending",
             last_connection_test_error: null,
-          } as never)
+            oauth_state_hash: stateHash,
+            oauth_state_expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+            updated_at: new Date().toISOString(),
+          })
           .eq("id", 1);
 
         const redirectUri =

@@ -32,7 +32,7 @@ async function requireOpsUser(request: Request) {
   return { ok: true as const, supabaseAdmin };
 }
 
-export const Route = createFileRoute("/api/shopify/test-connection" as never)({
+export const Route = createFileRoute("/api/shopify/test-connection")({
   server: {
     handlers: {
       GET: async ({ request }) => {
@@ -72,7 +72,7 @@ export const Route = createFileRoute("/api/shopify/test-connection" as never)({
               last_connection_test_at: new Date().toISOString(),
               last_connection_test_status: "wrong_store",
               last_connection_test_error: message,
-            } as never)
+            })
             .eq("id", 1);
           return Response.json(
             {
@@ -107,7 +107,7 @@ export const Route = createFileRoute("/api/shopify/test-connection" as never)({
                 last_connection_test_at: new Date().toISOString(),
                 last_connection_test_status: shopRes.status === 401 ? "invalid_token" : "error",
                 last_connection_test_error: message,
-              } as never)
+              })
               .eq("id", 1);
             return Response.json(
               { success: false, error: message },
@@ -134,7 +134,7 @@ export const Route = createFileRoute("/api/shopify/test-connection" as never)({
                 last_connection_test_at: new Date().toISOString(),
                 last_connection_test_status: scopesRes.status === 401 ? "invalid_token" : "error",
                 last_connection_test_error: message,
-              } as never)
+              })
               .eq("id", 1);
             return Response.json(
               { success: false, error: message },
@@ -159,7 +159,7 @@ export const Route = createFileRoute("/api/shopify/test-connection" as never)({
               last_connection_test_at: new Date().toISOString(),
               last_connection_test_status: success ? "success" : "missing_scopes",
               last_connection_test_error: error,
-            } as never)
+            })
             .eq("id", 1);
 
           return Response.json({
@@ -178,7 +178,7 @@ export const Route = createFileRoute("/api/shopify/test-connection" as never)({
               last_connection_test_at: new Date().toISOString(),
               last_connection_test_status: "error",
               last_connection_test_error: message,
-            } as never)
+            })
             .eq("id", 1);
           return Response.json({ success: false, error: message }, { status: 500 });
         }
