@@ -55,18 +55,18 @@ function FinancePage() {
         const cost = num(o.items_cost);
         const shipping = num(o.shipping_cost);
         const packaging = num(o.packaging_cost);
-        const net = selling === null
-          ? null
-          : selling - (cost ?? 0) - (shipping ?? 0) - (packaging ?? 0);
-        return { id: o.id, order_number: o.order_number, cost, selling, shipping, packaging, net };
+        const gross = selling === null ? null : selling - (cost ?? 0);
+        const net = gross === null ? null : gross - (shipping ?? 0) - (packaging ?? 0);
+        return { id: o.id, order_number: o.order_number, selling, cost, gross, shipping, packaging, net };
       });
   }, [orders, orderStatus, city]);
 
   const totals = useMemo(() => {
-    const t = { selling: 0, cost: 0, shipping: 0, packaging: 0, net: 0 };
+    const t = { selling: 0, cost: 0, gross: 0, shipping: 0, packaging: 0, net: 0 };
     rows.forEach((r) => {
       t.selling += r.selling ?? 0;
       t.cost += r.cost ?? 0;
+      t.gross += r.gross ?? 0;
       t.shipping += r.shipping ?? 0;
       t.packaging += r.packaging ?? 0;
       t.net += r.net ?? 0;
@@ -116,8 +116,9 @@ function FinancePage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Order Number</TableHead>
-                <TableHead className="text-right">Order Cost</TableHead>
                 <TableHead className="text-right">Selling Price</TableHead>
+                <TableHead className="text-right">Order Cost</TableHead>
+                <TableHead className="text-right">Gross Profit</TableHead>
                 <TableHead className="text-right">Shipping Cost</TableHead>
                 <TableHead className="text-right">Packaging Cost</TableHead>
                 <TableHead className="text-right">Net Profit</TableHead>
@@ -127,8 +128,14 @@ function FinancePage() {
               {rows.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">{r.order_number}</TableCell>
-                  <TableCell className="text-right">{cell(r.cost)}</TableCell>
                   <TableCell className="text-right">{cell(r.selling)}</TableCell>
+                  <TableCell className="text-right">{cell(r.cost)}</TableCell>
+                  <TableCell className={cn(
+                    "text-right font-medium",
+                    r.gross === null ? "" : r.gross >= 0 ? "text-emerald-600" : "text-red-600",
+                  )}>
+                    {cell(r.gross)}
+                  </TableCell>
                   <TableCell className="text-right">{cell(r.shipping)}</TableCell>
                   <TableCell className="text-right">{cell(r.packaging)}</TableCell>
                   <TableCell className={cn(
@@ -140,15 +147,21 @@ function FinancePage() {
                 </TableRow>
               ))}
               {rows.length === 0 && (
-                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No orders match.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No orders match.</TableCell></TableRow>
               )}
             </TableBody>
             {rows.length > 0 && (
               <TableFooter>
                 <TableRow>
                   <TableCell className="font-semibold">Totals</TableCell>
-                  <TableCell className="text-right font-semibold">{egp(totals.cost)}</TableCell>
                   <TableCell className="text-right font-semibold">{egp(totals.selling)}</TableCell>
+                  <TableCell className="text-right font-semibold">{egp(totals.cost)}</TableCell>
+                  <TableCell className={cn(
+                    "text-right font-semibold",
+                    totals.gross >= 0 ? "text-emerald-600" : "text-red-600",
+                  )}>
+                    {egp(totals.gross)}
+                  </TableCell>
                   <TableCell className="text-right font-semibold">{egp(totals.shipping)}</TableCell>
                   <TableCell className="text-right font-semibold">{egp(totals.packaging)}</TableCell>
                   <TableCell className={cn(
