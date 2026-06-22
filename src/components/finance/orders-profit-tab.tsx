@@ -78,14 +78,7 @@ export function OrdersProfitTab() {
     <>
       <Card>
         <CardContent className="p-3 flex flex-wrap items-end gap-3">
-          <div>
-            <Label className="text-xs">From</Label>
-            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-44 h-9" />
-          </div>
-          <div>
-            <Label className="text-xs">To</Label>
-            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-44 h-9" />
-          </div>
+          <div className="text-xs text-muted-foreground self-center">{label}</div>
           <div>
             <Label className="text-xs">Status</Label>
             <Select value={orderStatus} onValueChange={setOrderStatus}>
