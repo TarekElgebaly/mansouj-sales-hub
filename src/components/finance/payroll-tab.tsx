@@ -29,7 +29,7 @@ export function PayrollTab() {
   const { data: employees } = useQuery({
     queryKey: ["employees"],
     queryFn: async () => {
-      const { data } = await supabase.from("employees" as never).select("*").order("created_at", { ascending: true });
+      const { data } = await (supabase as any).from("employees").select("*").order("created_at", { ascending: true });
       return (data ?? []) as Employee[];
     },
   });
@@ -39,7 +39,7 @@ export function PayrollTab() {
 
   const toggleActive = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      const { error } = await supabase.from("employees" as never).update({ active }).eq("id", id);
+      const { error } = await (supabase as any).from("employees").update({ active }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["employees"] }),
@@ -47,7 +47,7 @@ export function PayrollTab() {
   });
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("employees" as never).delete().eq("id", id);
+      const { error } = await (supabase as any).from("employees").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Employee deleted"); qc.invalidateQueries({ queryKey: ["employees"] }); },
@@ -135,10 +135,10 @@ function EmployeeDialog({ open, onOpenChange, editing, onSaved }: {
     mutationFn: async () => {
       const payload = { name, role, monthly_salary: Number(salary || 0), active };
       if (editing) {
-        const { error } = await supabase.from("employees" as never).update(payload).eq("id", editing.id);
+        const { error } = await (supabase as any).from("employees").update(payload).eq("id", editing.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("employees" as never).insert(payload);
+        const { error } = await (supabase as any).from("employees").insert(payload);
         if (error) throw error;
       }
     },

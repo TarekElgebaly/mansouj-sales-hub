@@ -50,7 +50,7 @@ export function ProfitLossTab() {
   const { data: expenses } = useQuery({
     queryKey: ["pl-expenses", from, to],
     queryFn: async () => {
-      const { data } = await supabase.from("expenses" as never).select("category,amount,expense_date")
+      const { data } = await (supabase as any).from("expenses").select("category,amount,expense_date")
         .gte("expense_date", from).lte("expense_date", to);
       return (data ?? []) as { category: string; amount: number; expense_date: string }[];
     },
@@ -58,7 +58,7 @@ export function ProfitLossTab() {
   const { data: employees } = useQuery({
     queryKey: ["pl-employees"],
     queryFn: async () => {
-      const { data } = await supabase.from("employees" as never).select("monthly_salary,active");
+      const { data } = await (supabase as any).from("employees").select("monthly_salary,active");
       return (data ?? []) as { monthly_salary: number; active: boolean }[];
     },
   });

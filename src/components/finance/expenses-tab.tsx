@@ -37,7 +37,7 @@ export function ExpensesTab() {
   const { data: expenses } = useQuery({
     queryKey: ["expenses", from, to],
     queryFn: async () => {
-      const { data } = await supabase.from("expenses" as never).select("*")
+      const { data } = await (supabase as any).from("expenses").select("*")
         .gte("expense_date", from).lte("expense_date", to)
         .order("expense_date", { ascending: false });
       return (data ?? []) as Expense[];
@@ -49,7 +49,7 @@ export function ExpensesTab() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("expenses" as never).delete().eq("id", id);
+      const { error } = await (supabase as any).from("expenses").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Expense deleted"); qc.invalidateQueries({ queryKey: ["expenses"] }); },
@@ -154,10 +154,10 @@ function ExpenseDialog({ open, onOpenChange, editing, onSaved }: {
     mutationFn: async () => {
       const payload = { expense_date: date, category: cat, description: desc || null, amount: Number(amount || 0) };
       if (editing) {
-        const { error } = await supabase.from("expenses" as never).update(payload).eq("id", editing.id);
+        const { error } = await (supabase as any).from("expenses").update(payload).eq("id", editing.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("expenses" as never).insert(payload);
+        const { error } = await (supabase as any).from("expenses").insert(payload);
         if (error) throw error;
       }
     },
