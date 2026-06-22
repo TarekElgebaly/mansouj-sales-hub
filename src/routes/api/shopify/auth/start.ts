@@ -7,7 +7,7 @@ import {
   validateShopDomain,
 } from "@/lib/shopify-auth.server";
 
-export const Route = createFileRoute("/api/shopify/auth/start" as never)({
+export const Route = createFileRoute("/api/shopify/auth/start")({
   server: {
     handlers: {
       GET: async ({ request }) => {

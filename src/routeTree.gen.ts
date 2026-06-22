@@ -21,9 +21,11 @@ import { Route as AuthenticatedFinanceRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCustomersRouteImport } from './routes/_authenticated/customers'
 import { Route as AuthenticatedAreasRouteImport } from './routes/_authenticated/areas'
+import { Route as ApiShopifyTestConnectionRouteImport } from './routes/api/shopify/test-connection'
 import { Route as ApiShopifySyncStatusRouteImport } from './routes/api/shopify/sync-status'
 import { Route as ApiShopifySyncOrdersRouteImport } from './routes/api/shopify/sync-orders'
 import { Route as ApiShopifyAuthStartRouteImport } from './routes/api/shopify/auth/start'
+import { Route as ApiShopifyAuthCallbackRouteImport } from './routes/api/shopify/auth/callback'
 import { Route as ApiPublicShopifyWebhooksOrdersUpdatedRouteImport } from './routes/api/public/shopify/webhooks/orders-updated'
 import { Route as ApiPublicShopifyWebhooksOrdersCreateRouteImport } from './routes/api/public/shopify/webhooks/orders-create'
 
@@ -86,6 +88,12 @@ const AuthenticatedAreasRoute = AuthenticatedAreasRouteImport.update({
   path: '/areas',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiShopifyTestConnectionRoute =
+  ApiShopifyTestConnectionRouteImport.update({
+    id: '/api/shopify/test-connection',
+    path: '/api/shopify/test-connection',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiShopifySyncStatusRoute = ApiShopifySyncStatusRouteImport.update({
   id: '/api/shopify/sync-status',
   path: '/api/shopify/sync-status',
@@ -99,6 +107,11 @@ const ApiShopifySyncOrdersRoute = ApiShopifySyncOrdersRouteImport.update({
 const ApiShopifyAuthStartRoute = ApiShopifyAuthStartRouteImport.update({
   id: '/api/shopify/auth/start',
   path: '/api/shopify/auth/start',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiShopifyAuthCallbackRoute = ApiShopifyAuthCallbackRouteImport.update({
+  id: '/api/shopify/auth/callback',
+  path: '/api/shopify/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicShopifyWebhooksOrdersUpdatedRoute =
@@ -128,6 +141,8 @@ export interface FileRoutesByFullPath {
   '/shopify': typeof AuthenticatedShopifyRoute
   '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
+  '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
+  '/api/shopify/auth/callback': typeof ApiShopifyAuthCallbackRoute
   '/api/shopify/auth/start': typeof ApiShopifyAuthStartRoute
   '/api/public/shopify/webhooks/orders-create': typeof ApiPublicShopifyWebhooksOrdersCreateRoute
   '/api/public/shopify/webhooks/orders-updated': typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
@@ -146,6 +161,8 @@ export interface FileRoutesByTo {
   '/shopify': typeof AuthenticatedShopifyRoute
   '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
+  '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
+  '/api/shopify/auth/callback': typeof ApiShopifyAuthCallbackRoute
   '/api/shopify/auth/start': typeof ApiShopifyAuthStartRoute
   '/api/public/shopify/webhooks/orders-create': typeof ApiPublicShopifyWebhooksOrdersCreateRoute
   '/api/public/shopify/webhooks/orders-updated': typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
@@ -166,6 +183,8 @@ export interface FileRoutesById {
   '/_authenticated/shopify': typeof AuthenticatedShopifyRoute
   '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
+  '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
+  '/api/shopify/auth/callback': typeof ApiShopifyAuthCallbackRoute
   '/api/shopify/auth/start': typeof ApiShopifyAuthStartRoute
   '/api/public/shopify/webhooks/orders-create': typeof ApiPublicShopifyWebhooksOrdersCreateRoute
   '/api/public/shopify/webhooks/orders-updated': typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
@@ -186,6 +205,8 @@ export interface FileRouteTypes {
     | '/shopify'
     | '/api/shopify/sync-orders'
     | '/api/shopify/sync-status'
+    | '/api/shopify/test-connection'
+    | '/api/shopify/auth/callback'
     | '/api/shopify/auth/start'
     | '/api/public/shopify/webhooks/orders-create'
     | '/api/public/shopify/webhooks/orders-updated'
@@ -204,6 +225,8 @@ export interface FileRouteTypes {
     | '/shopify'
     | '/api/shopify/sync-orders'
     | '/api/shopify/sync-status'
+    | '/api/shopify/test-connection'
+    | '/api/shopify/auth/callback'
     | '/api/shopify/auth/start'
     | '/api/public/shopify/webhooks/orders-create'
     | '/api/public/shopify/webhooks/orders-updated'
@@ -223,6 +246,8 @@ export interface FileRouteTypes {
     | '/_authenticated/shopify'
     | '/api/shopify/sync-orders'
     | '/api/shopify/sync-status'
+    | '/api/shopify/test-connection'
+    | '/api/shopify/auth/callback'
     | '/api/shopify/auth/start'
     | '/api/public/shopify/webhooks/orders-create'
     | '/api/public/shopify/webhooks/orders-updated'
@@ -234,6 +259,8 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ApiShopifySyncOrdersRoute: typeof ApiShopifySyncOrdersRoute
   ApiShopifySyncStatusRoute: typeof ApiShopifySyncStatusRoute
+  ApiShopifyTestConnectionRoute: typeof ApiShopifyTestConnectionRoute
+  ApiShopifyAuthCallbackRoute: typeof ApiShopifyAuthCallbackRoute
   ApiShopifyAuthStartRoute: typeof ApiShopifyAuthStartRoute
   ApiPublicShopifyWebhooksOrdersCreateRoute: typeof ApiPublicShopifyWebhooksOrdersCreateRoute
   ApiPublicShopifyWebhooksOrdersUpdatedRoute: typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
@@ -325,6 +352,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAreasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/shopify/test-connection': {
+      id: '/api/shopify/test-connection'
+      path: '/api/shopify/test-connection'
+      fullPath: '/api/shopify/test-connection'
+      preLoaderRoute: typeof ApiShopifyTestConnectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/shopify/sync-status': {
       id: '/api/shopify/sync-status'
       path: '/api/shopify/sync-status'
@@ -344,6 +378,13 @@ declare module '@tanstack/react-router' {
       path: '/api/shopify/auth/start'
       fullPath: '/api/shopify/auth/start'
       preLoaderRoute: typeof ApiShopifyAuthStartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/shopify/auth/callback': {
+      id: '/api/shopify/auth/callback'
+      path: '/api/shopify/auth/callback'
+      fullPath: '/api/shopify/auth/callback'
+      preLoaderRoute: typeof ApiShopifyAuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/shopify/webhooks/orders-updated': {
@@ -396,6 +437,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ApiShopifySyncOrdersRoute: ApiShopifySyncOrdersRoute,
   ApiShopifySyncStatusRoute: ApiShopifySyncStatusRoute,
+  ApiShopifyTestConnectionRoute: ApiShopifyTestConnectionRoute,
+  ApiShopifyAuthCallbackRoute: ApiShopifyAuthCallbackRoute,
   ApiShopifyAuthStartRoute: ApiShopifyAuthStartRoute,
   ApiPublicShopifyWebhooksOrdersCreateRoute:
     ApiPublicShopifyWebhooksOrdersCreateRoute,
