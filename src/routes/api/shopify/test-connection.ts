@@ -41,7 +41,7 @@ export const Route = createFileRoute("/api/shopify/test-connection")({
         const { supabaseAdmin } = auth;
 
         const { data: install } = await supabaseAdmin
-          .from("shopify_installations")
+          .from("shopify_sync_settings")
           .select("shop_domain,access_token,granted_scopes,install_status")
           .eq("id", 1)
           .maybeSingle();

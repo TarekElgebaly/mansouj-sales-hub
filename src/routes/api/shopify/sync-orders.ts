@@ -27,7 +27,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
 
           const apiVersion = getShopifyApiVersion();
           const { data: installation } = await supabaseAdmin
-            .from("shopify_installations")
+            .from("shopify_sync_settings")
             .select("shop_domain,access_token")
             .eq("id", 1)
             .maybeSingle();
