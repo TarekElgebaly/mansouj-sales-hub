@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,8 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ORDER_STATUSES, egp } from "@/lib/format";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { ORDER_STATUSES, egp, fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { OrderDetail } from "@/components/order-detail";
 
 export const Route = createFileRoute("/_authenticated/finance")({
   head: () => ({ meta: [{ title: "Finance — Mansouj" }] }),
@@ -32,7 +34,9 @@ function FinancePage() {
   const [to, setTo] = useState(today);
   const [orderStatus, setOrderStatus] = useState<string>("all");
   const [city, setCity] = useState<string>("all");
+  const [openId, setOpenId] = useState<string | null>(null);
 
+  const qc = useQueryClient();
   const { data: orders } = useQuery({
     queryKey: ["orders-finance", from, to],
     queryFn: async () => (await supabase.from("orders").select("*")
@@ -40,6 +44,13 @@ function FinancePage() {
       .order("order_date", { ascending: false })
       .order("created_at", { ascending: false })).data ?? [],
   });
+  const { data: items } = useQuery({
+    queryKey: ["order-items"],
+    queryFn: async () => (await supabase.from("order_items").select("*")).data ?? [],
+  });
+
+  const openOrder = orders?.find((o) => o.id === openId);
+  const openItems = items?.filter((i) => i.order_id === openId) ?? [];
 
   const cities = useMemo(
     () => Array.from(new Set((orders ?? []).map((o) => o.city).filter(Boolean))) as string[],
@@ -126,8 +137,8 @@ function FinancePage() {
             </TableHeader>
             <TableBody>
               {rows.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell className="font-medium">{r.order_number}</TableCell>
+                <TableRow key={r.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setOpenId(r.id)}>
+                  <TableCell className="font-medium text-primary underline-offset-2 hover:underline">{r.order_number}</TableCell>
                   <TableCell className="text-right">{cell(r.selling)}</TableCell>
                   <TableCell className="text-right">{cell(r.cost)}</TableCell>
                   <TableCell className={cn(
@@ -176,6 +187,23 @@ function FinancePage() {
           </Table>
         </CardContent>
       </Card>
+
+      <Sheet open={!!openId} onOpenChange={(o) => !o && setOpenId(null)}>
+        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+          {openOrder && (
+            <>
+              <SheetHeader>
+                <SheetTitle>{openOrder.order_number}</SheetTitle>
+                <SheetDescription>{openOrder.customer_full_name} · {fmtDate(openOrder.order_date)}</SheetDescription>
+              </SheetHeader>
+              <OrderDetail order={openOrder} items={openItems} onChanged={() => {
+                qc.invalidateQueries({ queryKey: ["orders-finance"] });
+                qc.invalidateQueries({ queryKey: ["order-items"] });
+              }} />
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </AppShell>
   );
 }
