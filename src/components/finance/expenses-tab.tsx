@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { egp, fmtDate } from "@/lib/format";
 import { Pencil, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { usePeriod } from "./period-filter";
 
 export const EXPENSE_CATEGORIES = ["Rent", "Electricity", "Advertising", "Software", "Other"] as const;
 type Category = (typeof EXPENSE_CATEGORIES)[number];
@@ -25,10 +26,7 @@ type Expense = {
 };
 
 export function ExpensesTab() {
-  const today = new Date().toISOString().slice(0, 10);
-  const monthAgo = new Date(); monthAgo.setDate(monthAgo.getDate() - 30);
-  const [from, setFrom] = useState(monthAgo.toISOString().slice(0, 10));
-  const [to, setTo] = useState(today);
+  const { from, to, label } = usePeriod();
   const [category, setCategory] = useState<string>("all");
   const [editing, setEditing] = useState<Expense | null>(null);
   const [open, setOpen] = useState(false);
