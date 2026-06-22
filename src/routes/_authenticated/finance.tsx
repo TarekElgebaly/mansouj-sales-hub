@@ -137,8 +137,8 @@ function FinancePage() {
             </TableHeader>
             <TableBody>
               {rows.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell className="font-medium">{r.order_number}</TableCell>
+                <TableRow key={r.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setOpenId(r.id)}>
+                  <TableCell className="font-medium text-primary underline-offset-2 hover:underline">{r.order_number}</TableCell>
                   <TableCell className="text-right">{cell(r.selling)}</TableCell>
                   <TableCell className="text-right">{cell(r.cost)}</TableCell>
                   <TableCell className={cn(
