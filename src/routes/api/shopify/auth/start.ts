@@ -52,7 +52,7 @@ export const Route = createFileRoute("/api/shopify/auth/start" as never)({
             granted_scopes: [],
             install_status: "pending",
             oauth_state_hash: stateHash,
-            oauth_state_expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+            oauth_state_expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
             updated_at: new Date().toISOString(),
           } as never,
           { onConflict: "id" },
