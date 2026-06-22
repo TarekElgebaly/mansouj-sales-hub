@@ -38,7 +38,7 @@ export const Route = createFileRoute("/api/shopify/auth/start")({
         }
 
         const { state, stateHash } = createOAuthState();
-        await supabaseAdmin.from("shopify_installations").upsert(
+        await supabaseAdmin.from("shopify_sync_settings").upsert(
           {
             id: 1,
             shop_domain: shop,
