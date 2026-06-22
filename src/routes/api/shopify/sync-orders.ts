@@ -5,6 +5,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        try {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
         // Require an authenticated user (any signed-in app user can trigger).
