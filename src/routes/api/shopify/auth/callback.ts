@@ -15,7 +15,7 @@ type TokenResponse = {
   error_description?: string;
 };
 
-export const Route = createFileRoute("/api/shopify/auth/callback" as never)({
+export const Route = createFileRoute("/api/shopify/auth/callback")({
   server: {
     handlers: {
       GET: async ({ request }) => {
