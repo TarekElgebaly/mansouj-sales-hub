@@ -120,11 +120,10 @@ export function ProfitLossTab() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
-        <StatCard label="Net Profit (Orders)" value={netProfit} tone />
-        <StatCard label="Payroll" value={payroll} />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+        <StatCard label="Profit" value={netProfit} tone />
         <StatCard label="Operating Expenses" value={operatingExpenses} />
-        <StatCard label="Operating Profit" value={operatingProfit} tone />
+        <StatCard label="Net Profit" value={operatingProfit} tone />
       </div>
 
       <Card className="mt-4">
