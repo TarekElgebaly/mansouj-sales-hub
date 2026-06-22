@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { egp } from "@/lib/format";
 import { Pencil, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { usePeriod } from "./period-filter";
 
 type Employee = {
   id: string;
@@ -22,6 +23,7 @@ type Employee = {
 };
 
 export function PayrollTab() {
+  const { label } = usePeriod();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Employee | null>(null);
   const [open, setOpen] = useState(false);
