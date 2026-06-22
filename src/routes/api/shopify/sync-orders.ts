@@ -5,6 +5,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        try {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
         // Require an authenticated user (any signed-in app user can trigger).
@@ -122,6 +123,11 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
               last_error: msg,
             })
             .eq("id", 1);
+          return Response.json({ ok: false, error: msg }, { status: 500 });
+        }
+        } catch (outer) {
+          console.error("sync-orders fatal:", outer);
+          const msg = outer instanceof Error ? outer.message : String(outer);
           return Response.json({ ok: false, error: msg }, { status: 500 });
         }
       },
