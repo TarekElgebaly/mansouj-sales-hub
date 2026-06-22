@@ -40,11 +40,17 @@ export const Route = createFileRoute("/api/shopify/test-connection" as never)({
         if (!auth.ok) return auth.response;
         const { supabaseAdmin } = auth;
 
-        const { data: install } = await supabaseAdmin
-          .from("shopify_installations")
-          .select("shop_domain,access_token,granted_scopes,install_status")
+        const { data: installRow } = await supabaseAdmin
+          .from("shopify_sync_settings")
+          .select("*")
           .eq("id", 1)
           .maybeSingle();
+        const install = installRow as {
+          shop_domain?: string | null;
+          access_token?: string | null;
+          granted_scopes?: string[] | null;
+          install_status?: string | null;
+        } | null;
 
         if (!install?.shop_domain || !install?.access_token || install.access_token === "pending") {
           return Response.json(
