@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
   getShopifyApiVersion,
+  getShopifyDomainValidationError,
   hashSecret,
   missingScopes,
   normalizeShopDomain,
@@ -50,7 +51,7 @@ function restartInstallResponse(origin: string, shop: string, message: string, s
   );
 }
 
-export const Route = createFileRoute("/api/shopify/auth/callback")({
+export const Route = createFileRoute("/api/shopify/auth/callback" as never)({
   server: {
     handlers: {
       GET: async ({ request }) => {
@@ -77,7 +78,10 @@ export const Route = createFileRoute("/api/shopify/auth/callback")({
         const code = url.searchParams.get("code");
         const state = url.searchParams.get("state");
         if (!validateShopDomain(shop)) {
-          return Response.json({ ok: false, error: "Invalid shop domain." }, { status: 400 });
+          return Response.json(
+            { ok: false, error: getShopifyDomainValidationError(shop) },
+            { status: 400 },
+          );
         }
         if (!code) {
           return Response.json(
@@ -95,7 +99,7 @@ export const Route = createFileRoute("/api/shopify/auth/callback")({
         }
 
         const { data: install } = await supabaseAdmin
-          .from("shopify_sync_settings")
+          .from("shopify_installations")
           .select("oauth_state_hash,oauth_state_expires_at,shop_domain")
           .eq("id", 1)
           .maybeSingle();
@@ -103,18 +107,18 @@ export const Route = createFileRoute("/api/shopify/auth/callback")({
         const stateExpired =
           !install?.oauth_state_expires_at ||
           new Date(install.oauth_state_expires_at).getTime() < Date.now();
-        if (
-          !install ||
-          install.shop_domain !== shop ||
-          stateExpired ||
-          install.oauth_state_hash !== hashSecret(state)
-        ) {
+        if (!install || stateExpired || install.oauth_state_hash !== hashSecret(state)) {
           return restartInstallResponse(
             url.origin,
             shop,
             "The Shopify install session expired or an older install tab was used. Start the install again and complete it from the newest tab.",
           );
         }
+
+        const pendingShop = normalizeShopDomain(install.shop_domain || "");
+        console.info(
+          `[Shopify OAuth] Callback received shop domain=${shop}; pending shop domain=${pendingShop || "none"}; storing shop domain=${shop}.`,
+        );
 
         const tokenRes = await fetch(`https://${shop}/admin/oauth/access_token`, {
           method: "POST",
@@ -146,6 +150,21 @@ export const Route = createFileRoute("/api/shopify/auth/callback")({
         const installedAt = new Date().toISOString();
         const status = missing.length ? "connected_missing_scopes" : "connected";
 
+        await supabaseAdmin.from("shopify_installations").upsert(
+          {
+            id: 1,
+            shop_domain: shop,
+            access_token: tokenJson.access_token,
+            granted_scopes: grantedScopes,
+            install_status: status,
+            installed_at: installedAt,
+            oauth_state_hash: null,
+            oauth_state_expires_at: null,
+            updated_at: installedAt,
+          } as never,
+          { onConflict: "id" },
+        );
+
         await supabaseAdmin
           .from("shopify_sync_settings")
           .update({
@@ -162,10 +181,7 @@ export const Route = createFileRoute("/api/shopify/auth/callback")({
             last_connection_test_error: missing.length
               ? `Missing required scopes: ${missing.join(", ")}`
               : null,
-            oauth_state_hash: null,
-            oauth_state_expires_at: null,
-            updated_at: installedAt,
-          })
+          } as never)
           .eq("id", 1);
 
         const apiVersion = getShopifyApiVersion();
