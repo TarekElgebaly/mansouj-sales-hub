@@ -1,5 +1,3 @@
-import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-
 export const REQUIRED_SHOPIFY_SCOPES = [
   "read_orders",
   "read_all_orders",
@@ -16,6 +14,16 @@ export const DEFAULT_ALLOWED_SHOPIFY_ADMIN_DOMAINS = [
 
 export function getShopifyApiVersion() {
   return process.env.SHOPIFY_API_VERSION || "2025-10";
+}
+
+export function getShopifyAdminAccessToken() {
+  return process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SHOPIFY_ACCESS_TOKEN || "";
+}
+
+export function getShopifyAdminTokenSource() {
+  if (process.env.SHOPIFY_ADMIN_ACCESS_TOKEN) return "SHOPIFY_ADMIN_ACCESS_TOKEN";
+  if (process.env.SHOPIFY_ACCESS_TOKEN) return "SHOPIFY_ACCESS_TOKEN";
+  return null;
 }
 
 export function getShopifyScopes() {
@@ -73,47 +81,7 @@ export function getShopifyDomainValidationError(shop: string) {
   return `Shopify Admin domain "${normalized}" is not allowed. Allowed domains: ${allowed}.`;
 }
 
-export function hashSecret(value: string) {
-  return createHash("sha256").update(value).digest("hex");
-}
-
-export function createOAuthState() {
-  const nonce = randomBytes(24).toString("hex");
-  return { state: nonce, stateHash: hashSecret(nonce) };
-}
-
-export function verifyShopifyOAuthHmac(url: URL, clientSecret: string) {
-  const hmac = url.searchParams.get("hmac");
-  if (!hmac) return false;
-
-  const message = Array.from(url.searchParams.entries())
-    .filter(([key]) => key !== "hmac" && key !== "signature")
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, value]) => `${key}=${value}`)
-    .join("&");
-  const digest = createHmac("sha256", clientSecret).update(message).digest("hex");
-
-  const a = Buffer.from(digest, "utf8");
-  const b = Buffer.from(hmac, "utf8");
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 export function missingScopes(granted: string[], required = REQUIRED_SHOPIFY_SCOPES) {
   const grantedSet = new Set(granted);
   return required.filter((scope) => !grantedSet.has(scope));
-}
-
-export function buildShopifyAuthUrl(params: {
-  shop: string;
-  clientId: string;
-  scopes: string[];
-  redirectUri: string;
-  state: string;
-}) {
-  const url = new URL(`https://${params.shop}/admin/oauth/authorize`);
-  url.searchParams.set("client_id", params.clientId);
-  url.searchParams.set("scope", params.scopes.join(","));
-  url.searchParams.set("redirect_uri", params.redirectUri);
-  url.searchParams.set("state", params.state);
-  return url;
 }
