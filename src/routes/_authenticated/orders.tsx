@@ -49,13 +49,15 @@ function OrdersPage() {
       const res = await fetch("/api/shopify/sync-orders", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ limit: 100 }),
+        body: JSON.stringify({ mode: "incremental" }),
       });
-      const json = await res.json() as { ok: boolean; imported?: number; updated?: number; error?: string; errors?: string[] };
+      const json = await res.json() as { ok: boolean; created?: number; updated?: number; error?: string; errors?: string[] };
       if (json.ok) {
-        toast.success(`Pulled from Shopify — ${json.imported ?? 0} new, ${json.updated ?? 0} updated${json.errors?.length ? `, ${json.errors.length} errors` : ""}`);
+        toast.success(`Pulled recent Shopify orders — ${json.created ?? 0} new, ${json.updated ?? 0} updated${json.errors?.length ? `, ${json.errors.length} errors` : ""}`);
         qc.invalidateQueries({ queryKey: ["orders"] });
         qc.invalidateQueries({ queryKey: ["order-items"] });
+        qc.invalidateQueries({ queryKey: ["orders-all"] });
+        qc.invalidateQueries({ queryKey: ["shopify-settings"] });
       } else {
         toast.error(json.error ?? "Shopify sync failed");
       }
@@ -129,7 +131,7 @@ function OrdersPage() {
           {canOps && (
             <Button size="sm" variant="outline" onClick={pullShopify} disabled={syncing}>
               <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} />
-              {syncing ? "Pulling…" : "Pull from Shopify"}
+              {syncing ? "Pulling..." : "Pull recent Shopify orders"}
             </Button>
           )}
           <Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-4 w-4 mr-1" />Export CSV</Button>
