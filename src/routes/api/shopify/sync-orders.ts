@@ -1,6 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { processShopifyOrder, type ShopifyOrderPayload } from "@/lib/shopify-webhook.server";
-import { getShopifyApiVersion, normalizeShopDomain } from "@/lib/shopify-auth.server";
+import {
+  getShopifyApiVersion,
+  getShopifyDomainValidationError,
+  normalizeShopDomain,
+  validateShopDomain,
+} from "@/lib/shopify-auth.server";
 
 export const Route = createFileRoute("/api/shopify/sync-orders")({
   server: {
@@ -27,16 +32,21 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
 
           const apiVersion = getShopifyApiVersion();
           const { data: installation } = await supabaseAdmin
-            .from("shopify_sync_settings")
+            .from("shopify_installations")
             .select("shop_domain,access_token")
             .eq("id", 1)
             .maybeSingle();
 
-          const { data: settings } = await supabaseAdmin
+          const { data: settingsRow } = await supabaseAdmin
             .from("shopify_sync_settings")
-            .select("shop_domain,store_url")
+            .select("*")
             .eq("id", 1)
             .maybeSingle();
+          const settings = settingsRow as {
+            shop_domain?: string | null;
+            store_url?: string | null;
+            access_token?: string | null;
+          } | null;
 
           const configuredDomain = normalizeShopDomain(
             process.env.SHOPIFY_SHOP_DOMAIN || process.env.SHOPIFY_STORE_DOMAIN || "",
@@ -45,8 +55,9 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
           const settingsDomain = normalizeShopDomain(
             settings?.shop_domain || settings?.store_url || "",
           );
-          if (configuredDomain && installedDomain && configuredDomain !== installedDomain) {
-            const msg = `Configured Shopify store is ${configuredDomain}, but the saved OAuth install is for ${installedDomain}. Reinstall the Shopify app for ${configuredDomain}.`;
+          const domain = normalizeShopDomain(settingsDomain || installedDomain || configuredDomain);
+          if (domain && !validateShopDomain(domain)) {
+            const msg = getShopifyDomainValidationError(domain);
             await supabaseAdmin
               .from("shopify_sync_settings")
               .update({
@@ -58,12 +69,15 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             return Response.json({ ok: false, error: msg }, { status: 400 });
           }
 
-          const accessToken =
+          const settingsAccessToken =
+            settings?.access_token && settings.access_token !== "pending"
+              ? settings.access_token
+              : "";
+          const installationAccessToken =
             installation?.access_token && installation.access_token !== "pending"
               ? installation.access_token
               : "";
-          let domain = configuredDomain || installedDomain || settingsDomain;
-          domain = normalizeShopDomain(domain);
+          const accessToken = settingsAccessToken || installationAccessToken;
 
           if (!domain || !accessToken || accessToken === "pending") {
             const msg = `No valid Shopify OAuth token is stored for ${domain || "this store"}. Reinstall the Shopify app so a fresh Admin API token can be saved.`;
@@ -71,13 +85,18 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
               .from("shopify_sync_settings")
               .update({
                 install_status: "reinstall_required",
-                token_stored: false,
                 last_sync_at: new Date().toISOString(),
                 last_sync_status: "error",
                 last_error: msg,
-              })
+              } as never)
               .eq("id", 1);
-            return Response.json({ ok: false, error: msg }, { status: 400 });
+            return Response.json(
+              {
+                ok: false,
+                error: msg,
+              },
+              { status: 400 },
+            );
           }
 
           const body = await request.json().catch(() => ({}) as { limit?: number; since?: string });
@@ -119,7 +138,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
                     last_sync_at: new Date().toISOString(),
                     last_sync_status: "error",
                     last_error: msg,
-                  })
+                  } as never)
                   .eq("id", 1);
                 return Response.json({ ok: false, error: msg }, { status: 401 });
               }
@@ -150,7 +169,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
               status: errors.length ? "partial" : "success",
               message: `imported=${imported} updated=${updated} errors=${errors.length}${errors.length ? " | " + errors.slice(0, 3).join(" | ") : ""}`,
               rows_processed: imported + updated,
-            });
+            } as never);
 
             await supabaseAdmin
               .from("shopify_sync_settings")
