@@ -30,9 +30,15 @@ export const Route = createFileRoute("/api/shopify/sync-status")({
           .select("*")
           .eq("id", 1)
           .maybeSingle();
+        const settingsRow = settings as any;
+        const { data: syncRuns } = await (supabaseAdmin as any)
+          .from("shopify_sync_runs")
+          .select("*")
+          .order("started_at", { ascending: false })
+          .limit(5);
 
         const settingsShopDomain = normalizeShopDomain(
-          settings?.shop_domain || settings?.store_url || "",
+          settingsRow?.shop_domain || settingsRow?.store_url || "",
         );
         const activeShopDomain = configuredShopDomain || settingsShopDomain || "";
         const invalidStoredDomain = Boolean(
@@ -42,43 +48,43 @@ export const Route = createFileRoute("/api/shopify/sync-status")({
         const domainMessage = invalidStoredDomain
           ? getShopifyDomainValidationError(activeShopDomain)
           : null;
-        const grantedScopes = settings?.granted_scopes ?? [];
+        const grantedScopes = settingsRow?.granted_scopes ?? [];
         const missingRequiredScopes = missingScopes(grantedScopes);
         const scopesSatisfied = grantedScopes.length > 0 && missingRequiredScopes.length === 0;
         const latestTestSucceeded =
-          settings?.last_connection_test_status === "success" && scopesSatisfied;
+          settingsRow?.last_connection_test_status === "success" && scopesSatisfied;
         const staleMissingScopeTest =
-          settings?.last_connection_test_status === "missing_scopes" && scopesSatisfied;
+          settingsRow?.last_connection_test_status === "missing_scopes" && scopesSatisfied;
         const shouldNormalizeConnected =
           latestTestSucceeded ||
           (staleMissingScopeTest &&
-            MISSING_SCOPE_INSTALL_STATUSES.has(settings?.install_status ?? ""));
+            MISSING_SCOPE_INSTALL_STATUSES.has(settingsRow?.install_status ?? ""));
         const connectionTestStatus =
           staleMissingScopeTest
             ? "success"
-            : (settings?.last_connection_test_status ?? "not_tested");
+            : (settingsRow?.last_connection_test_status ?? "not_tested");
         const connectionTestError =
           latestTestSucceeded || staleMissingScopeTest
             ? null
-            : (settings?.last_connection_test_error ?? null);
+            : (settingsRow?.last_connection_test_error ?? null);
         const installStatus =
           shouldNormalizeConnected
             ? "connected"
-            : (settings?.install_status ??
+            : (settingsRow?.install_status ??
               (tokenStored ? "manual_token_configured" : "not_connected"));
         const lastError =
-          shouldNormalizeConnected && isMissingScopeError(settings?.last_error)
+          shouldNormalizeConnected && isMissingScopeError(settingsRow?.last_error)
             ? null
-            : (settings?.last_error ?? null);
+            : (settingsRow?.last_error ?? null);
 
         if (!invalidStoredDomain && shouldNormalizeConnected) {
           const statusUpdate: Record<string, unknown> = {};
-          if (settings?.install_status !== "connected") statusUpdate.install_status = "connected";
-          if (settings?.last_connection_test_status !== "success") {
+          if (settingsRow?.install_status !== "connected") statusUpdate.install_status = "connected";
+          if (settingsRow?.last_connection_test_status !== "success") {
             statusUpdate.last_connection_test_status = "success";
           }
-          if (settings?.last_connection_test_error) statusUpdate.last_connection_test_error = null;
-          if (isMissingScopeError(settings?.last_error)) statusUpdate.last_error = null;
+          if (settingsRow?.last_connection_test_error) statusUpdate.last_connection_test_error = null;
+          if (isMissingScopeError(settingsRow?.last_error)) statusUpdate.last_error = null;
 
           if (Object.keys(statusUpdate).length > 0) {
             await supabaseAdmin
@@ -98,12 +104,15 @@ export const Route = createFileRoute("/api/shopify/sync-status")({
           install_status: invalidStoredDomain ? "invalid_shop_domain" : installStatus,
           token_stored: tokenStored,
           granted_scopes: grantedScopes,
-          installed_at: settings?.installed_at ?? null,
-          last_sync_at: settings?.last_sync_at ?? null,
-          last_sync_status: invalidStoredDomain ? "error" : (settings?.last_sync_status ?? "idle"),
-          last_orders_imported: settings?.last_orders_imported ?? 0,
-          last_orders_updated: settings?.last_orders_updated ?? 0,
-          last_connection_test_at: settings?.last_connection_test_at ?? null,
+          installed_at: settingsRow?.installed_at ?? null,
+          last_sync_at: settingsRow?.last_sync_at ?? null,
+          last_sync_mode: settingsRow?.last_sync_mode ?? null,
+          last_sync_status: invalidStoredDomain ? "error" : (settingsRow?.last_sync_status ?? "idle"),
+          last_successful_orders_sync_at: settingsRow?.last_successful_orders_sync_at ?? null,
+          last_orders_sync_cursor: settingsRow?.last_orders_sync_cursor ?? null,
+          last_orders_imported: settingsRow?.last_orders_imported ?? 0,
+          last_orders_updated: settingsRow?.last_orders_updated ?? 0,
+          last_connection_test_at: settingsRow?.last_connection_test_at ?? null,
           last_connection_test_status: invalidStoredDomain
             ? "invalid_shop_domain"
             : connectionTestStatus,
@@ -111,7 +120,9 @@ export const Route = createFileRoute("/api/shopify/sync-status")({
           last_connection_test_error: invalidStoredDomain
             ? domainMessage
             : connectionTestError,
-          updated_at: settings?.updated_at ?? null,
+          last_run: syncRuns?.[0] ?? null,
+          recent_runs: syncRuns ?? [],
+          updated_at: settingsRow?.updated_at ?? null,
         });
       },
     },
