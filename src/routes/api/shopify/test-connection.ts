@@ -43,7 +43,7 @@ async function requireOpsUser(request: Request) {
   return { ok: true as const, supabaseAdmin };
 }
 
-export const Route = createFileRoute("/api/shopify/test-connection")({
+export const Route = createFileRoute("/api/shopify/test-connection" as never)({
   server: {
     handlers: {
       GET: async ({ request }) => {
@@ -222,7 +222,7 @@ export const Route = createFileRoute("/api/shopify/test-connection")({
               shop_domain: configuredDomain,
               store_url: configuredDomain,
               granted_scopes: grantedScopes,
-              install_status: success ? "manual_token_connected" : "manual_token_missing_scopes",
+              install_status: success ? "connected" : "connected_missing_scopes",
               token_stored: true,
               last_connection_test_at: new Date().toISOString(),
               last_connection_test_status: success ? "success" : "missing_scopes",
