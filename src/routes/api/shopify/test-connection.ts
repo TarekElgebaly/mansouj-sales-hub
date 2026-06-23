@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
   getShopifyApiVersion,
+  getShopifyDomainValidationError,
   missingScopes,
   normalizeShopDomain,
+  validateShopDomain,
 } from "@/lib/shopify-auth.server";
 
 type AccessScopeResponse = {
@@ -32,7 +34,7 @@ async function requireOpsUser(request: Request) {
   return { ok: true as const, supabaseAdmin };
 }
 
-export const Route = createFileRoute("/api/shopify/test-connection")({
+export const Route = createFileRoute("/api/shopify/test-connection" as never)({
   server: {
     handlers: {
       GET: async ({ request }) => {
@@ -59,25 +61,22 @@ export const Route = createFileRoute("/api/shopify/test-connection")({
           );
         }
 
-        const configuredDomain = normalizeShopDomain(
-          process.env.SHOPIFY_SHOP_DOMAIN || process.env.SHOPIFY_STORE_DOMAIN || "",
-        );
         const installedDomain = normalizeShopDomain(install.shop_domain);
-        if (configuredDomain && installedDomain !== configuredDomain) {
-          const message = `Configured Shopify store is ${configuredDomain}, but the saved OAuth install is for ${installedDomain}. Reinstall the Shopify app for ${configuredDomain}.`;
+        if (!validateShopDomain(installedDomain)) {
+          const message = getShopifyDomainValidationError(installedDomain);
           await supabaseAdmin
             .from("shopify_sync_settings")
             .update({
-              install_status: "wrong_store_reinstall_required",
+              install_status: "invalid_shop_domain",
               last_connection_test_at: new Date().toISOString(),
-              last_connection_test_status: "wrong_store",
+              last_connection_test_status: "invalid_shop_domain",
               last_connection_test_error: message,
-            })
+            } as never)
             .eq("id", 1);
           return Response.json(
             {
               success: false,
-              shop_domain: configuredDomain,
+              shop_domain: installedDomain,
               error: message,
             },
             { status: 400 },
@@ -107,7 +106,7 @@ export const Route = createFileRoute("/api/shopify/test-connection")({
                 last_connection_test_at: new Date().toISOString(),
                 last_connection_test_status: shopRes.status === 401 ? "invalid_token" : "error",
                 last_connection_test_error: message,
-              })
+              } as never)
               .eq("id", 1);
             return Response.json(
               { success: false, error: message },
@@ -134,7 +133,7 @@ export const Route = createFileRoute("/api/shopify/test-connection")({
                 last_connection_test_at: new Date().toISOString(),
                 last_connection_test_status: scopesRes.status === 401 ? "invalid_token" : "error",
                 last_connection_test_error: message,
-              })
+              } as never)
               .eq("id", 1);
             return Response.json(
               { success: false, error: message },
@@ -159,7 +158,7 @@ export const Route = createFileRoute("/api/shopify/test-connection")({
               last_connection_test_at: new Date().toISOString(),
               last_connection_test_status: success ? "success" : "missing_scopes",
               last_connection_test_error: error,
-            })
+            } as never)
             .eq("id", 1);
 
           return Response.json({
@@ -178,7 +177,7 @@ export const Route = createFileRoute("/api/shopify/test-connection")({
               last_connection_test_at: new Date().toISOString(),
               last_connection_test_status: "error",
               last_connection_test_error: message,
-            })
+            } as never)
             .eq("id", 1);
           return Response.json({ success: false, error: message }, { status: 500 });
         }
