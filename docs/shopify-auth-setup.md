@@ -16,10 +16,27 @@ Set these in Lovable Secrets:
 Recommended values:
 
 ```text
-SHOPIFY_SHOP_DOMAIN=mansouj.myshopify.com
+SHOPIFY_SHOP_DOMAIN=mansoujj.myshopify.com
 SHOPIFY_API_VERSION=2025-10
 SHOPIFY_SCOPES=read_orders,read_all_orders,read_products,read_inventory,read_locations,read_customers
 ```
+
+## Shopify Admin Domains
+
+Only these `myshopify.com` domains are valid for OAuth, Admin API, webhooks, and sync:
+
+```text
+mansouj.myshopify.com
+mansoujj.myshopify.com
+```
+
+The customer storefront domain is:
+
+```text
+mansouj.shop
+```
+
+Do not use `mansouj.shop` for OAuth, token exchange, Admin API calls, webhooks, or sync. The OAuth callback stores the exact `shop` domain Shopify returns, then future Admin API calls use that stored domain.
 
 ## Shopify Dev Dashboard Settings
 
