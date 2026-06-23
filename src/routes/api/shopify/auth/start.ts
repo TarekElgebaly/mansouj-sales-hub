@@ -8,7 +8,7 @@ import {
   validateShopDomain,
 } from "@/lib/shopify-auth.server";
 
-export const Route = createFileRoute("/api/shopify/auth/start" as never)({
+export const Route = createFileRoute("/api/shopify/auth/start")({
   server: {
     handlers: {
       GET: async ({ request }) => {
@@ -45,34 +45,24 @@ export const Route = createFileRoute("/api/shopify/auth/start" as never)({
         }
 
         const { state, stateHash } = createOAuthState();
-        await supabaseAdmin.from("shopify_installations").upsert(
-          {
+        await supabaseAdmin
+          .from("shopify_sync_settings")
+          .upsert({
             id: 1,
+            store_url: shop,
             shop_domain: shop,
             access_token: "pending",
             granted_scopes: [],
             install_status: "pending",
+            token_stored: false,
             oauth_state_hash: stateHash,
             oauth_state_expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-            updated_at: new Date().toISOString(),
-          } as never,
-          { onConflict: "id" },
-        );
-
-        await supabaseAdmin
-          .from("shopify_sync_settings")
-          .update({
-            store_url: shop,
-            shop_domain: shop,
-            access_token: "pending",
-            install_status: "pending",
-            token_stored: false,
             last_sync_status: "idle",
             last_error: null,
             last_connection_test_status: "pending",
             last_connection_test_error: null,
-          } as never)
-          .eq("id", 1);
+            updated_at: new Date().toISOString(),
+          } as never, { onConflict: "id" });
 
         console.info(
           `[Shopify OAuth] Starting install. requested shop domain=${shop}; stored pending shop domain=${shop}.`,
