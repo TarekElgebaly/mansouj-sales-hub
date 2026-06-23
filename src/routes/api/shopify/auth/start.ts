@@ -3,11 +3,12 @@ import {
   buildShopifyAuthUrl,
   createOAuthState,
   getShopifyScopes,
+  getShopifyDomainValidationError,
   normalizeShopDomain,
   validateShopDomain,
 } from "@/lib/shopify-auth.server";
 
-export const Route = createFileRoute("/api/shopify/auth/start")({
+export const Route = createFileRoute("/api/shopify/auth/start" as never)({
   server: {
     handlers: {
       GET: async ({ request }) => {
@@ -32,7 +33,7 @@ export const Route = createFileRoute("/api/shopify/auth/start")({
           return Response.json(
             {
               ok: false,
-              error: "Invalid shop domain. Expected a domain ending with .myshopify.com.",
+              error: getShopifyDomainValidationError(shop),
             },
             { status: 400 },
           );
@@ -44,6 +45,19 @@ export const Route = createFileRoute("/api/shopify/auth/start")({
         }
 
         const { state, stateHash } = createOAuthState();
+        await supabaseAdmin.from("shopify_installations").upsert(
+          {
+            id: 1,
+            shop_domain: shop,
+            access_token: "pending",
+            granted_scopes: [],
+            install_status: "pending",
+            oauth_state_hash: stateHash,
+            oauth_state_expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+            updated_at: new Date().toISOString(),
+          } as never,
+          { onConflict: "id" },
+        );
 
         await supabaseAdmin
           .from("shopify_sync_settings")
@@ -51,18 +65,18 @@ export const Route = createFileRoute("/api/shopify/auth/start")({
             store_url: shop,
             shop_domain: shop,
             access_token: "pending",
-            granted_scopes: [],
             install_status: "pending",
             token_stored: false,
             last_sync_status: "idle",
             last_error: null,
             last_connection_test_status: "pending",
             last_connection_test_error: null,
-            oauth_state_hash: stateHash,
-            oauth_state_expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-            updated_at: new Date().toISOString(),
-          })
+          } as never)
           .eq("id", 1);
+
+        console.info(
+          `[Shopify OAuth] Starting install. requested shop domain=${shop}; stored pending shop domain=${shop}.`,
+        );
 
         const redirectUri =
           process.env.SHOPIFY_REDIRECT_URI || `${url.origin}/api/shopify/auth/callback`;
