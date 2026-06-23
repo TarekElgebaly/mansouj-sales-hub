@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { processShopifyOrder, type ShopifyOrderPayload } from "@/lib/shopify-webhook.server";
 import {
+  getShopifyAdminAccessToken,
   getShopifyApiVersion,
   getShopifyDomainValidationError,
   normalizeShopDomain,
@@ -31,32 +32,22 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
           if (!roleRow) return new Response("Forbidden", { status: 403 });
 
           const apiVersion = getShopifyApiVersion();
-          const { data: installation } = await supabaseAdmin
-            .from("shopify_installations")
-            .select("shop_domain,access_token")
-            .eq("id", 1)
-            .maybeSingle();
+          const configuredDomain = normalizeShopDomain(process.env.SHOPIFY_SHOP_DOMAIN || "");
+          const domain = configuredDomain;
+          if (!domain) {
+            const msg = "Missing SHOPIFY_SHOP_DOMAIN in Lovable Secrets.";
+            await supabaseAdmin
+              .from("shopify_sync_settings")
+              .update({
+                last_sync_at: new Date().toISOString(),
+                last_sync_status: "error",
+                last_error: msg,
+              })
+              .eq("id", 1);
+            return Response.json({ ok: false, error: msg }, { status: 500 });
+          }
 
-          const { data: settingsRow } = await supabaseAdmin
-            .from("shopify_sync_settings")
-            .select("*")
-            .eq("id", 1)
-            .maybeSingle();
-          const settings = settingsRow as {
-            shop_domain?: string | null;
-            store_url?: string | null;
-            access_token?: string | null;
-          } | null;
-
-          const configuredDomain = normalizeShopDomain(
-            process.env.SHOPIFY_SHOP_DOMAIN || process.env.SHOPIFY_STORE_DOMAIN || "",
-          );
-          const installedDomain = normalizeShopDomain(installation?.shop_domain || "");
-          const settingsDomain = normalizeShopDomain(
-            settings?.shop_domain || settings?.store_url || "",
-          );
-          const domain = normalizeShopDomain(settingsDomain || installedDomain || configuredDomain);
-          if (domain && !validateShopDomain(domain)) {
+          if (!validateShopDomain(domain)) {
             const msg = getShopifyDomainValidationError(domain);
             await supabaseAdmin
               .from("shopify_sync_settings")
@@ -69,22 +60,16 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             return Response.json({ ok: false, error: msg }, { status: 400 });
           }
 
-          const settingsAccessToken =
-            settings?.access_token && settings.access_token !== "pending"
-              ? settings.access_token
-              : "";
-          const installationAccessToken =
-            installation?.access_token && installation.access_token !== "pending"
-              ? installation.access_token
-              : "";
-          const accessToken = settingsAccessToken || installationAccessToken;
+          const accessToken = getShopifyAdminAccessToken();
 
-          if (!domain || !accessToken || accessToken === "pending") {
-            const msg = `No valid Shopify OAuth token is stored for ${domain || "this store"}. Reinstall the Shopify app so a fresh Admin API token can be saved.`;
+          if (!accessToken) {
+            const msg =
+              "Missing SHOPIFY_ADMIN_ACCESS_TOKEN in Lovable Secrets. SHOPIFY_ACCESS_TOKEN is supported only as a fallback.";
             await supabaseAdmin
               .from("shopify_sync_settings")
               .update({
-                install_status: "reinstall_required",
+                install_status: "missing_manual_token",
+                token_stored: false,
                 last_sync_at: new Date().toISOString(),
                 last_sync_status: "error",
                 last_error: msg,
@@ -105,7 +90,13 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
           // Mark in-progress
           await supabaseAdmin
             .from("shopify_sync_settings")
-            .update({ last_sync_status: "running", last_error: null })
+            .update({
+              shop_domain: domain,
+              store_url: domain,
+              token_stored: true,
+              last_sync_status: "running",
+              last_error: null,
+            } as never)
             .eq("id", 1);
 
           const url = new URL(`https://${domain}/admin/api/${apiVersion}/orders.json`);
@@ -127,11 +118,11 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             if (!res.ok) {
               const text = await res.text();
               if (res.status === 401) {
-                const msg = `Stored Shopify OAuth token was rejected for ${domain}. Reinstall the Shopify app for this store so a fresh Admin API token can be saved.`;
+                const msg = `SHOPIFY_ADMIN_ACCESS_TOKEN was rejected by Shopify for ${domain}. Confirm the token belongs to this store and has Admin API access.`;
                 await supabaseAdmin
                   .from("shopify_sync_settings")
                   .update({
-                    install_status: "invalid_token_reinstall_required",
+                    install_status: "invalid_manual_token",
                     token_stored: false,
                     last_connection_test_status: "invalid_token",
                     last_connection_test_error: msg,
@@ -141,6 +132,22 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
                   } as never)
                   .eq("id", 1);
                 return Response.json({ ok: false, error: msg }, { status: 401 });
+              }
+              if (res.status === 403) {
+                const msg = `SHOPIFY_ADMIN_ACCESS_TOKEN is valid but Shopify denied order access for ${domain}. Check read_orders/read_all_orders permissions.`;
+                await supabaseAdmin
+                  .from("shopify_sync_settings")
+                  .update({
+                    install_status: "manual_token_missing_scopes",
+                    token_stored: true,
+                    last_connection_test_status: "permission_denied",
+                    last_connection_test_error: msg,
+                    last_sync_at: new Date().toISOString(),
+                    last_sync_status: "error",
+                    last_error: msg,
+                  } as never)
+                  .eq("id", 1);
+                return Response.json({ ok: false, error: msg }, { status: 403 });
               }
               throw new Error(`Shopify ${res.status}: ${text.slice(0, 300)}`);
             }
@@ -179,7 +186,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
                 last_orders_imported: imported,
                 last_orders_updated: updated,
                 last_error: errors.length ? errors.slice(0, 5).join(" | ") : null,
-              })
+              } as never)
               .eq("id", 1);
 
             return Response.json({ ok: true, imported, updated, errors });
