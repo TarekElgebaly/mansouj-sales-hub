@@ -156,7 +156,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
                 last_sync_status: "error",
                 last_error: msg,
                 updated_at: finishedAt,
-              })
+              } as never)
               .eq("id", 1);
             return Response.json({ ok: false, error: msg }, { status: 500 });
           }
@@ -173,7 +173,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
                 last_sync_status: "error",
                 last_error: msg,
                 updated_at: finishedAt,
-              })
+              } as never)
               .eq("id", 1);
             return Response.json({ ok: false, error: msg }, { status: 400 });
           }
