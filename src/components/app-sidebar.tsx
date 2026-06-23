@@ -15,7 +15,7 @@ const items = [
   { title: "Inventory", url: "/inventory", icon: Package },
   { title: "Areas", url: "/areas", icon: MapPin },
   { title: "Finance", url: "/finance", icon: DollarSign },
-];
+] as const;
 
 const integrations = [
   { title: "Shopify Sync", url: "/shopify", icon: RefreshCw },
