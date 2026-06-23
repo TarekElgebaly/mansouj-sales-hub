@@ -43,10 +43,13 @@ function ShopifyPage() {
   });
 
   const syncStatus = settings?.last_sync_status ?? "idle";
-  const installStatus = settings?.install_status ?? "not_connected";
+  const connectionStatus = settings?.install_status ?? "not_connected";
   const connected =
-    installStatus === "connected" ||
-    installStatus === "connected_missing_scopes" ||
+    connectionStatus === "connected" ||
+    connectionStatus === "connected_missing_scopes" ||
+    connectionStatus === "manual_token_connected" ||
+    connectionStatus === "manual_token_missing_scopes" ||
+    connectionStatus === "manual_token_configured" ||
     Boolean(settings?.token_stored);
   const hasError =
     syncStatus === "error" || Boolean(settings?.last_error || settings?.last_connection_test_error);
@@ -91,7 +94,7 @@ function ShopifyPage() {
                     settings.configured_shop_domain !== shopDomain && (
                       <StatusItem label="Configured shop" value={settings.configured_shop_domain} />
                     )}
-                  <StatusItem label="Install status" value={installStatus} />
+                  <StatusItem label="Connection status" value={connectionStatus} />
                   <StatusItem
                     label="Admin API token"
                     value={settings?.token_stored ? "Stored server-side" : "Not connected"}
