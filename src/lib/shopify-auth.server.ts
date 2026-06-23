@@ -1,3 +1,5 @@
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
+
 export const REQUIRED_SHOPIFY_SCOPES = [
   "read_orders",
   "read_all_orders",
@@ -94,4 +96,53 @@ export function missingScopes(granted: string[], required = REQUIRED_SHOPIFY_SCO
     if (grantedSet.has(scope)) return false;
     return !(SHOPIFY_SCOPE_EQUIVALENTS[scope]?.some((equivalent) => grantedSet.has(equivalent)));
   });
+}
+
+export function hashSecret(value: string) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+export function createOAuthState() {
+  const state = randomBytes(32).toString("hex");
+  return { state, stateHash: hashSecret(state) };
+}
+
+export function buildShopifyAuthUrl({
+  shop,
+  clientId,
+  scopes,
+  redirectUri,
+  state,
+}: {
+  shop: string;
+  clientId: string;
+  scopes: string[];
+  redirectUri: string;
+  state: string;
+}) {
+  const normalizedShop = normalizeShopDomain(shop);
+  const url = new URL(`https://${normalizedShop}/admin/oauth/authorize`);
+  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("scope", scopes.join(","));
+  url.searchParams.set("redirect_uri", redirectUri);
+  url.searchParams.set("state", state);
+  return url;
+}
+
+export function verifyShopifyOAuthHmac(url: URL, clientSecret: string) {
+  const hmac = url.searchParams.get("hmac");
+  if (!hmac) return false;
+
+  const params = new URLSearchParams(url.searchParams);
+  params.delete("hmac");
+  params.delete("signature");
+  const message = Array.from(params.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("&");
+  const digest = createHmac("sha256", clientSecret).update(message).digest("hex");
+
+  const expected = Buffer.from(digest, "hex");
+  const received = Buffer.from(hmac, "hex");
+  return expected.length === received.length && timingSafeEqual(expected, received);
 }
