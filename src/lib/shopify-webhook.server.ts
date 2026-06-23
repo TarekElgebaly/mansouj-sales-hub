@@ -49,6 +49,7 @@ export type ShopifyOrderPayload = {
   name?: string | null;
   order_number?: number | null;
   created_at?: string | null;
+  updated_at?: string | null;
   processed_at?: string | null;
   total_price?: string | null;
   subtotal_price?: string | null;
