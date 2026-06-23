@@ -3,6 +3,7 @@ import {
   getShopifyAdminAccessToken,
   getShopifyApiVersion,
   getShopifyDomainValidationError,
+  missingScopes,
   normalizeShopDomain,
   validateShopDomain,
 } from "@/lib/shopify-auth.server";
@@ -32,6 +33,22 @@ export const Route = createFileRoute("/api/shopify/sync-status")({
         const domainMessage = invalidStoredDomain
           ? getShopifyDomainValidationError(activeShopDomain)
           : null;
+        const grantedScopes = settings?.granted_scopes ?? [];
+        const missingRequiredScopes = missingScopes(grantedScopes);
+        const scopesSatisfied = grantedScopes.length > 0 && missingRequiredScopes.length === 0;
+        const connectionTestStatus =
+          settings?.last_connection_test_status === "missing_scopes" && scopesSatisfied
+            ? "success"
+            : (settings?.last_connection_test_status ?? "not_tested");
+        const connectionTestError =
+          settings?.last_connection_test_status === "missing_scopes" && scopesSatisfied
+            ? null
+            : (settings?.last_connection_test_error ?? null);
+        const installStatus =
+          settings?.install_status === "manual_token_missing_scopes" && scopesSatisfied
+            ? "manual_token_connected"
+            : (settings?.install_status ??
+              (tokenStored ? "manual_token_configured" : "not_connected"));
 
         return Response.json({
           api_version: getShopifyApiVersion(),
@@ -40,12 +57,9 @@ export const Route = createFileRoute("/api/shopify/sync-status")({
           installed_shop_domain: null,
           domain_mismatch: false,
           invalid_shop_domain: invalidStoredDomain,
-          install_status: invalidStoredDomain
-            ? "invalid_shop_domain"
-            : (settings?.install_status ??
-              (tokenStored ? "manual_token_configured" : "not_connected")),
+          install_status: invalidStoredDomain ? "invalid_shop_domain" : installStatus,
           token_stored: tokenStored,
-          granted_scopes: settings?.granted_scopes ?? [],
+          granted_scopes: grantedScopes,
           installed_at: settings?.installed_at ?? null,
           last_sync_at: settings?.last_sync_at ?? null,
           last_sync_status: invalidStoredDomain ? "error" : (settings?.last_sync_status ?? "idle"),
@@ -54,11 +68,11 @@ export const Route = createFileRoute("/api/shopify/sync-status")({
           last_connection_test_at: settings?.last_connection_test_at ?? null,
           last_connection_test_status: invalidStoredDomain
             ? "invalid_shop_domain"
-            : (settings?.last_connection_test_status ?? "not_tested"),
+            : connectionTestStatus,
           last_error: domainMessage ?? settings?.last_error ?? null,
           last_connection_test_error: invalidStoredDomain
             ? domainMessage
-            : (settings?.last_connection_test_error ?? null),
+            : connectionTestError,
           updated_at: settings?.updated_at ?? null,
         });
       },
