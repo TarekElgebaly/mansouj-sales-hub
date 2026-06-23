@@ -1,5 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getShopifyApiVersion, normalizeShopDomain } from "@/lib/shopify-auth.server";
+import {
+  getShopifyApiVersion,
+  getShopifyDomainValidationError,
+  normalizeShopDomain,
+  validateShopDomain,
+} from "@/lib/shopify-auth.server";
 
 export const Route = createFileRoute("/api/shopify/sync-status")({
   server: {
@@ -11,24 +16,39 @@ export const Route = createFileRoute("/api/shopify/sync-status")({
           process.env.SHOPIFY_SHOP_DOMAIN || process.env.SHOPIFY_STORE_DOMAIN || "",
         );
 
+        const { data: installation } = await supabaseAdmin
+          .from("shopify_installations")
+          .select("shop_domain,access_token,granted_scopes,install_status,installed_at,updated_at")
+          .eq("id", 1)
+          .maybeSingle();
+
         const { data: settings } = await supabaseAdmin
           .from("shopify_sync_settings")
           .select("*")
           .eq("id", 1)
           .maybeSingle();
 
-        const installedShopDomain = normalizeShopDomain(settings?.shop_domain || "");
+        const settingsAccessToken =
+          typeof (settings as { access_token?: unknown } | null)?.access_token === "string"
+            ? ((settings as { access_token?: string } | null)?.access_token ?? "")
+            : "";
+        const installedShopDomain = normalizeShopDomain(
+          settings?.shop_domain || installation?.shop_domain || "",
+        );
+        const settingsShopDomain = normalizeShopDomain(
+          settings?.shop_domain || settings?.store_url || "",
+        );
         const activeShopDomain =
-          configuredShopDomain || installedShopDomain || normalizeShopDomain(settings?.store_url || "") || "";
-        const domainMismatch = Boolean(
-          configuredShopDomain && installedShopDomain && configuredShopDomain !== installedShopDomain,
+          installedShopDomain || settingsShopDomain || configuredShopDomain || "";
+        const invalidStoredDomain = Boolean(
+          installedShopDomain && !validateShopDomain(installedShopDomain),
         );
-        const accessToken = typeof settings?.access_token === "string" ? settings.access_token : "";
         const tokenStored = Boolean(
-          (accessToken && accessToken !== "pending") || settings?.token_stored,
+          (settingsAccessToken && settingsAccessToken !== "pending") ||
+          (installation?.access_token && installation.access_token !== "pending"),
         );
-        const mismatchMessage = domainMismatch
-          ? `Configured Shopify store is ${configuredShopDomain}, but the saved OAuth install is for ${installedShopDomain}. Reinstall the Shopify app for ${configuredShopDomain}.`
+        const domainMessage = invalidStoredDomain
+          ? getShopifyDomainValidationError(installedShopDomain)
           : null;
 
         return Response.json({
@@ -36,26 +56,27 @@ export const Route = createFileRoute("/api/shopify/sync-status")({
           shop_domain: activeShopDomain || null,
           configured_shop_domain: configuredShopDomain || null,
           installed_shop_domain: installedShopDomain || null,
-          domain_mismatch: domainMismatch,
-          install_status: domainMismatch
-            ? "wrong_store_reinstall_required"
-            : (settings?.install_status ?? "not_connected"),
-          token_stored: tokenStored,
-          granted_scopes: settings?.granted_scopes ?? [],
-          installed_at: settings?.installed_at ?? null,
+          domain_mismatch: false,
+          invalid_shop_domain: invalidStoredDomain,
+          install_status: invalidStoredDomain
+            ? "invalid_shop_domain"
+            : (installation?.install_status ?? settings?.install_status ?? "not_connected"),
+          token_stored: tokenStored || Boolean(settings?.token_stored),
+          granted_scopes: installation?.granted_scopes ?? settings?.granted_scopes ?? [],
+          installed_at: installation?.installed_at ?? settings?.installed_at ?? null,
           last_sync_at: settings?.last_sync_at ?? null,
-          last_sync_status: domainMismatch ? "error" : (settings?.last_sync_status ?? "idle"),
+          last_sync_status: invalidStoredDomain ? "error" : (settings?.last_sync_status ?? "idle"),
           last_orders_imported: settings?.last_orders_imported ?? 0,
           last_orders_updated: settings?.last_orders_updated ?? 0,
           last_connection_test_at: settings?.last_connection_test_at ?? null,
-          last_connection_test_status: domainMismatch
-            ? "wrong_store"
+          last_connection_test_status: invalidStoredDomain
+            ? "invalid_shop_domain"
             : (settings?.last_connection_test_status ?? "not_tested"),
-          last_error: mismatchMessage ?? settings?.last_error ?? null,
-          last_connection_test_error: domainMismatch
-            ? mismatchMessage
+          last_error: domainMessage ?? settings?.last_error ?? null,
+          last_connection_test_error: invalidStoredDomain
+            ? domainMessage
             : (settings?.last_connection_test_error ?? null),
-          updated_at: settings?.updated_at ?? null,
+          updated_at: settings?.updated_at ?? installation?.updated_at ?? null,
         });
       },
     },
