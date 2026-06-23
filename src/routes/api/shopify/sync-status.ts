@@ -8,6 +8,15 @@ import {
   validateShopDomain,
 } from "@/lib/shopify-auth.server";
 
+const MISSING_SCOPE_INSTALL_STATUSES = new Set([
+  "connected_missing_scopes",
+  "manual_token_missing_scopes",
+]);
+
+function isMissingScopeError(message?: string | null) {
+  return Boolean(message?.toLowerCase().includes("missing required scopes"));
+}
+
 export const Route = createFileRoute("/api/shopify/sync-status")({
   server: {
     handlers: {
@@ -36,19 +45,48 @@ export const Route = createFileRoute("/api/shopify/sync-status")({
         const grantedScopes = settings?.granted_scopes ?? [];
         const missingRequiredScopes = missingScopes(grantedScopes);
         const scopesSatisfied = grantedScopes.length > 0 && missingRequiredScopes.length === 0;
+        const latestTestSucceeded =
+          settings?.last_connection_test_status === "success" && scopesSatisfied;
+        const staleMissingScopeTest =
+          settings?.last_connection_test_status === "missing_scopes" && scopesSatisfied;
+        const shouldNormalizeConnected =
+          latestTestSucceeded ||
+          (staleMissingScopeTest &&
+            MISSING_SCOPE_INSTALL_STATUSES.has(settings?.install_status ?? ""));
         const connectionTestStatus =
-          settings?.last_connection_test_status === "missing_scopes" && scopesSatisfied
+          staleMissingScopeTest
             ? "success"
             : (settings?.last_connection_test_status ?? "not_tested");
         const connectionTestError =
-          settings?.last_connection_test_status === "missing_scopes" && scopesSatisfied
+          latestTestSucceeded || staleMissingScopeTest
             ? null
             : (settings?.last_connection_test_error ?? null);
         const installStatus =
-          settings?.install_status === "manual_token_missing_scopes" && scopesSatisfied
-            ? "manual_token_connected"
+          shouldNormalizeConnected
+            ? "connected"
             : (settings?.install_status ??
               (tokenStored ? "manual_token_configured" : "not_connected"));
+        const lastError =
+          shouldNormalizeConnected && isMissingScopeError(settings?.last_error)
+            ? null
+            : (settings?.last_error ?? null);
+
+        if (!invalidStoredDomain && shouldNormalizeConnected) {
+          const statusUpdate: Record<string, unknown> = {};
+          if (settings?.install_status !== "connected") statusUpdate.install_status = "connected";
+          if (settings?.last_connection_test_status !== "success") {
+            statusUpdate.last_connection_test_status = "success";
+          }
+          if (settings?.last_connection_test_error) statusUpdate.last_connection_test_error = null;
+          if (isMissingScopeError(settings?.last_error)) statusUpdate.last_error = null;
+
+          if (Object.keys(statusUpdate).length > 0) {
+            await supabaseAdmin
+              .from("shopify_sync_settings")
+              .update(statusUpdate as never)
+              .eq("id", 1);
+          }
+        }
 
         return Response.json({
           api_version: getShopifyApiVersion(),
@@ -69,7 +107,7 @@ export const Route = createFileRoute("/api/shopify/sync-status")({
           last_connection_test_status: invalidStoredDomain
             ? "invalid_shop_domain"
             : connectionTestStatus,
-          last_error: domainMessage ?? settings?.last_error ?? null,
+          last_error: domainMessage ?? lastError,
           last_connection_test_error: invalidStoredDomain
             ? domainMessage
             : connectionTestError,
