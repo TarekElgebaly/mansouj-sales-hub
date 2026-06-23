@@ -21,7 +21,7 @@ const integrations = [
   { title: "Shopify Sync", url: "/shopify", icon: RefreshCw },
   { title: "Airtable Import", url: "/import", icon: FileUp },
   { title: "Settings", url: "/settings", icon: SettingsIcon },
-];
+] as const;
 
 export function AppSidebar() {
   const { state } = useSidebar();
@@ -49,7 +49,7 @@ export function AppSidebar() {
               {items.map((it) => (
                 <SidebarMenuItem key={it.url}>
                   <SidebarMenuButton asChild isActive={path.startsWith(it.url)}>
-                    <Link to={it.url} search={{}}><it.icon className="h-4 w-4" />{!collapsed && <span>{it.title}</span>}</Link>
+                    <Link to={it.url}><it.icon className="h-4 w-4" />{!collapsed && <span>{it.title}</span>}</Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -63,7 +63,7 @@ export function AppSidebar() {
               {integrations.map((it) => (
                 <SidebarMenuItem key={it.url}>
                   <SidebarMenuButton asChild isActive={path.startsWith(it.url)}>
-                    <Link to={it.url} search={{}}><it.icon className="h-4 w-4" />{!collapsed && <span>{it.title}</span>}</Link>
+                    <Link to={it.url}><it.icon className="h-4 w-4" />{!collapsed && <span>{it.title}</span>}</Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
