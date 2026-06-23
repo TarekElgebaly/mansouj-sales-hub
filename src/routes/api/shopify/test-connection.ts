@@ -11,6 +11,13 @@ type AccessScopeResponse = {
   access_scopes?: Array<{ handle: string }>;
 };
 
+type ShopResponse = {
+  shop?: {
+    domain?: string;
+    myshopify_domain?: string;
+  };
+};
+
 async function requireOpsUser(request: Request) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const authHeader = request.headers.get("authorization") ?? "";
@@ -42,28 +49,19 @@ export const Route = createFileRoute("/api/shopify/test-connection" as never)({
         if (!auth.ok) return auth.response;
         const { supabaseAdmin } = auth;
 
-        const { data: installRow } = await supabaseAdmin
-          .from("shopify_sync_settings")
-          .select("*")
-          .eq("id", 1)
-          .maybeSingle();
-        const install = installRow as {
-          shop_domain?: string | null;
-          access_token?: string | null;
-          granted_scopes?: string[] | null;
-          install_status?: string | null;
-        } | null;
-
-        if (!install?.shop_domain || !install?.access_token || install.access_token === "pending") {
+        const configuredDomain = normalizeShopDomain(process.env.SHOPIFY_SHOP_DOMAIN || "");
+        if (!configuredDomain) {
           return Response.json(
-            { success: false, error: "Invalid or expired token. Reinstall the Shopify app first." },
-            { status: 400 },
+            {
+              success: false,
+              error: "Missing SHOPIFY_SHOP_DOMAIN in Lovable Secrets.",
+            },
+            { status: 500 },
           );
         }
 
-        const installedDomain = normalizeShopDomain(install.shop_domain);
-        if (!validateShopDomain(installedDomain)) {
-          const message = getShopifyDomainValidationError(installedDomain);
+        if (!validateShopDomain(configuredDomain)) {
+          const message = getShopifyDomainValidationError(configuredDomain);
           await supabaseAdmin
             .from("shopify_sync_settings")
             .update({
@@ -76,32 +74,58 @@ export const Route = createFileRoute("/api/shopify/test-connection" as never)({
           return Response.json(
             {
               success: false,
-              shop_domain: installedDomain,
+              shop_domain: configuredDomain,
               error: message,
             },
             { status: 400 },
           );
         }
 
+        const accessToken =
+          process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SHOPIFY_ACCESS_TOKEN || "";
+        if (!accessToken) {
+          const message =
+            "Missing SHOPIFY_ADMIN_ACCESS_TOKEN in Lovable Secrets. SHOPIFY_ACCESS_TOKEN is supported only as a fallback.";
+          await supabaseAdmin
+            .from("shopify_sync_settings")
+            .update({
+              shop_domain: configuredDomain,
+              store_url: configuredDomain,
+              install_status: "missing_manual_token",
+              token_stored: false,
+              last_connection_test_at: new Date().toISOString(),
+              last_connection_test_status: "missing_token",
+              last_connection_test_error: message,
+            } as never)
+            .eq("id", 1);
+          return Response.json(
+            { success: false, shop_domain: configuredDomain, error: message },
+            { status: 500 },
+          );
+        }
+
         const apiVersion = getShopifyApiVersion();
-        const headers = { "X-Shopify-Access-Token": install.access_token };
+        const headers = { "X-Shopify-Access-Token": accessToken };
 
         try {
           const shopRes = await fetch(
-            `https://${installedDomain}/admin/api/${apiVersion}/shop.json`,
+            `https://${configuredDomain}/admin/api/${apiVersion}/shop.json`,
             { headers },
           );
           if (!shopRes.ok) {
             const text = await shopRes.text();
             const message =
               shopRes.status === 401
-                ? `Stored Shopify OAuth token was rejected for ${installedDomain}. Reinstall the Shopify app for this store so a fresh Admin API token can be saved.`
-                : `Shopify shop test failed: ${shopRes.status} ${text.slice(0, 160)}`;
+                ? "SHOPIFY_ADMIN_ACCESS_TOKEN was rejected by Shopify. Confirm the token belongs to this store and has Admin API access."
+                : shopRes.status === 404
+                  ? `Shopify Admin API version or shop endpoint failed for ${configuredDomain} using API ${apiVersion}.`
+                  : `Shopify shop test failed: ${shopRes.status} ${text.slice(0, 160)}`;
             await supabaseAdmin
               .from("shopify_sync_settings")
               .update({
-                install_status:
-                  shopRes.status === 401 ? "invalid_token_reinstall_required" : "error",
+                shop_domain: configuredDomain,
+                store_url: configuredDomain,
+                install_status: shopRes.status === 401 ? "invalid_manual_token" : "error",
                 token_stored: shopRes.status === 401 ? false : true,
                 last_connection_test_at: new Date().toISOString(),
                 last_connection_test_status: shopRes.status === 401 ? "invalid_token" : "error",
@@ -114,21 +138,50 @@ export const Route = createFileRoute("/api/shopify/test-connection" as never)({
             );
           }
 
+          const shopJson = (await shopRes.json()) as ShopResponse;
+          const responseDomain = normalizeShopDomain(
+            shopJson.shop?.myshopify_domain || shopJson.shop?.domain || "",
+          );
+          if (responseDomain && !validateShopDomain(responseDomain)) {
+            const message = `Shopify responded from an unexpected Admin domain: ${responseDomain}.`;
+            await supabaseAdmin
+              .from("shopify_sync_settings")
+              .update({
+                shop_domain: configuredDomain,
+                store_url: configuredDomain,
+                install_status: "unexpected_shop_domain",
+                last_connection_test_at: new Date().toISOString(),
+                last_connection_test_status: "unexpected_shop_domain",
+                last_connection_test_error: message,
+              } as never)
+              .eq("id", 1);
+            return Response.json(
+              {
+                success: false,
+                shop_domain: configuredDomain,
+                shop_response_domain: responseDomain,
+                error: message,
+              },
+              { status: 400 },
+            );
+          }
+
           const scopesRes = await fetch(
-            `https://${installedDomain}/admin/oauth/access_scopes.json`,
+            `https://${configuredDomain}/admin/oauth/access_scopes.json`,
             { headers },
           );
           if (!scopesRes.ok) {
             const text = await scopesRes.text();
             const message =
               scopesRes.status === 401
-                ? `Stored Shopify OAuth token was rejected for ${installedDomain}. Reinstall the Shopify app for this store so a fresh Admin API token can be saved.`
+                ? "SHOPIFY_ADMIN_ACCESS_TOKEN was rejected while reading scopes."
                 : `Could not read granted scopes: ${scopesRes.status} ${text.slice(0, 160)}`;
             await supabaseAdmin
               .from("shopify_sync_settings")
               .update({
-                install_status:
-                  scopesRes.status === 401 ? "invalid_token_reinstall_required" : "error",
+                shop_domain: configuredDomain,
+                store_url: configuredDomain,
+                install_status: scopesRes.status === 401 ? "invalid_manual_token" : "error",
                 token_stored: scopesRes.status === 401 ? false : true,
                 last_connection_test_at: new Date().toISOString(),
                 last_connection_test_status: scopesRes.status === 401 ? "invalid_token" : "error",
@@ -143,9 +196,7 @@ export const Route = createFileRoute("/api/shopify/test-connection" as never)({
 
           const scopesJson = (await scopesRes.json()) as AccessScopeResponse;
           const grantedScopes =
-            scopesJson.access_scopes?.map((scope) => scope.handle).filter(Boolean) ??
-            install.granted_scopes ??
-            [];
+            scopesJson.access_scopes?.map((scope) => scope.handle).filter(Boolean) ?? [];
           const missing = missingScopes(grantedScopes);
           const success = missing.length === 0;
           const error = success ? null : `Missing required scopes: ${missing.join(", ")}`;
@@ -153,8 +204,11 @@ export const Route = createFileRoute("/api/shopify/test-connection" as never)({
           await supabaseAdmin
             .from("shopify_sync_settings")
             .update({
+              shop_domain: configuredDomain,
+              store_url: configuredDomain,
               granted_scopes: grantedScopes,
-              install_status: success ? "connected" : "connected_missing_scopes",
+              install_status: success ? "manual_token_connected" : "manual_token_missing_scopes",
+              token_stored: true,
               last_connection_test_at: new Date().toISOString(),
               last_connection_test_status: success ? "success" : "missing_scopes",
               last_connection_test_error: error,
@@ -163,8 +217,12 @@ export const Route = createFileRoute("/api/shopify/test-connection" as never)({
 
           return Response.json({
             success,
-            shop_domain: installedDomain,
+            shop_domain: configuredDomain,
+            shop_response_domain: responseDomain || null,
             api_version: apiVersion,
+            token_source: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN
+              ? "SHOPIFY_ADMIN_ACCESS_TOKEN"
+              : "SHOPIFY_ACCESS_TOKEN",
             granted_scopes: grantedScopes,
             missing_required_scopes: missing,
             error,
