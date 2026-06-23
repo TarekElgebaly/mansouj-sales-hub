@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  getShopifyAdminAccessToken,
+  getShopifyAdminTokenSource,
   getShopifyApiVersion,
   getShopifyDomainValidationError,
   missingScopes,
@@ -81,8 +83,7 @@ export const Route = createFileRoute("/api/shopify/test-connection" as never)({
           );
         }
 
-        const accessToken =
-          process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SHOPIFY_ACCESS_TOKEN || "";
+        const accessToken = getShopifyAdminAccessToken();
         if (!accessToken) {
           const message =
             "Missing SHOPIFY_ADMIN_ACCESS_TOKEN in Lovable Secrets. SHOPIFY_ACCESS_TOKEN is supported only as a fallback.";
@@ -117,6 +118,8 @@ export const Route = createFileRoute("/api/shopify/test-connection" as never)({
             const message =
               shopRes.status === 401
                 ? "SHOPIFY_ADMIN_ACCESS_TOKEN was rejected by Shopify. Confirm the token belongs to this store and has Admin API access."
+                : shopRes.status === 403
+                  ? "SHOPIFY_ADMIN_ACCESS_TOKEN is valid but Shopify denied access to the shop endpoint. Check the custom app Admin API permissions."
                 : shopRes.status === 404
                   ? `Shopify Admin API version or shop endpoint failed for ${configuredDomain} using API ${apiVersion}.`
                   : `Shopify shop test failed: ${shopRes.status} ${text.slice(0, 160)}`;
@@ -128,13 +131,18 @@ export const Route = createFileRoute("/api/shopify/test-connection" as never)({
                 install_status: shopRes.status === 401 ? "invalid_manual_token" : "error",
                 token_stored: shopRes.status === 401 ? false : true,
                 last_connection_test_at: new Date().toISOString(),
-                last_connection_test_status: shopRes.status === 401 ? "invalid_token" : "error",
+                last_connection_test_status:
+                  shopRes.status === 401
+                    ? "invalid_token"
+                    : shopRes.status === 403
+                      ? "permission_denied"
+                      : "error",
                 last_connection_test_error: message,
               } as never)
               .eq("id", 1);
             return Response.json(
               { success: false, error: message },
-              { status: shopRes.status === 401 ? 401 : 502 },
+              { status: shopRes.status === 401 ? 401 : shopRes.status === 403 ? 403 : 502 },
             );
           }
 
@@ -175,6 +183,8 @@ export const Route = createFileRoute("/api/shopify/test-connection" as never)({
             const message =
               scopesRes.status === 401
                 ? "SHOPIFY_ADMIN_ACCESS_TOKEN was rejected while reading scopes."
+                : scopesRes.status === 403
+                  ? "SHOPIFY_ADMIN_ACCESS_TOKEN is valid but cannot read granted scopes. Check the custom app Admin API permissions."
                 : `Could not read granted scopes: ${scopesRes.status} ${text.slice(0, 160)}`;
             await supabaseAdmin
               .from("shopify_sync_settings")
@@ -184,13 +194,18 @@ export const Route = createFileRoute("/api/shopify/test-connection" as never)({
                 install_status: scopesRes.status === 401 ? "invalid_manual_token" : "error",
                 token_stored: scopesRes.status === 401 ? false : true,
                 last_connection_test_at: new Date().toISOString(),
-                last_connection_test_status: scopesRes.status === 401 ? "invalid_token" : "error",
+                last_connection_test_status:
+                  scopesRes.status === 401
+                    ? "invalid_token"
+                    : scopesRes.status === 403
+                      ? "permission_denied"
+                      : "error",
                 last_connection_test_error: message,
               } as never)
               .eq("id", 1);
             return Response.json(
               { success: false, error: message },
-              { status: scopesRes.status === 401 ? 401 : 502 },
+              { status: scopesRes.status === 401 ? 401 : scopesRes.status === 403 ? 403 : 502 },
             );
           }
 
@@ -220,9 +235,7 @@ export const Route = createFileRoute("/api/shopify/test-connection" as never)({
             shop_domain: configuredDomain,
             shop_response_domain: responseDomain || null,
             api_version: apiVersion,
-            token_source: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN
-              ? "SHOPIFY_ADMIN_ACCESS_TOKEN"
-              : "SHOPIFY_ACCESS_TOKEN",
+            token_source: getShopifyAdminTokenSource(),
             granted_scopes: grantedScopes,
             missing_required_scopes: missing,
             error,
