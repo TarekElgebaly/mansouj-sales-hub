@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useUser } from "@/hooks/use-user";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,7 @@ import {
   RefreshCw,
   ShoppingBag,
   TestTube2,
+  Trash2,
   Warehouse,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -64,11 +66,25 @@ type ShopifySyncStatus = {
   updated_at?: string | null;
 };
 
+type LocalOrdersResetResult = {
+  deleted_orders_count: number;
+  deleted_order_items_count: number;
+  deleted_order_notes_count: number;
+  deleted_order_activity_count: number;
+  cursor_reset: boolean;
+};
+
+const RESET_CONFIRMATION_MESSAGE =
+  "This will delete ALL orders from Mansouj Sales Hub only. It will NOT delete anything from Shopify. Continue?";
+
 function ShopifyPage() {
   const qc = useQueryClient();
+  const { canOps } = useUser();
   const [testing, setTesting] = useState(false);
   const [syncingRecent, setSyncingRecent] = useState(false);
   const [syncingBackfill, setSyncingBackfill] = useState(false);
+  const [resettingOrders, setResettingOrders] = useState(false);
+  const [resetResult, setResetResult] = useState<LocalOrdersResetResult | null>(null);
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ["shopify-settings"],
@@ -115,7 +131,8 @@ function ShopifyPage() {
         headers: await authHeader(),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) throw new Error(json.error ?? "Shopify connection test failed.");
+      if (!res.ok || !json.success)
+        throw new Error(json.error ?? "Shopify connection test failed.");
       toast.success("Shopify connection is working.");
       await refreshStatus();
     } catch (e) {
@@ -159,6 +176,42 @@ function ShopifyPage() {
     }
   };
 
+  const resetAllLocalOrders = async () => {
+    if (!window.confirm(RESET_CONFIRMATION_MESSAGE)) return;
+
+    setResettingOrders(true);
+    setResetResult(null);
+    try {
+      const res = await fetch("/api/orders/reset-all", {
+        method: "POST",
+        headers: {
+          ...(await authHeader()),
+          "Content-Type": "application/json",
+        },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) throw new Error(json.error ?? "Local orders reset failed.");
+
+      const result: LocalOrdersResetResult = {
+        deleted_orders_count: json.deleted_orders_count ?? 0,
+        deleted_order_items_count: json.deleted_order_items_count ?? 0,
+        deleted_order_notes_count: json.deleted_order_notes_count ?? 0,
+        deleted_order_activity_count: json.deleted_order_activity_count ?? 0,
+        cursor_reset: Boolean(json.cursor_reset),
+      };
+      setResetResult(result);
+      toast.success(
+        `Deleted ${result.deleted_orders_count} local orders. Shopify was not touched.`,
+      );
+      await refreshStatus();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+      await refreshStatus();
+    } finally {
+      setResettingOrders(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-muted/30 px-4 py-6 md:px-8">
       <div className="mx-auto max-w-5xl space-y-4">
@@ -172,7 +225,8 @@ function ShopifyPage() {
 
         <Alert>
           <AlertDescription>
-            Use Full Backfill Orders once to import historical data. Use Pull from Shopify for daily recent orders.
+            Use Full Backfill Orders once to import historical data. Use Pull from Shopify for daily
+            recent orders.
           </AlertDescription>
         </Alert>
 
@@ -231,22 +285,66 @@ function ShopifyPage() {
                   Orders
                 </CardTitle>
                 <CardDescription>
-                  Recent sync uses the cursor and a small overlap. Full backfill imports all historical Shopify orders.
+                  Recent sync uses the cursor and a small overlap. Full backfill imports all
+                  historical Shopify orders.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                <Button onClick={() => syncOrders("incremental")} disabled={syncingRecent || syncingBackfill}>
-                  <RefreshCw className={`mr-2 h-4 w-4 ${syncingRecent ? "animate-spin" : ""}`} />
-                  Sync Recent Orders
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => syncOrders("full_backfill")}
-                  disabled={syncingRecent || syncingBackfill}
-                >
-                  <RefreshCw className={`mr-2 h-4 w-4 ${syncingBackfill ? "animate-spin" : ""}`} />
-                  Full Backfill Orders
-                </Button>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => syncOrders("incremental")}
+                    disabled={syncingRecent || syncingBackfill || resettingOrders}
+                  >
+                    <RefreshCw className={`mr-2 h-4 w-4 ${syncingRecent ? "animate-spin" : ""}`} />
+                    Sync Recent Orders
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => syncOrders("full_backfill")}
+                    disabled={syncingRecent || syncingBackfill || resettingOrders}
+                  >
+                    <RefreshCw
+                      className={`mr-2 h-4 w-4 ${syncingBackfill ? "animate-spin" : ""}`}
+                    />
+                    Full Backfill Orders
+                  </Button>
+                  {canOps && (
+                    <Button
+                      variant="destructive"
+                      onClick={resetAllLocalOrders}
+                      disabled={syncingRecent || syncingBackfill || resettingOrders}
+                    >
+                      <Trash2
+                        className={`mr-2 h-4 w-4 ${resettingOrders ? "animate-pulse" : ""}`}
+                      />
+                      Reset All Local Orders
+                    </Button>
+                  )}
+                </div>
+                {resetResult && (
+                  <div className="grid gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4 sm:grid-cols-2 lg:grid-cols-5">
+                    <StatusItem
+                      label="Deleted orders"
+                      value={String(resetResult.deleted_orders_count)}
+                    />
+                    <StatusItem
+                      label="Deleted items"
+                      value={String(resetResult.deleted_order_items_count)}
+                    />
+                    <StatusItem
+                      label="Deleted notes"
+                      value={String(resetResult.deleted_order_notes_count)}
+                    />
+                    <StatusItem
+                      label="Deleted activity"
+                      value={String(resetResult.deleted_order_activity_count)}
+                    />
+                    <StatusItem
+                      label="Cursor reset"
+                      value={resetResult.cursor_reset ? "true" : "false"}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -271,7 +369,9 @@ function ShopifyPage() {
                     <Warehouse className="h-5 w-5" />
                     Inventory & Cost
                   </CardTitle>
-                  <CardDescription>Inventory and cost sync backend is not enabled yet.</CardDescription>
+                  <CardDescription>
+                    Inventory and cost sync backend is not enabled yet.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="flex items-center gap-3">
                   <Button disabled>Sync Inventory & Cost</Button>
@@ -290,9 +390,18 @@ function ShopifyPage() {
               <CardContent className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <StatusItem label="Last sync date" value={fmtDateTime(settings?.last_sync_at)} />
-                  <StatusItem label="Last sync mode" value={settings?.last_sync_mode ?? "not_run"} />
-                  <StatusItem label="Orders imported" value={String(settings?.last_orders_imported ?? 0)} />
-                  <StatusItem label="Orders updated" value={String(settings?.last_orders_updated ?? 0)} />
+                  <StatusItem
+                    label="Last sync mode"
+                    value={settings?.last_sync_mode ?? "not_run"}
+                  />
+                  <StatusItem
+                    label="Orders imported"
+                    value={String(settings?.last_orders_imported ?? 0)}
+                  />
+                  <StatusItem
+                    label="Orders updated"
+                    value={String(settings?.last_orders_updated ?? 0)}
+                  />
                   <StatusItem label="Sync status" value={syncStatus} />
                   <StatusItem
                     label="Orders cursor"
@@ -320,7 +429,9 @@ function ShopifyPage() {
                               {fmtDateTime(run.started_at)}
                             </div>
                             {run.error_message && (
-                              <div className="mt-1 text-xs text-destructive">{run.error_message}</div>
+                              <div className="mt-1 text-xs text-destructive">
+                                {run.error_message}
+                              </div>
                             )}
                           </div>
                           <Badge variant={run.status === "success" ? "default" : "destructive"}>
