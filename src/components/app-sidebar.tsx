@@ -15,13 +15,13 @@ const items = [
   { title: "Inventory", url: "/inventory", icon: Package },
   { title: "Areas", url: "/areas", icon: MapPin },
   { title: "Finance", url: "/finance", icon: DollarSign },
-];
+] as const;
 
 const integrations = [
   { title: "Shopify Sync", url: "/shopify", icon: RefreshCw },
   { title: "Airtable Import", url: "/import", icon: FileUp },
   { title: "Settings", url: "/settings", icon: SettingsIcon },
-];
+] as const;
 
 export function AppSidebar() {
   const { state } = useSidebar();
