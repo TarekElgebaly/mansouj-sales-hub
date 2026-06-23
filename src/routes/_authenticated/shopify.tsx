@@ -43,7 +43,14 @@ function ShopifyPage() {
   });
 
   const syncStatus = settings?.last_sync_status ?? "idle";
-  const connectionStatus = settings?.install_status ?? "not_connected";
+  const rawConnectionStatus = settings?.install_status ?? "not_connected";
+  const connectionStatus =
+    settings?.last_connection_test_status === "success" &&
+    (rawConnectionStatus === "connected_missing_scopes" ||
+      rawConnectionStatus === "manual_token_missing_scopes" ||
+      rawConnectionStatus === "manual_token_connected")
+      ? "connected"
+      : rawConnectionStatus;
   const connected =
     connectionStatus === "connected" ||
     connectionStatus === "connected_missing_scopes" ||
