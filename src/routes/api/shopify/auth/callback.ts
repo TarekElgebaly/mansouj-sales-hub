@@ -51,7 +51,7 @@ function restartInstallResponse(origin: string, shop: string, message: string, s
   );
 }
 
-export const Route = createFileRoute("/api/shopify/auth/callback" as never)({
+export const Route = createFileRoute("/api/shopify/auth/callback")({
   server: {
     handlers: {
       GET: async ({ request }) => {
@@ -99,7 +99,7 @@ export const Route = createFileRoute("/api/shopify/auth/callback" as never)({
         }
 
         const { data: install } = await supabaseAdmin
-          .from("shopify_installations")
+          .from("shopify_sync_settings")
           .select("oauth_state_hash,oauth_state_expires_at,shop_domain")
           .eq("id", 1)
           .maybeSingle();
@@ -150,24 +150,10 @@ export const Route = createFileRoute("/api/shopify/auth/callback" as never)({
         const installedAt = new Date().toISOString();
         const status = missing.length ? "connected_missing_scopes" : "connected";
 
-        await supabaseAdmin.from("shopify_installations").upsert(
-          {
-            id: 1,
-            shop_domain: shop,
-            access_token: tokenJson.access_token,
-            granted_scopes: grantedScopes,
-            install_status: status,
-            installed_at: installedAt,
-            oauth_state_hash: null,
-            oauth_state_expires_at: null,
-            updated_at: installedAt,
-          } as never,
-          { onConflict: "id" },
-        );
-
         await supabaseAdmin
           .from("shopify_sync_settings")
-          .update({
+          .upsert({
+            id: 1,
             store_url: shop,
             shop_domain: shop,
             access_token: tokenJson.access_token,
@@ -181,8 +167,10 @@ export const Route = createFileRoute("/api/shopify/auth/callback" as never)({
             last_connection_test_error: missing.length
               ? `Missing required scopes: ${missing.join(", ")}`
               : null,
-          } as never)
-          .eq("id", 1);
+            oauth_state_hash: null,
+            oauth_state_expires_at: null,
+            updated_at: installedAt,
+          } as never, { onConflict: "id" });
 
         const apiVersion = getShopifyApiVersion();
         const redirect = new URL("/shopify", url.origin);
