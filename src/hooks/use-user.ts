@@ -39,10 +39,11 @@ export function useUser() {
   }, []);
 
   const hasRole = (r: AppRole) => roles.includes(r);
+  const canAdmin = hasRole("admin");
   const canOps = hasRole("admin") || hasRole("operations");
   const canFinance = hasRole("admin") || hasRole("finance");
   const canShipping = hasRole("admin") || hasRole("shipping") || hasRole("operations");
   const canWrite = canOps || canFinance || canShipping;
 
-  return { user, roles, loading, hasRole, canOps, canFinance, canShipping, canWrite };
+  return { user, roles, loading, hasRole, canAdmin, canOps, canFinance, canShipping, canWrite };
 }
