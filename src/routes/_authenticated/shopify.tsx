@@ -89,6 +89,27 @@ type ResetSync2026Result = {
   last_order_number_imported: string | null;
 };
 
+type ProductSyncResult = {
+  products_processed: number;
+  products_created: number;
+  products_updated: number;
+  variants_processed: number;
+  variants_created: number;
+  variants_updated: number;
+  failed_count: number;
+  pages_fetched: number;
+};
+
+type InventoryCostSyncResult = {
+  inventory_items_processed: number;
+  inventory_items_with_cost: number;
+  inventory_items_missing_cost: number;
+  locations_processed: number;
+  inventory_levels_processed: number;
+  failed_count: number;
+  pages_fetched: number;
+};
+
 const RESET_CONFIRMATION_MESSAGE =
   "This will delete ALL orders from Mansouj Sales Hub only. It will NOT delete anything from Shopify. Continue?";
 const RESET_SYNC_2026_CONFIRMATION_MESSAGE =
@@ -96,14 +117,21 @@ const RESET_SYNC_2026_CONFIRMATION_MESSAGE =
 
 function ShopifyPage() {
   const qc = useQueryClient();
-  const { canAdmin } = useUser();
+  const { canAdmin, canOps } = useUser();
   const [testing, setTesting] = useState(false);
   const [syncingRecent, setSyncingRecent] = useState(false);
   const [syncingBackfill, setSyncingBackfill] = useState(false);
+  const [syncingProducts, setSyncingProducts] = useState(false);
+  const [syncingInventoryCost, setSyncingInventoryCost] = useState(false);
   const [resettingOrders, setResettingOrders] = useState(false);
   const [resetSyncing2026, setResetSyncing2026] = useState(false);
   const [resetResult, setResetResult] = useState<LocalOrdersResetResult | null>(null);
   const [resetSync2026Result, setResetSync2026Result] = useState<ResetSync2026Result | null>(null);
+  const [productSyncResult, setProductSyncResult] = useState<ProductSyncResult | null>(null);
+  const [inventoryCostSyncResult, setInventoryCostSyncResult] =
+    useState<InventoryCostSyncResult | null>(null);
+  const [productSyncError, setProductSyncError] = useState<string | null>(null);
+  const [inventoryCostSyncError, setInventoryCostSyncError] = useState<string | null>(null);
 
   const authHeader = async () => {
     const { data } = await supabase.auth.getSession();
@@ -195,6 +223,86 @@ function ShopifyPage() {
       await refreshStatus();
     } finally {
       setBusy(false);
+    }
+  };
+
+  const syncProducts = async () => {
+    setSyncingProducts(true);
+    setProductSyncResult(null);
+    setProductSyncError(null);
+    try {
+      const res = await fetch("/api/shopify/sync-products", {
+        method: "POST",
+        headers: {
+          ...(await authHeader()),
+          "Content-Type": "application/json",
+        },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) throw new Error(json.error ?? "Shopify products sync failed.");
+
+      const result: ProductSyncResult = {
+        products_processed: json.products_processed ?? 0,
+        products_created: json.products_created ?? 0,
+        products_updated: json.products_updated ?? 0,
+        variants_processed: json.variants_processed ?? 0,
+        variants_created: json.variants_created ?? 0,
+        variants_updated: json.variants_updated ?? 0,
+        failed_count: json.failed_count ?? 0,
+        pages_fetched: json.pages_fetched ?? 0,
+      };
+      setProductSyncResult(result);
+      toast.success(
+        `Products sync finished: ${result.products_processed} products, ${result.variants_processed} variants.`,
+      );
+      await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setProductSyncError(message);
+      toast.error(message);
+      await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
+    } finally {
+      setSyncingProducts(false);
+    }
+  };
+
+  const syncInventoryCost = async () => {
+    setSyncingInventoryCost(true);
+    setInventoryCostSyncResult(null);
+    setInventoryCostSyncError(null);
+    try {
+      const res = await fetch("/api/shopify/sync-inventory-cost", {
+        method: "POST",
+        headers: {
+          ...(await authHeader()),
+          "Content-Type": "application/json",
+        },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok)
+        throw new Error(json.error ?? "Shopify inventory and cost sync failed.");
+
+      const result: InventoryCostSyncResult = {
+        inventory_items_processed: json.inventory_items_processed ?? 0,
+        inventory_items_with_cost: json.inventory_items_with_cost ?? 0,
+        inventory_items_missing_cost: json.inventory_items_missing_cost ?? 0,
+        locations_processed: json.locations_processed ?? 0,
+        inventory_levels_processed: json.inventory_levels_processed ?? 0,
+        failed_count: json.failed_count ?? 0,
+        pages_fetched: json.pages_fetched ?? 0,
+      };
+      setInventoryCostSyncResult(result);
+      toast.success(
+        `Inventory & cost sync finished: ${result.inventory_items_processed} items, ${result.inventory_items_with_cost} with cost.`,
+      );
+      await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setInventoryCostSyncError(message);
+      toast.error(message);
+      await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
+    } finally {
+      setSyncingInventoryCost(false);
     }
   };
 
@@ -507,11 +615,66 @@ function ShopifyPage() {
                     <Package className="h-5 w-5" />
                     Products
                   </CardTitle>
-                  <CardDescription>Product sync backend is not enabled yet.</CardDescription>
+                  <CardDescription>
+                    Sync Shopify products and variants. No Shopify data is modified.
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="flex items-center gap-3">
-                  <Button disabled>Sync Products</Button>
-                  <Badge variant="secondary">Coming soon</Badge>
+                <CardContent className="space-y-4">
+                  <Button
+                    onClick={syncProducts}
+                    disabled={!canOps || syncingProducts || syncingInventoryCost}
+                  >
+                    <RefreshCw
+                      className={`mr-2 h-4 w-4 ${syncingProducts ? "animate-spin" : ""}`}
+                    />
+                    Sync Products
+                  </Button>
+                  {!canOps && (
+                    <p className="text-sm text-muted-foreground">
+                      Admin or operations access is required to run this sync.
+                    </p>
+                  )}
+                  {productSyncError && (
+                    <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                      {productSyncError}
+                    </div>
+                  )}
+                  {productSyncResult && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <StatusItem
+                        label="Products processed"
+                        value={String(productSyncResult.products_processed)}
+                      />
+                      <StatusItem
+                        label="Products created"
+                        value={String(productSyncResult.products_created)}
+                      />
+                      <StatusItem
+                        label="Products updated"
+                        value={String(productSyncResult.products_updated)}
+                      />
+                      <StatusItem
+                        label="Variants processed"
+                        value={String(productSyncResult.variants_processed)}
+                      />
+                      <StatusItem
+                        label="Variants created"
+                        value={String(productSyncResult.variants_created)}
+                      />
+                      <StatusItem
+                        label="Variants updated"
+                        value={String(productSyncResult.variants_updated)}
+                      />
+                      <StatusItem
+                        label="Pages fetched"
+                        value={String(productSyncResult.pages_fetched)}
+                      />
+                      <StatusItem
+                        label="Failed"
+                        value={String(productSyncResult.failed_count)}
+                      />
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -522,12 +685,61 @@ function ShopifyPage() {
                     Inventory & Cost
                   </CardTitle>
                   <CardDescription>
-                    Inventory and cost sync backend is not enabled yet.
+                    Sync Shopify locations, inventory levels, and InventoryItem unit cost.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="flex items-center gap-3">
-                  <Button disabled>Sync Inventory & Cost</Button>
-                  <Badge variant="secondary">Coming soon</Badge>
+                <CardContent className="space-y-4">
+                  <Button
+                    onClick={syncInventoryCost}
+                    disabled={!canOps || syncingProducts || syncingInventoryCost}
+                  >
+                    <RefreshCw
+                      className={`mr-2 h-4 w-4 ${syncingInventoryCost ? "animate-spin" : ""}`}
+                    />
+                    Sync Inventory & Cost
+                  </Button>
+                  {!canOps && (
+                    <p className="text-sm text-muted-foreground">
+                      Admin or operations access is required to run this sync.
+                    </p>
+                  )}
+                  {inventoryCostSyncError && (
+                    <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                      {inventoryCostSyncError}
+                    </div>
+                  )}
+                  {inventoryCostSyncResult && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <StatusItem
+                        label="Inventory items"
+                        value={String(inventoryCostSyncResult.inventory_items_processed)}
+                      />
+                      <StatusItem
+                        label="Items with cost"
+                        value={String(inventoryCostSyncResult.inventory_items_with_cost)}
+                      />
+                      <StatusItem
+                        label="Items missing cost"
+                        value={String(inventoryCostSyncResult.inventory_items_missing_cost)}
+                      />
+                      <StatusItem
+                        label="Locations"
+                        value={String(inventoryCostSyncResult.locations_processed)}
+                      />
+                      <StatusItem
+                        label="Inventory levels"
+                        value={String(inventoryCostSyncResult.inventory_levels_processed)}
+                      />
+                      <StatusItem
+                        label="Pages fetched"
+                        value={String(inventoryCostSyncResult.pages_fetched)}
+                      />
+                      <StatusItem
+                        label="Failed"
+                        value={String(inventoryCostSyncResult.failed_count)}
+                      />
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
