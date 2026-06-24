@@ -1,13 +1,6 @@
 # Shopify Admin Token Setup
 
-This integration uses a legacy Shopify custom app Admin API token. It does not use Shopify OAuth install flow.
-
-The legacy Shopify OAuth install endpoints are intentionally disabled. Requests to these URLs must return `410 Gone` and must not redirect, create state, exchange tokens, or update Shopify settings:
-
-```text
-/api/shopify/auth/start
-/api/shopify/auth/callback
-```
+This integration uses a legacy Shopify custom app Admin API token stored in Lovable Secrets.
 
 ## Lovable Secrets
 
