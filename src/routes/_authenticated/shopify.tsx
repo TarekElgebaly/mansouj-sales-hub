@@ -73,8 +73,26 @@ type LocalOrdersResetResult = {
   cursor_reset: boolean;
 };
 
+type ResetSync2026Result = {
+  current_local_orders_count: number;
+  current_local_order_items_count: number;
+  deleted_orders_count: number;
+  deleted_order_items_count: number;
+  deleted_order_notes_count: number;
+  deleted_order_activity_count: number;
+  records_processed: number;
+  created_count: number;
+  updated_count: number;
+  failed_count: number;
+  pages_fetched: number;
+  first_order_number_imported: string | null;
+  last_order_number_imported: string | null;
+};
+
 const RESET_CONFIRMATION_MESSAGE =
   "This will delete ALL orders from Mansouj Sales Hub only. It will NOT delete anything from Shopify. Continue?";
+const RESET_SYNC_2026_CONFIRMATION_MESSAGE =
+  "This will delete ALL local orders from Mansouj Sales Hub and then import only Shopify orders created in 2026. It will NOT delete anything from Shopify. Continue?";
 
 function ShopifyPage() {
   const qc = useQueryClient();
@@ -83,7 +101,9 @@ function ShopifyPage() {
   const [syncingRecent, setSyncingRecent] = useState(false);
   const [syncingBackfill, setSyncingBackfill] = useState(false);
   const [resettingOrders, setResettingOrders] = useState(false);
+  const [resetSyncing2026, setResetSyncing2026] = useState(false);
   const [resetResult, setResetResult] = useState<LocalOrdersResetResult | null>(null);
+  const [resetSync2026Result, setResetSync2026Result] = useState<ResetSync2026Result | null>(null);
 
   const authHeader = async () => {
     const { data } = await supabase.auth.getSession();
@@ -214,6 +234,58 @@ function ShopifyPage() {
     }
   };
 
+  const resetAndSync2026Orders = async () => {
+    if (!window.confirm(RESET_SYNC_2026_CONFIRMATION_MESSAGE)) return;
+
+    setResetSyncing2026(true);
+    setResetSync2026Result(null);
+    try {
+      const res = await fetch("/api/shopify/reset-and-sync-2026-orders", {
+        method: "POST",
+        headers: {
+          ...(await authHeader()),
+          "Content-Type": "application/json",
+        },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error ?? "Reset and 2026 Shopify orders sync failed.");
+      }
+
+      const result: ResetSync2026Result = {
+        current_local_orders_count: json.current_local_orders_count ?? 0,
+        current_local_order_items_count: json.current_local_order_items_count ?? 0,
+        deleted_orders_count: json.deleted_orders_count ?? 0,
+        deleted_order_items_count: json.deleted_order_items_count ?? 0,
+        deleted_order_notes_count: json.deleted_order_notes_count ?? 0,
+        deleted_order_activity_count: json.deleted_order_activity_count ?? 0,
+        records_processed: json.records_processed ?? 0,
+        created_count: json.created_count ?? 0,
+        updated_count: json.updated_count ?? 0,
+        failed_count: json.failed_count ?? 0,
+        pages_fetched: json.pages_fetched ?? 0,
+        first_order_number_imported: json.first_order_number_imported ?? null,
+        last_order_number_imported: json.last_order_number_imported ?? null,
+      };
+      setResetSync2026Result(result);
+      if (json.status === "partial") {
+        toast.warning(
+          `2026 orders sync finished with ${result.failed_count} failed orders. Shopify was not changed.`,
+        );
+      } else {
+        toast.success(
+          `Reset complete. Imported ${result.created_count} Shopify orders created in 2026.`,
+        );
+      }
+      await refreshStatus();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+      await refreshStatus();
+    } finally {
+      setResetSyncing2026(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-muted/30 px-4 py-6 md:px-8">
       <div className="mx-auto max-w-5xl space-y-4">
@@ -295,7 +367,7 @@ function ShopifyPage() {
                 <div className="flex flex-wrap gap-2">
                   <Button
                     onClick={() => syncOrders("incremental")}
-                    disabled={syncingRecent || syncingBackfill || resettingOrders}
+                    disabled={syncingRecent || syncingBackfill || resettingOrders || resetSyncing2026}
                   >
                     <RefreshCw className={`mr-2 h-4 w-4 ${syncingRecent ? "animate-spin" : ""}`} />
                     Sync Recent Orders
@@ -303,7 +375,7 @@ function ShopifyPage() {
                   <Button
                     variant="outline"
                     onClick={() => syncOrders("full_backfill")}
-                    disabled={syncingRecent || syncingBackfill || resettingOrders}
+                    disabled={syncingRecent || syncingBackfill || resettingOrders || resetSyncing2026}
                   >
                     <RefreshCw
                       className={`mr-2 h-4 w-4 ${syncingBackfill ? "animate-spin" : ""}`}
@@ -311,18 +383,96 @@ function ShopifyPage() {
                     Full Backfill Orders
                   </Button>
                   {canAdmin && (
-                    <Button
-                      variant="destructive"
-                      onClick={resetAllLocalOrders}
-                      disabled={syncingRecent || syncingBackfill || resettingOrders}
-                    >
-                      <Trash2
-                        className={`mr-2 h-4 w-4 ${resettingOrders ? "animate-pulse" : ""}`}
-                      />
-                      Reset All Local Orders
-                    </Button>
+                    <>
+                      <Button
+                        variant="destructive"
+                        onClick={resetAndSync2026Orders}
+                        disabled={
+                          syncingRecent || syncingBackfill || resettingOrders || resetSyncing2026
+                        }
+                      >
+                        <RefreshCw
+                          className={`mr-2 h-4 w-4 ${resetSyncing2026 ? "animate-spin" : ""}`}
+                        />
+                        Reset & Sync 2026 Orders
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={resetAllLocalOrders}
+                        disabled={
+                          syncingRecent || syncingBackfill || resettingOrders || resetSyncing2026
+                        }
+                      >
+                        <Trash2
+                          className={`mr-2 h-4 w-4 ${resettingOrders ? "animate-pulse" : ""}`}
+                        />
+                        Reset All Local Orders
+                      </Button>
+                    </>
                   )}
                 </div>
+                {canAdmin && (
+                  <p className="text-sm text-muted-foreground">
+                    Reset & Sync 2026 Orders deletes all local orders from Mansouj Sales Hub, then
+                    imports Shopify orders created in 2026 only. Shopify will not be changed.
+                  </p>
+                )}
+                {resetSync2026Result && (
+                  <div className="grid gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <StatusItem
+                      label="Previous local orders"
+                      value={String(resetSync2026Result.current_local_orders_count)}
+                    />
+                    <StatusItem
+                      label="Previous local items"
+                      value={String(resetSync2026Result.current_local_order_items_count)}
+                    />
+                    <StatusItem
+                      label="Deleted orders"
+                      value={String(resetSync2026Result.deleted_orders_count)}
+                    />
+                    <StatusItem
+                      label="Deleted items"
+                      value={String(resetSync2026Result.deleted_order_items_count)}
+                    />
+                    <StatusItem
+                      label="Deleted notes"
+                      value={String(resetSync2026Result.deleted_order_notes_count)}
+                    />
+                    <StatusItem
+                      label="Deleted activity"
+                      value={String(resetSync2026Result.deleted_order_activity_count)}
+                    />
+                    <StatusItem
+                      label="Records processed"
+                      value={String(resetSync2026Result.records_processed)}
+                    />
+                    <StatusItem
+                      label="Created"
+                      value={String(resetSync2026Result.created_count)}
+                    />
+                    <StatusItem
+                      label="Updated"
+                      value={String(resetSync2026Result.updated_count)}
+                    />
+                    <StatusItem
+                      label="Failed"
+                      value={String(resetSync2026Result.failed_count)}
+                    />
+                    <StatusItem
+                      label="Pages fetched"
+                      value={String(resetSync2026Result.pages_fetched)}
+                    />
+                    <StatusItem
+                      label="First imported"
+                      value={resetSync2026Result.first_order_number_imported ?? "None"}
+                    />
+                    <StatusItem
+                      label="Last imported"
+                      value={resetSync2026Result.last_order_number_imported ?? "None"}
+                    />
+                  </div>
+                )}
                 {resetResult && (
                   <div className="grid gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4 sm:grid-cols-2 lg:grid-cols-5">
                     <StatusItem
