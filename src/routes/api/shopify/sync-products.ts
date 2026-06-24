@@ -49,6 +49,10 @@ type ShopifyProductsResponse = {
   products?: ShopifyProduct[];
 };
 
+const API_METHOD = "REST";
+const ZERO_PRODUCTS_MESSAGE =
+  "Sync completed but no products were returned from Shopify. Shopify returned zero products. Check API endpoint, shop domain, permissions, or product status filters.";
+
 function productRow(product: ShopifyProduct) {
   return {
     shopify_product_id: String(product.id),
@@ -98,6 +102,18 @@ async function existingIds(supabaseAdmin: any, table: string, column: string, id
   return new Set((data ?? []).map((row: Record<string, string>) => row[column]).filter(Boolean));
 }
 
+function responseShapeSummary(json: ShopifyProductsResponse) {
+  const products = json.products;
+  const firstProduct = Array.isArray(products) ? products[0] : undefined;
+  return {
+    response_keys: Object.keys(json),
+    products_is_array: Array.isArray(products),
+    products_count: Array.isArray(products) ? products.length : null,
+    first_product_keys:
+      firstProduct && typeof firstProduct === "object" ? Object.keys(firstProduct).slice(0, 20) : [],
+  };
+}
+
 export const Route = createFileRoute("/api/shopify/sync-products")({
   server: {
     handlers: {
@@ -120,6 +136,8 @@ export const Route = createFileRoute("/api/shopify/sync-products")({
         let failedCount = 0;
         let pagesFetched = 0;
         let stoppedReason = "not_started";
+        let firstApiResponseProductCount: number | null = null;
+        let rawShopifyResponseShapeSummary: Record<string, unknown> | null = null;
 
         const metadata = (extra: Record<string, unknown> = {}) => ({
           products_processed: productsProcessed,
@@ -133,6 +151,9 @@ export const Route = createFileRoute("/api/shopify/sync-products")({
           stopped_reason: stoppedReason,
           shop_domain: domain || null,
           api_version: apiVersion || null,
+          api_method: API_METHOD,
+          first_api_response_product_count: firstApiResponseProductCount,
+          raw_shopify_response_shape_summary: rawShopifyResponseShapeSummary,
           shopify_write_calls: false,
           ...extra,
         });
@@ -171,7 +192,6 @@ export const Route = createFileRoute("/api/shopify/sync-products")({
           const headers = shopifyHeaders(config.accessToken);
           const url = new URL(`https://${domain}/admin/api/${apiVersion}/products.json`);
           url.searchParams.set("limit", "250");
-          url.searchParams.set("status", "any");
 
           let pageUrl: string | null = url.toString();
           while (pageUrl) {
@@ -199,6 +219,10 @@ export const Route = createFileRoute("/api/shopify/sync-products")({
             pagesFetched++;
             const json = (await res.json()) as ShopifyProductsResponse;
             const products = json.products ?? [];
+            if (firstApiResponseProductCount == null) {
+              firstApiResponseProductCount = products.length;
+              rawShopifyResponseShapeSummary = responseShapeSummary(json);
+            }
             const productRows = products.map(productRow);
             const variantRows = products.flatMap((product) =>
               (product.variants ?? []).map((variant) => variantRow(product, variant)),
@@ -250,16 +274,19 @@ export const Route = createFileRoute("/api/shopify/sync-products")({
           }
 
           finishedAt = new Date().toISOString();
+          const zeroProducts = productsProcessed === 0;
+          const finalStatus = zeroProducts ? "partial" : "success";
+          if (zeroProducts) stoppedReason = "shopify_zero_products";
           await updateShopifySyncSettings(supabaseAdmin, {
             last_sync_at: finishedAt,
             last_sync_mode: syncType,
-            last_sync_status: "success",
-            last_error: null,
+            last_sync_status: finalStatus,
+            last_error: zeroProducts ? ZERO_PRODUCTS_MESSAGE : null,
             updated_at: finishedAt,
           });
           await saveShopifySyncRun(supabaseAdmin, {
             syncType,
-            status: "success",
+            status: finalStatus,
             startedAt,
             finishedAt,
             recordsProcessed: productsProcessed + variantsProcessed,
@@ -267,12 +294,14 @@ export const Route = createFileRoute("/api/shopify/sync-products")({
             updatedCount: productsUpdated + variantsUpdated,
             failedCount,
             pagesFetched,
-            metadata: metadata(),
+            errorMessage: zeroProducts ? ZERO_PRODUCTS_MESSAGE : null,
+            metadata: metadata({ warning: zeroProducts ? ZERO_PRODUCTS_MESSAGE : null }),
           });
 
           return Response.json({
             ok: true,
-            status: "success",
+            status: zeroProducts ? "warning" : "success",
+            message: zeroProducts ? ZERO_PRODUCTS_MESSAGE : null,
             products_processed: productsProcessed,
             products_created: productsCreated,
             products_updated: productsUpdated,
@@ -281,6 +310,12 @@ export const Route = createFileRoute("/api/shopify/sync-products")({
             variants_updated: variantsUpdated,
             failed_count: failedCount,
             pages_fetched: pagesFetched,
+            shop_domain_used: domain,
+            api_version_used: apiVersion,
+            api_method_used: API_METHOD,
+            first_api_response_product_count: firstApiResponseProductCount,
+            raw_shopify_response_shape_summary: rawShopifyResponseShapeSummary,
+            stopped_reason: stoppedReason,
           });
         } catch (error) {
           finishedAt = new Date().toISOString();
