@@ -78,7 +78,7 @@ const RESET_CONFIRMATION_MESSAGE =
 
 function ShopifyPage() {
   const qc = useQueryClient();
-  const { canOps } = useUser();
+  const { canAdmin } = useUser();
   const [testing, setTesting] = useState(false);
   const [syncingRecent, setSyncingRecent] = useState(false);
   const [syncingBackfill, setSyncingBackfill] = useState(false);
@@ -309,7 +309,7 @@ function ShopifyPage() {
                     />
                     Full Backfill Orders
                   </Button>
-                  {canOps && (
+                  {canAdmin && (
                     <Button
                       variant="destructive"
                       onClick={resetAllLocalOrders}
