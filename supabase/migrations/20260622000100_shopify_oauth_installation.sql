@@ -15,8 +15,6 @@ CREATE TABLE IF NOT EXISTS public.shopify_installations (
   granted_scopes text[] NOT NULL DEFAULT '{}',
   install_status text NOT NULL DEFAULT 'connected',
   installed_at timestamptz NOT NULL DEFAULT now(),
-  oauth_state_hash text,
-  oauth_state_expires_at timestamptz,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
