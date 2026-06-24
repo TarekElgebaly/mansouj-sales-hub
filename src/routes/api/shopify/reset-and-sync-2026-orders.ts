@@ -491,5 +491,4 @@ export const Route = createFileRoute("/api/shopify/reset-and-sync-2026-orders")(
       },
     },
   },
-});      | '/dashboard'
-Oops multi_tool output includes fetch remote for routeTree old, and local routeTree. Need update. But note fetch remote shopify is old, local output new. Need use local content from output. But routeTree remote old, local output new. Need update_file for shopify & routeTree. Could copy local content from output. But output for shopify is full. Need do update_file. This is long. Maybe we can update only targeted diff? Tool requires full content. We'll paste. For routeTree, long but full in output. We'll paste maybe smaller? Need create new file first done. But we haven't called create? Actually we did call create_file, output? It didn't show? The tool call maybe not returned because huge? Wait the create_file was not in multi, it was a direct call. Did it return? It hasn't yet? I see output after create? Wait after create_file call, no result displayed? I may have accidentally not read? Looking back: after create_file call, there is no 
+});
