@@ -24,6 +24,7 @@ import { Route as AuthenticatedAreasRouteImport } from './routes/_authenticated/
 import { Route as ApiShopifyTestConnectionRouteImport } from './routes/api/shopify/test-connection'
 import { Route as ApiShopifySyncStatusRouteImport } from './routes/api/shopify/sync-status'
 import { Route as ApiShopifySyncOrdersRouteImport } from './routes/api/shopify/sync-orders'
+import { Route as ApiOrdersResetAllRouteImport } from './routes/api/orders/reset-all'
 import { Route as ApiShopifyAuthStartRouteImport } from './routes/api/shopify/auth/start'
 import { Route as ApiShopifyAuthCallbackRouteImport } from './routes/api/shopify/auth/callback'
 import { Route as ApiPublicShopifyWebhooksOrdersUpdatedRouteImport } from './routes/api/public/shopify/webhooks/orders-updated'
@@ -104,6 +105,11 @@ const ApiShopifySyncOrdersRoute = ApiShopifySyncOrdersRouteImport.update({
   path: '/api/shopify/sync-orders',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOrdersResetAllRoute = ApiOrdersResetAllRouteImport.update({
+  id: '/api/orders/reset-all',
+  path: '/api/orders/reset-all',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiShopifyAuthStartRoute = ApiShopifyAuthStartRouteImport.update({
   id: '/api/shopify/auth/start',
   path: '/api/shopify/auth/start',
@@ -139,6 +145,7 @@ export interface FileRoutesByFullPath {
   '/orders': typeof AuthenticatedOrdersRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shopify': typeof AuthenticatedShopifyRoute
+  '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
   '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
   '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
@@ -159,6 +166,7 @@ export interface FileRoutesByTo {
   '/orders': typeof AuthenticatedOrdersRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shopify': typeof AuthenticatedShopifyRoute
+  '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
   '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
   '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
@@ -181,6 +189,7 @@ export interface FileRoutesById {
   '/_authenticated/orders': typeof AuthenticatedOrdersRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/shopify': typeof AuthenticatedShopifyRoute
+  '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
   '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
   '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
@@ -203,6 +212,7 @@ export interface FileRouteTypes {
     | '/orders'
     | '/settings'
     | '/shopify'
+    | '/api/orders/reset-all'
     | '/api/shopify/sync-orders'
     | '/api/shopify/sync-status'
     | '/api/shopify/test-connection'
@@ -223,6 +233,7 @@ export interface FileRouteTypes {
     | '/orders'
     | '/settings'
     | '/shopify'
+    | '/api/orders/reset-all'
     | '/api/shopify/sync-orders'
     | '/api/shopify/sync-status'
     | '/api/shopify/test-connection'
@@ -244,6 +255,7 @@ export interface FileRouteTypes {
     | '/_authenticated/orders'
     | '/_authenticated/settings'
     | '/_authenticated/shopify'
+    | '/api/orders/reset-all'
     | '/api/shopify/sync-orders'
     | '/api/shopify/sync-status'
     | '/api/shopify/test-connection'
@@ -257,6 +269,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiOrdersResetAllRoute: typeof ApiOrdersResetAllRoute
   ApiShopifySyncOrdersRoute: typeof ApiShopifySyncOrdersRoute
   ApiShopifySyncStatusRoute: typeof ApiShopifySyncStatusRoute
   ApiShopifyTestConnectionRoute: typeof ApiShopifyTestConnectionRoute
@@ -373,6 +386,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiShopifySyncOrdersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/orders/reset-all': {
+      id: '/api/orders/reset-all'
+      path: '/api/orders/reset-all'
+      fullPath: '/api/orders/reset-all'
+      preLoaderRoute: typeof ApiOrdersResetAllRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/shopify/auth/start': {
       id: '/api/shopify/auth/start'
       path: '/api/shopify/auth/start'
@@ -435,6 +455,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiOrdersResetAllRoute: ApiOrdersResetAllRoute,
   ApiShopifySyncOrdersRoute: ApiShopifySyncOrdersRoute,
   ApiShopifySyncStatusRoute: ApiShopifySyncStatusRoute,
   ApiShopifyTestConnectionRoute: ApiShopifyTestConnectionRoute,
@@ -448,3 +469,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
