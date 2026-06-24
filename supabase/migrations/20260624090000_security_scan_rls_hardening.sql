@@ -18,7 +18,7 @@ CREATE POLICY "sync settings deny direct select"
   TO anon, authenticated
   USING (false);
 
--- Legacy/OAuth token tables are not used by the token-based integration.
+-- Legacy token tables are not used by the token-based integration.
 -- Keep them service-role only and explicitly deny direct frontend reads if they exist.
 DO $$
 BEGIN
@@ -30,37 +30,30 @@ BEGIN
     EXECUTE 'DROP POLICY IF EXISTS "shopify installations deny direct select" ON public.shopify_installations';
     EXECUTE 'CREATE POLICY "shopify installations deny direct select" ON public.shopify_installations FOR SELECT TO anon, authenticated USING (false)';
   END IF;
-
-  IF to_regclass('public.shopify_oauth_states') IS NOT NULL THEN
-    EXECUTE 'REVOKE ALL ON TABLE public.shopify_oauth_states FROM anon';
-    EXECUTE 'REVOKE ALL ON TABLE public.shopify_oauth_states FROM authenticated';
-    EXECUTE 'GRANT ALL ON TABLE public.shopify_oauth_states TO service_role';
-    EXECUTE 'ALTER TABLE public.shopify_oauth_states ENABLE ROW LEVEL SECURITY';
-    EXECUTE 'DROP POLICY IF EXISTS "oauth states deny direct select" ON public.shopify_oauth_states';
-    EXECUTE 'CREATE POLICY "oauth states deny direct select" ON public.shopify_oauth_states FOR SELECT TO anon, authenticated USING (false)';
-  END IF;
 END $$;
 
--- Migration logs can be corrected/removed only by admin/operations.
+-- Migration logs can be corrected/removed only by admins.
 GRANT UPDATE, DELETE ON TABLE public.migration_logs TO authenticated;
 
 DROP POLICY IF EXISTS "logs update ops" ON public.migration_logs;
-CREATE POLICY "logs update ops"
+DROP POLICY IF EXISTS "logs update admin" ON public.migration_logs;
+CREATE POLICY "logs update admin"
   ON public.migration_logs
   FOR UPDATE
   TO authenticated
-  USING (public.can_ops(auth.uid()))
-  WITH CHECK (public.can_ops(auth.uid()));
+  USING (public.has_role(auth.uid(), 'admin'))
+  WITH CHECK (public.has_role(auth.uid(), 'admin'));
 
 DROP POLICY IF EXISTS "logs delete ops" ON public.migration_logs;
-CREATE POLICY "logs delete ops"
+DROP POLICY IF EXISTS "logs delete admin" ON public.migration_logs;
+CREATE POLICY "logs delete admin"
   ON public.migration_logs
   FOR DELETE
   TO authenticated
-  USING (public.can_ops(auth.uid()));
+  USING (public.has_role(auth.uid(), 'admin'));
 
 -- Order activity remains protected: only order write-capable roles can read/insert,
--- and only admin/operations can update/delete audit rows.
+-- and only admins can update/delete audit rows.
 GRANT UPDATE, DELETE ON TABLE public.order_activity TO authenticated;
 
 DROP POLICY IF EXISTS "activity read" ON public.order_activity;
@@ -78,16 +71,18 @@ CREATE POLICY "activity insert write roles"
   WITH CHECK (public.can_write(auth.uid()));
 
 DROP POLICY IF EXISTS "activity update ops" ON public.order_activity;
-CREATE POLICY "activity update ops"
+DROP POLICY IF EXISTS "activity update admin" ON public.order_activity;
+CREATE POLICY "activity update admin"
   ON public.order_activity
   FOR UPDATE
   TO authenticated
-  USING (public.can_ops(auth.uid()))
-  WITH CHECK (public.can_ops(auth.uid()));
+  USING (public.has_role(auth.uid(), 'admin'))
+  WITH CHECK (public.has_role(auth.uid(), 'admin'));
 
 DROP POLICY IF EXISTS "activity delete ops" ON public.order_activity;
-CREATE POLICY "activity delete ops"
+DROP POLICY IF EXISTS "activity delete admin" ON public.order_activity;
+CREATE POLICY "activity delete admin"
   ON public.order_activity
   FOR DELETE
   TO authenticated
-  USING (public.can_ops(auth.uid()));
+  USING (public.has_role(auth.uid(), 'admin'));
