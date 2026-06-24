@@ -1,6 +1,5 @@
-import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedRoute,
@@ -9,35 +8,45 @@ export const Route = createFileRoute("/_authenticated")({
 type AuthState = "checking" | "authenticated" | "guest";
 
 function AuthenticatedRoute() {
-  const navigate = useNavigate();
   const [authState, setAuthState] = useState<AuthState>("checking");
 
   useEffect(() => {
     let mounted = true;
+    let unsubscribe: (() => void) | undefined;
 
     const handleUser = (hasUser: boolean) => {
       if (!mounted) return;
       if (!hasUser) {
         setAuthState("guest");
-        navigate({ to: "/auth", replace: true });
+        window.location.replace("/auth");
         return;
       }
       setAuthState("authenticated");
     };
 
-    supabase.auth.getUser().then(({ data, error }) => {
-      handleUser(!error && !!data.user);
-    });
+    import("@/integrations/supabase/client")
+      .then(({ supabase }) => {
+        if (!mounted) return;
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      handleUser(!!session?.user);
-    });
+        supabase.auth
+          .getUser()
+          .then(({ data, error }) => {
+            handleUser(!error && !!data.user);
+          })
+          .catch(() => handleUser(false));
+
+        const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+          handleUser(!!session?.user);
+        });
+        unsubscribe = () => sub.subscription.unsubscribe();
+      })
+      .catch(() => handleUser(false));
 
     return () => {
       mounted = false;
-      sub.subscription.unsubscribe();
+      unsubscribe?.();
     };
-  }, [navigate]);
+  }, []);
 
   if (authState !== "authenticated") {
     return (
