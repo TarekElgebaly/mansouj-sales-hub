@@ -10,7 +10,7 @@ type ResetCounts = {
   cursor_reset: boolean;
 };
 
-async function requireOpsUser(request: Request) {
+async function requireAdminUser(request: Request) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const authHeader = request.headers.get("authorization") ?? "";
   const token = authHeader.replace(/^Bearer\s+/i, "");
@@ -27,7 +27,7 @@ async function requireOpsUser(request: Request) {
     .from("user_roles")
     .select("role")
     .eq("user_id", userData.user.id)
-    .in("role", ["admin", "operations"])
+    .eq("role", "admin")
     .maybeSingle();
   if (!roleRow) {
     return { ok: false as const, response: new Response("Forbidden", { status: 403 }) };
@@ -53,7 +53,7 @@ export const Route = createFileRoute("/api/orders/reset-all")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const auth = await requireOpsUser(request);
+        const auth = await requireAdminUser(request);
         if (!auth.ok) return auth.response;
 
         const { supabaseAdmin, userId } = auth;
