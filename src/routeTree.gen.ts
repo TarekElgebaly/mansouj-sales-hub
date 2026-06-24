@@ -23,7 +23,9 @@ import { Route as AuthenticatedCustomersRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAreasRouteImport } from './routes/_authenticated/areas'
 import { Route as ApiShopifyTestConnectionRouteImport } from './routes/api/shopify/test-connection'
 import { Route as ApiShopifySyncStatusRouteImport } from './routes/api/shopify/sync-status'
+import { Route as ApiShopifySyncProductsRouteImport } from './routes/api/shopify/sync-products'
 import { Route as ApiShopifySyncOrdersRouteImport } from './routes/api/shopify/sync-orders'
+import { Route as ApiShopifySyncInventoryCostRouteImport } from './routes/api/shopify/sync-inventory-cost'
 import { Route as ApiShopifyResetAndSync2026OrdersRouteImport } from './routes/api/shopify/reset-and-sync-2026-orders'
 import { Route as ApiOrdersResetAllRouteImport } from './routes/api/orders/reset-all'
 import { Route as ApiPublicShopifyWebhooksOrdersUpdatedRouteImport } from './routes/api/public/shopify/webhooks/orders-updated'
@@ -99,11 +101,22 @@ const ApiShopifySyncStatusRoute = ApiShopifySyncStatusRouteImport.update({
   path: '/api/shopify/sync-status',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiShopifySyncProductsRoute = ApiShopifySyncProductsRouteImport.update({
+  id: '/api/shopify/sync-products',
+  path: '/api/shopify/sync-products',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiShopifySyncOrdersRoute = ApiShopifySyncOrdersRouteImport.update({
   id: '/api/shopify/sync-orders',
   path: '/api/shopify/sync-orders',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiShopifySyncInventoryCostRoute =
+  ApiShopifySyncInventoryCostRouteImport.update({
+    id: '/api/shopify/sync-inventory-cost',
+    path: '/api/shopify/sync-inventory-cost',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiShopifyResetAndSync2026OrdersRoute =
   ApiShopifyResetAndSync2026OrdersRouteImport.update({
     id: '/api/shopify/reset-and-sync-2026-orders',
@@ -142,7 +155,9 @@ export interface FileRoutesByFullPath {
   '/shopify': typeof AuthenticatedShopifyRoute
   '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
   '/api/shopify/reset-and-sync-2026-orders': typeof ApiShopifyResetAndSync2026OrdersRoute
+  '/api/shopify/sync-inventory-cost': typeof ApiShopifySyncInventoryCostRoute
   '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
+  '/api/shopify/sync-products': typeof ApiShopifySyncProductsRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
   '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
   '/api/public/shopify/webhooks/orders-create': typeof ApiPublicShopifyWebhooksOrdersCreateRoute
@@ -162,7 +177,9 @@ export interface FileRoutesByTo {
   '/shopify': typeof AuthenticatedShopifyRoute
   '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
   '/api/shopify/reset-and-sync-2026-orders': typeof ApiShopifyResetAndSync2026OrdersRoute
+  '/api/shopify/sync-inventory-cost': typeof ApiShopifySyncInventoryCostRoute
   '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
+  '/api/shopify/sync-products': typeof ApiShopifySyncProductsRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
   '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
   '/api/public/shopify/webhooks/orders-create': typeof ApiPublicShopifyWebhooksOrdersCreateRoute
@@ -184,7 +201,9 @@ export interface FileRoutesById {
   '/_authenticated/shopify': typeof AuthenticatedShopifyRoute
   '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
   '/api/shopify/reset-and-sync-2026-orders': typeof ApiShopifyResetAndSync2026OrdersRoute
+  '/api/shopify/sync-inventory-cost': typeof ApiShopifySyncInventoryCostRoute
   '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
+  '/api/shopify/sync-products': typeof ApiShopifySyncProductsRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
   '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
   '/api/public/shopify/webhooks/orders-create': typeof ApiPublicShopifyWebhooksOrdersCreateRoute
@@ -206,7 +225,9 @@ export interface FileRouteTypes {
     | '/shopify'
     | '/api/orders/reset-all'
     | '/api/shopify/reset-and-sync-2026-orders'
+    | '/api/shopify/sync-inventory-cost'
     | '/api/shopify/sync-orders'
+    | '/api/shopify/sync-products'
     | '/api/shopify/sync-status'
     | '/api/shopify/test-connection'
     | '/api/public/shopify/webhooks/orders-create'
@@ -226,7 +247,9 @@ export interface FileRouteTypes {
     | '/shopify'
     | '/api/orders/reset-all'
     | '/api/shopify/reset-and-sync-2026-orders'
+    | '/api/shopify/sync-inventory-cost'
     | '/api/shopify/sync-orders'
+    | '/api/shopify/sync-products'
     | '/api/shopify/sync-status'
     | '/api/shopify/test-connection'
     | '/api/public/shopify/webhooks/orders-create'
@@ -247,7 +270,9 @@ export interface FileRouteTypes {
     | '/_authenticated/shopify'
     | '/api/orders/reset-all'
     | '/api/shopify/reset-and-sync-2026-orders'
+    | '/api/shopify/sync-inventory-cost'
     | '/api/shopify/sync-orders'
+    | '/api/shopify/sync-products'
     | '/api/shopify/sync-status'
     | '/api/shopify/test-connection'
     | '/api/public/shopify/webhooks/orders-create'
@@ -260,7 +285,9 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ApiOrdersResetAllRoute: typeof ApiOrdersResetAllRoute
   ApiShopifyResetAndSync2026OrdersRoute: typeof ApiShopifyResetAndSync2026OrdersRoute
+  ApiShopifySyncInventoryCostRoute: typeof ApiShopifySyncInventoryCostRoute
   ApiShopifySyncOrdersRoute: typeof ApiShopifySyncOrdersRoute
+  ApiShopifySyncProductsRoute: typeof ApiShopifySyncProductsRoute
   ApiShopifySyncStatusRoute: typeof ApiShopifySyncStatusRoute
   ApiShopifyTestConnectionRoute: typeof ApiShopifyTestConnectionRoute
   ApiPublicShopifyWebhooksOrdersCreateRoute: typeof ApiPublicShopifyWebhooksOrdersCreateRoute
@@ -367,11 +394,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiShopifySyncStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/shopify/sync-products': {
+      id: '/api/shopify/sync-products'
+      path: '/api/shopify/sync-products'
+      fullPath: '/api/shopify/sync-products'
+      preLoaderRoute: typeof ApiShopifySyncProductsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/shopify/sync-orders': {
       id: '/api/shopify/sync-orders'
       path: '/api/shopify/sync-orders'
       fullPath: '/api/shopify/sync-orders'
       preLoaderRoute: typeof ApiShopifySyncOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/shopify/sync-inventory-cost': {
+      id: '/api/shopify/sync-inventory-cost'
+      path: '/api/shopify/sync-inventory-cost'
+      fullPath: '/api/shopify/sync-inventory-cost'
+      preLoaderRoute: typeof ApiShopifySyncInventoryCostRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/shopify/reset-and-sync-2026-orders': {
@@ -438,7 +479,9 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ApiOrdersResetAllRoute: ApiOrdersResetAllRoute,
   ApiShopifyResetAndSync2026OrdersRoute: ApiShopifyResetAndSync2026OrdersRoute,
+  ApiShopifySyncInventoryCostRoute: ApiShopifySyncInventoryCostRoute,
   ApiShopifySyncOrdersRoute: ApiShopifySyncOrdersRoute,
+  ApiShopifySyncProductsRoute: ApiShopifySyncProductsRoute,
   ApiShopifySyncStatusRoute: ApiShopifySyncStatusRoute,
   ApiShopifyTestConnectionRoute: ApiShopifyTestConnectionRoute,
   ApiPublicShopifyWebhooksOrdersCreateRoute:
@@ -449,3 +492,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
