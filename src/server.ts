@@ -9,6 +9,11 @@ type ServerEntry = {
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
 
+const BLOCKED_SHOPIFY_AUTH_PATHS = new Set([
+  "/api/shopify/auth/start",
+  "/api/shopify/auth/callback",
+]);
+
 async function getServerEntry(): Promise<ServerEntry> {
   if (!serverEntryPromise) {
     serverEntryPromise = import("@tanstack/react-start/server-entry").then(
@@ -40,6 +45,11 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      const pathname = new URL(request.url).pathname.replace(/\/+$/, "");
+      if (BLOCKED_SHOPIFY_AUTH_PATHS.has(pathname)) {
+        return new Response("Not Found", { status: 404 });
+      }
+
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
