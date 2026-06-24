@@ -1,17 +1,25 @@
-# Shopify Auth Setup
+# Shopify Admin Token Setup
 
-This app uses Shopify Dev Dashboard OAuth. Do not paste an Admin API token into the frontend.
+This integration uses a legacy Shopify custom app Admin API token. It does not use Shopify OAuth install flow.
+
+The legacy Shopify OAuth install endpoints are intentionally disabled. Requests to these URLs must return `410 Gone` and must not redirect, create state, exchange tokens, or update Shopify settings:
+
+```text
+/api/shopify/auth/start
+/api/shopify/auth/callback
+```
 
 ## Lovable Secrets
 
 Set these in Lovable Secrets:
 
-- `SHOPIFY_CLIENT_ID`
-- `SHOPIFY_CLIENT_SECRET`
+- `SHOPIFY_SHOP_DOMAIN`
+- `SHOPIFY_ADMIN_ACCESS_TOKEN`
+- `SHOPIFY_API_VERSION`
 - `SHOPIFY_WEBHOOK_SECRET`
 - `SHOPIFY_SCOPES`
-- `SHOPIFY_API_VERSION`
-- `SHOPIFY_SHOP_DOMAIN`
+
+`SHOPIFY_ACCESS_TOKEN` is supported only as a fallback. `SHOPIFY_ADMIN_ACCESS_TOKEN` is always preferred.
 
 Recommended values:
 
@@ -23,7 +31,7 @@ SHOPIFY_SCOPES=read_orders,read_all_orders,read_products,read_inventory,read_loc
 
 ## Shopify Admin Domains
 
-Only these `myshopify.com` domains are valid for OAuth, Admin API, webhooks, and sync:
+Only these `myshopify.com` domains are valid for Admin API calls, webhooks, and sync:
 
 ```text
 mansouj.myshopify.com
@@ -36,62 +44,30 @@ The customer storefront domain is:
 mansouj.shop
 ```
 
-Do not use `mansouj.shop` for OAuth, token exchange, Admin API calls, webhooks, or sync. The OAuth callback stores the exact `shop` domain Shopify returns, then future Admin API calls use that stored domain.
+Do not use `mansouj.shop` for Admin API calls, webhooks, or sync.
 
-## Shopify Dev Dashboard Settings
+## Required Admin API Scopes
 
-Use these exact URLs:
-
-```text
-App URL:
-https://mansouj-sales-hub.lovable.app/api/shopify/auth/start
-```
-
-```text
-Allowed redirection URL:
-https://mansouj-sales-hub.lovable.app/api/shopify/auth/callback
-```
-
-Required scopes:
+The legacy custom app token must have these read-only scopes:
 
 ```text
 read_orders,read_all_orders,read_products,read_inventory,read_locations,read_customers
 ```
 
-## Test Install
-
-1. Update the App URL and allowed redirection URL in Shopify Dev Dashboard.
-2. Save the app configuration.
-3. Create/release a new app version if Shopify asks for it.
-4. Click Install app.
-5. Shopify should redirect to:
-
-```text
-https://mansouj-sales-hub.lovable.app/api/shopify/auth/callback
-```
-
-6. The callback should redirect back to:
-
-```text
-https://mansouj-sales-hub.lovable.app/shopify
-```
-
-The Admin API access token is stored server-side only.
-
 ## Test Connection
 
-In the Mansouj app:
+The Shopify Sync page is read-only. The connection test is available as an authenticated admin/operations endpoint:
 
-1. Open Shopify Sync.
-2. Confirm install status is `connected`.
-3. Click `Test Shopify Connection`.
+```text
+/api/shopify/test-connection
+```
 
-The test verifies:
+The endpoint verifies:
 
-- shop domain
-- Admin API token
-- API version
-- required scopes
+- `SHOPIFY_SHOP_DOMAIN` is a valid allowed Shopify Admin domain
+- `SHOPIFY_ADMIN_ACCESS_TOKEN` is accepted by Shopify
+- `SHOPIFY_API_VERSION` works
+- required scopes are present
 
 It never returns or displays the token.
 
@@ -99,6 +75,6 @@ It never returns or displays the token.
 
 Never expose these values in frontend code, screenshots, chat, browser console logs, or public files:
 
-- `SHOPIFY_CLIENT_SECRET`
-- Shopify Admin API access token
+- `SHOPIFY_ADMIN_ACCESS_TOKEN`
+- `SHOPIFY_ACCESS_TOKEN`
 - `SHOPIFY_WEBHOOK_SECRET`
