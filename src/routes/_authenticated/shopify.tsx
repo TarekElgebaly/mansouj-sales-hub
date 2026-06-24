@@ -48,7 +48,6 @@ type ShopifySyncStatus = {
   domain_mismatch?: boolean;
   install_status?: string | null;
   token_stored?: boolean | null;
-  granted_scopes?: string[] | null;
   installed_at?: string | null;
   last_sync_at?: string | null;
   last_sync_mode?: string | null;
@@ -86,10 +85,19 @@ function ShopifyPage() {
   const [resettingOrders, setResettingOrders] = useState(false);
   const [resetResult, setResetResult] = useState<LocalOrdersResetResult | null>(null);
 
+  const authHeader = async () => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) throw new Error("Please sign in again before using Shopify controls.");
+    return { Authorization: `Bearer ${token}` };
+  };
+
   const { data: settings, isLoading } = useQuery({
     queryKey: ["shopify-settings"],
     queryFn: async () => {
-      const res = await fetch("/api/shopify/sync-status");
+      const res = await fetch("/api/shopify/sync-status", {
+        headers: await authHeader(),
+      });
       if (!res.ok) throw new Error("Could not load Shopify sync status.");
       return (await res.json()) as ShopifySyncStatus;
     },
@@ -109,13 +117,6 @@ function ShopifyPage() {
   const connectionOk = connected && settings?.last_connection_test_status === "success";
   const shopDomain = settings?.shop_domain ?? "Not connected";
   const lastProblem = settings?.last_connection_test_error ?? settings?.last_error ?? null;
-
-  const authHeader = async () => {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    if (!token) throw new Error("Please sign in again before using Shopify controls.");
-    return { Authorization: `Bearer ${token}` };
-  };
 
   const refreshStatus = async () => {
     await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
