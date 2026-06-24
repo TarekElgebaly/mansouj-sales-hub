@@ -165,9 +165,10 @@ function ShopifyPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Shopify orders sync failed.");
 
-      toast.success(
-        `${mode === "full_backfill" ? "Full backfill" : "Recent orders sync"} finished: ${json.created ?? 0} new, ${json.updated ?? 0} updated.`,
-      );
+      const message = `${mode === "full_backfill" ? "Full backfill" : "Recent orders sync"} finished: ${json.created ?? 0} new, ${json.updated ?? 0} updated.`;
+      if (json.completion_warning) toast.warning(json.completion_warning);
+      else if (json.status === "partial") toast.warning(message);
+      else toast.success(message);
       await refreshStatus();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
