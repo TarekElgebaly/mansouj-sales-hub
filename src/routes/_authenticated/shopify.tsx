@@ -90,6 +90,8 @@ type ResetSync2026Result = {
 };
 
 type ProductSyncResult = {
+  status?: string;
+  message?: string | null;
   products_processed: number;
   products_created: number;
   products_updated: number;
@@ -98,6 +100,17 @@ type ProductSyncResult = {
   variants_updated: number;
   failed_count: number;
   pages_fetched: number;
+  shop_domain_used?: string | null;
+  api_version_used?: string | null;
+  api_method_used?: string | null;
+  first_api_response_product_count?: number | null;
+  stopped_reason?: string | null;
+  raw_shopify_response_shape_summary?: {
+    response_keys?: string[];
+    products_is_array?: boolean;
+    products_count?: number | null;
+    first_product_keys?: string[];
+  } | null;
 };
 
 type InventoryCostSyncResult = {
@@ -242,6 +255,8 @@ function ShopifyPage() {
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Shopify products sync failed.");
 
       const result: ProductSyncResult = {
+        status: json.status ?? "success",
+        message: json.message ?? null,
         products_processed: json.products_processed ?? 0,
         products_created: json.products_created ?? 0,
         products_updated: json.products_updated ?? 0,
@@ -250,11 +265,21 @@ function ShopifyPage() {
         variants_updated: json.variants_updated ?? 0,
         failed_count: json.failed_count ?? 0,
         pages_fetched: json.pages_fetched ?? 0,
+        shop_domain_used: json.shop_domain_used ?? null,
+        api_version_used: json.api_version_used ?? null,
+        api_method_used: json.api_method_used ?? null,
+        first_api_response_product_count: json.first_api_response_product_count ?? null,
+        stopped_reason: json.stopped_reason ?? null,
+        raw_shopify_response_shape_summary: json.raw_shopify_response_shape_summary ?? null,
       };
       setProductSyncResult(result);
-      toast.success(
-        `Products sync finished: ${result.products_processed} products, ${result.variants_processed} variants.`,
-      );
+      if (result.status === "warning" || result.status === "partial") {
+        toast.warning(result.message ?? "Products sync finished with a warning.");
+      } else {
+        toast.success(
+          `Products sync finished: ${result.products_processed} products, ${result.variants_processed} variants.`,
+        );
+      }
       await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
@@ -640,39 +665,81 @@ function ShopifyPage() {
                     </div>
                   )}
                   {productSyncResult && (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <StatusItem
-                        label="Products processed"
-                        value={String(productSyncResult.products_processed)}
-                      />
-                      <StatusItem
-                        label="Products created"
-                        value={String(productSyncResult.products_created)}
-                      />
-                      <StatusItem
-                        label="Products updated"
-                        value={String(productSyncResult.products_updated)}
-                      />
-                      <StatusItem
-                        label="Variants processed"
-                        value={String(productSyncResult.variants_processed)}
-                      />
-                      <StatusItem
-                        label="Variants created"
-                        value={String(productSyncResult.variants_created)}
-                      />
-                      <StatusItem
-                        label="Variants updated"
-                        value={String(productSyncResult.variants_updated)}
-                      />
-                      <StatusItem
-                        label="Pages fetched"
-                        value={String(productSyncResult.pages_fetched)}
-                      />
-                      <StatusItem
-                        label="Failed"
-                        value={String(productSyncResult.failed_count)}
-                      />
+                    <div className="space-y-3">
+                      {productSyncResult.message && (
+                        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                          {productSyncResult.message}
+                        </div>
+                      )}
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <StatusItem
+                          label="Products processed"
+                          value={String(productSyncResult.products_processed)}
+                        />
+                        <StatusItem
+                          label="Products created"
+                          value={String(productSyncResult.products_created)}
+                        />
+                        <StatusItem
+                          label="Products updated"
+                          value={String(productSyncResult.products_updated)}
+                        />
+                        <StatusItem
+                          label="Variants processed"
+                          value={String(productSyncResult.variants_processed)}
+                        />
+                        <StatusItem
+                          label="Variants created"
+                          value={String(productSyncResult.variants_created)}
+                        />
+                        <StatusItem
+                          label="Variants updated"
+                          value={String(productSyncResult.variants_updated)}
+                        />
+                        <StatusItem
+                          label="Pages fetched"
+                          value={String(productSyncResult.pages_fetched)}
+                        />
+                        <StatusItem
+                          label="Failed"
+                          value={String(productSyncResult.failed_count)}
+                        />
+                        <StatusItem
+                          label="Shop domain"
+                          value={productSyncResult.shop_domain_used ?? "-"}
+                        />
+                        <StatusItem
+                          label="API version"
+                          value={productSyncResult.api_version_used ?? "-"}
+                        />
+                        <StatusItem
+                          label="API method"
+                          value={productSyncResult.api_method_used ?? "-"}
+                        />
+                        <StatusItem
+                          label="First response count"
+                          value={String(productSyncResult.first_api_response_product_count ?? "-")}
+                        />
+                        <StatusItem
+                          label="Stopped reason"
+                          value={productSyncResult.stopped_reason ?? "-"}
+                        />
+                        <StatusItem
+                          label="Response shape"
+                          value={`keys: ${
+                            productSyncResult.raw_shopify_response_shape_summary?.response_keys?.join(", ") ||
+                            "-"
+                          }; products array: ${
+                            productSyncResult.raw_shopify_response_shape_summary
+                              ?.products_is_array === true
+                              ? "true"
+                              : productSyncResult.raw_shopify_response_shape_summary
+                                    ?.products_is_array === false
+                                ? "false"
+                                : "-"
+                          }`}
+                        />
+                      </div>
                     </div>
                   )}
                 </CardContent>
