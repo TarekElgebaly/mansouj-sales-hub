@@ -504,6 +504,11 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
                     itemsWithCost: result.itemsWithCost,
                     itemsMissingCost: result.itemsMissingCost,
                     itemsCostTotal: result.itemsCostTotal,
+                    costAssignedByVariantId: result.costAssignedByVariantId,
+                    costAssignedBySku: result.costAssignedBySku,
+                    costAssignedBySkuNormalized: result.costAssignedBySkuNormalized,
+                    costAssignedByRemap: result.costAssignedByRemap,
+                    costPreserved: result.costPreserved,
                   };
                 } catch (e) {
                   return {
