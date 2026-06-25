@@ -96,7 +96,21 @@ export type ProcessOrderResult = {
   itemsWithCost: number;
   itemsMissingCost: number;
   itemsCostTotal: number;
+  costAssignedByVariantId: number;
+  costAssignedBySku: number;
+  costAssignedBySkuNormalized: number;
+  costAssignedByRemap: number;
+  costPreserved: number;
 };
+
+type CostSource =
+  | "variant_id"
+  | "sku"
+  | "sku_normalized"
+  | "remap"
+  | "preserved"
+  | "none";
+
 
 export async function processShopifyOrder(payload: ShopifyOrderPayload): Promise<ProcessOrderResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
