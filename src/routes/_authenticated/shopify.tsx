@@ -236,6 +236,22 @@ function ShopifyPage() {
     failed_count: number;
   } | null>(null);
   const [recalcError, setRecalcError] = useState<string | null>(null);
+  const [ordersSyncResult, setOrdersSyncResult] = useState<{
+    mode: string;
+    created: number;
+    updated: number;
+    failed: number;
+    order_items_processed: number;
+    order_items_with_cost: number;
+    order_items_missing_cost: number;
+    order_items_cost_assigned_by_variant_id: number;
+    order_items_cost_assigned_by_sku: number;
+    order_items_cost_assigned_by_sku_normalized: number;
+    order_items_cost_assigned_by_remap: number;
+    order_items_cost_preserved: number;
+    affected_orders_recalculated: number;
+    total_items_cost_after_recalc: number;
+  } | null>(null);
 
   const authHeader = async () => {
     const { data } = await supabase.auth.getSession();
