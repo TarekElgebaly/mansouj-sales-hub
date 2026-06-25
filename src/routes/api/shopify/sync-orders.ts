@@ -204,6 +204,11 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
         let updatedCount = 0;
         let failedCount = 0;
         let pagesFetched = 0;
+        let orderItemsProcessed = 0;
+        let orderItemsWithCost = 0;
+        let orderItemsMissingCost = 0;
+        let affectedOrdersRecalculated = 0;
+        let totalItemsCostAfterRecalc = 0;
         let cursorAfter: string | null = null;
         let firstOrderNumberImported: string | null = null;
         let lastOrderNumberImported: string | null = null;
@@ -247,6 +252,11 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
           shop_domain: domain || null,
           api_version: apiVersion || null,
           per_page: perPage,
+          order_items_processed: orderItemsProcessed,
+          order_items_with_cost: orderItemsWithCost,
+          order_items_missing_cost: orderItemsMissingCost,
+          affected_orders_recalculated: affectedOrdersRecalculated,
+          total_items_cost_after_recalc: totalItemsCostAfterRecalc,
           ...extra,
         });
 
@@ -474,12 +484,16 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
               async (order) => {
                 const shopifyOrderId = String(order.id);
                 try {
-                  await processShopifyOrder(order);
+                  const result = await processShopifyOrder(order);
                   return {
                     ok: true as const,
                     order,
                     shopifyOrderId,
-                    existed: existingSet.has(shopifyOrderId),
+                    existed: result.existed,
+                    itemsProcessed: result.itemsProcessed,
+                    itemsWithCost: result.itemsWithCost,
+                    itemsMissingCost: result.itemsMissingCost,
+                    itemsCostTotal: result.itemsCostTotal,
                   };
                 } catch (e) {
                   return {
@@ -499,6 +513,11 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
               if (result.ok) {
                 if (result.existed) updatedCount++;
                 else createdCount++;
+                orderItemsProcessed += result.itemsProcessed;
+                orderItemsWithCost += result.itemsWithCost;
+                orderItemsMissingCost += result.itemsMissingCost;
+                affectedOrdersRecalculated++;
+                totalItemsCostAfterRecalc += result.itemsCostTotal;
 
                 const summary = summarizeOrder(result.order);
                 if (!firstOrderNumberImported) firstOrderNumberImported = summary.label;
@@ -603,6 +622,11 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             failed: failedCount,
             records_processed: recordsProcessed,
             pages_fetched: pagesFetched,
+            order_items_processed: orderItemsProcessed,
+            order_items_with_cost: orderItemsWithCost,
+            order_items_missing_cost: orderItemsMissingCost,
+            affected_orders_recalculated: affectedOrdersRecalculated,
+            total_items_cost_after_recalc: totalItemsCostAfterRecalc,
             cursor_before: cursorBefore,
             cursor_after: nextCursor,
             incremental_window_start: incrementalStart,
