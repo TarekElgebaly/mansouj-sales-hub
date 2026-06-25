@@ -207,6 +207,11 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
         let orderItemsProcessed = 0;
         let orderItemsWithCost = 0;
         let orderItemsMissingCost = 0;
+        let orderItemsCostAssignedByVariantId = 0;
+        let orderItemsCostAssignedBySku = 0;
+        let orderItemsCostAssignedBySkuNormalized = 0;
+        let orderItemsCostAssignedByRemap = 0;
+        let orderItemsCostPreserved = 0;
         let affectedOrdersRecalculated = 0;
         let totalItemsCostAfterRecalc = 0;
         let cursorAfter: string | null = null;
@@ -255,6 +260,11 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
           order_items_processed: orderItemsProcessed,
           order_items_with_cost: orderItemsWithCost,
           order_items_missing_cost: orderItemsMissingCost,
+          order_items_cost_assigned_by_variant_id: orderItemsCostAssignedByVariantId,
+          order_items_cost_assigned_by_sku: orderItemsCostAssignedBySku,
+          order_items_cost_assigned_by_sku_normalized: orderItemsCostAssignedBySkuNormalized,
+          order_items_cost_assigned_by_remap: orderItemsCostAssignedByRemap,
+          order_items_cost_preserved: orderItemsCostPreserved,
           affected_orders_recalculated: affectedOrdersRecalculated,
           total_items_cost_after_recalc: totalItemsCostAfterRecalc,
           ...extra,
@@ -494,6 +504,11 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
                     itemsWithCost: result.itemsWithCost,
                     itemsMissingCost: result.itemsMissingCost,
                     itemsCostTotal: result.itemsCostTotal,
+                    costAssignedByVariantId: result.costAssignedByVariantId,
+                    costAssignedBySku: result.costAssignedBySku,
+                    costAssignedBySkuNormalized: result.costAssignedBySkuNormalized,
+                    costAssignedByRemap: result.costAssignedByRemap,
+                    costPreserved: result.costPreserved,
                   };
                 } catch (e) {
                   return {
@@ -516,6 +531,11 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
                 orderItemsProcessed += result.itemsProcessed;
                 orderItemsWithCost += result.itemsWithCost;
                 orderItemsMissingCost += result.itemsMissingCost;
+                orderItemsCostAssignedByVariantId += result.costAssignedByVariantId;
+                orderItemsCostAssignedBySku += result.costAssignedBySku;
+                orderItemsCostAssignedBySkuNormalized += result.costAssignedBySkuNormalized;
+                orderItemsCostAssignedByRemap += result.costAssignedByRemap;
+                orderItemsCostPreserved += result.costPreserved;
                 affectedOrdersRecalculated++;
                 totalItemsCostAfterRecalc += result.itemsCostTotal;
 
@@ -625,6 +645,11 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             order_items_processed: orderItemsProcessed,
             order_items_with_cost: orderItemsWithCost,
             order_items_missing_cost: orderItemsMissingCost,
+            order_items_cost_assigned_by_variant_id: orderItemsCostAssignedByVariantId,
+            order_items_cost_assigned_by_sku: orderItemsCostAssignedBySku,
+            order_items_cost_assigned_by_sku_normalized: orderItemsCostAssignedBySkuNormalized,
+            order_items_cost_assigned_by_remap: orderItemsCostAssignedByRemap,
+            order_items_cost_preserved: orderItemsCostPreserved,
             affected_orders_recalculated: affectedOrdersRecalculated,
             total_items_cost_after_recalc: totalItemsCostAfterRecalc,
             cursor_before: cursorBefore,

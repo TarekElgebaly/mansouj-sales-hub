@@ -96,7 +96,21 @@ export type ProcessOrderResult = {
   itemsWithCost: number;
   itemsMissingCost: number;
   itemsCostTotal: number;
+  costAssignedByVariantId: number;
+  costAssignedBySku: number;
+  costAssignedBySkuNormalized: number;
+  costAssignedByRemap: number;
+  costPreserved: number;
 };
+
+type CostSource =
+  | "variant_id"
+  | "sku"
+  | "sku_normalized"
+  | "remap"
+  | "preserved"
+  | "none";
+
 
 export async function processShopifyOrder(payload: ShopifyOrderPayload): Promise<ProcessOrderResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -350,56 +364,57 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload): Promise
     }
   }
 
-  const resolveUnitCost = (l: ShopifyLineItem, finalSku: string): number => {
+  const resolveUnitCost = (l: ShopifyLineItem, finalSku: string): { cost: number; source: CostSource } => {
     // A) Variant ID -> inventory item -> cost
     if (l.variant_id != null) {
       const v = variantByVariantId.get(String(l.variant_id));
       if (v?.inventory_item_id) {
         const c = costByInventoryItem.get(v.inventory_item_id);
-        if (c && c > 0) return c;
+        if (c && c > 0) return { cost: c, source: "variant_id" };
       }
     }
-    // B) Exact SKU / normalized SKU -> variant -> inventory item -> cost
+    // B) Exact SKU -> variant -> inventory item -> cost
     if (l.sku) {
       const v = variantBySku.get(l.sku);
       if (v?.inventory_item_id) {
         const c = costByInventoryItem.get(v.inventory_item_id);
-        if (c && c > 0) return c;
+        if (c && c > 0) return { cost: c, source: "sku" };
       }
+      // C) Normalized SKU
       const nv = variantByNormSku.get(normalizeSku(l.sku));
       if (nv?.inventory_item_id) {
         const c = costByInventoryItem.get(nv.inventory_item_id);
-        if (c && c > 0) return c;
+        if (c && c > 0) return { cost: c, source: "sku_normalized" };
       }
     }
-    // C) Active SKU remap -> inventory item / variant -> cost
+    // D) Active SKU remap
     if (l.sku) {
       const r = remapBySku.get(l.sku);
       if (r) {
         if (r.inventory_item_id) {
           const c = costByInventoryItem.get(r.inventory_item_id);
-          if (c && c > 0) return c;
+          if (c && c > 0) return { cost: c, source: "remap" };
         }
         if (r.shopify_variant_id) {
           const v = variantByVariantId.get(r.shopify_variant_id);
           if (v?.inventory_item_id) {
             const c = costByInventoryItem.get(v.inventory_item_id);
-            if (c && c > 0) return c;
+            if (c && c > 0) return { cost: c, source: "remap" };
           }
         }
         if (r.new_sku) {
           const v = variantBySku.get(r.new_sku);
           if (v?.inventory_item_id) {
             const c = costByInventoryItem.get(v.inventory_item_id);
-            if (c && c > 0) return c;
+            if (c && c > 0) return { cost: c, source: "remap" };
           }
         }
       }
     }
-    // D) Preserve previously-stored non-zero cost
+    // E) Preserve previously-stored non-zero cost
     const prior = existingCostBySku.get(finalSku);
-    if (prior && prior > 0) return prior;
-    return 0;
+    if (prior && prior > 0) return { cost: prior, source: "preserved" };
+    return { cost: 0, source: "none" };
   };
 
   // Replace order items with resolved costs
@@ -408,6 +423,11 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload): Promise
   let itemsWithCost = 0;
   let itemsMissingCost = 0;
   let itemsCostTotal = 0;
+  let costAssignedByVariantId = 0;
+  let costAssignedBySku = 0;
+  let costAssignedBySkuNormalized = 0;
+  let costAssignedByRemap = 0;
+  let costPreserved = 0;
 
   if (items.length) {
     const rows = items.map((l) => {
@@ -419,10 +439,15 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload): Promise
         l.sku && l.sku.trim().length > 0
           ? l.sku
           : `shopify-variant-${l.variant_id ?? "unknown"}`;
-      const unitCost = resolveUnitCost(l, sku);
+      const { cost: unitCost, source } = resolveUnitCost(l, sku);
       if (unitCost > 0) {
         itemsWithCost++;
         itemsCostTotal += unitCost * qty;
+        if (source === "variant_id") costAssignedByVariantId++;
+        else if (source === "sku") costAssignedBySku++;
+        else if (source === "sku_normalized") costAssignedBySkuNormalized++;
+        else if (source === "remap") costAssignedByRemap++;
+        else if (source === "preserved") costPreserved++;
       } else {
         itemsMissingCost++;
       }
@@ -456,5 +481,11 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload): Promise
     itemsWithCost,
     itemsMissingCost,
     itemsCostTotal,
+    costAssignedByVariantId,
+    costAssignedBySku,
+    costAssignedBySkuNormalized,
+    costAssignedByRemap,
+    costPreserved,
   };
 }
+

@@ -236,6 +236,22 @@ function ShopifyPage() {
     failed_count: number;
   } | null>(null);
   const [recalcError, setRecalcError] = useState<string | null>(null);
+  const [ordersSyncResult, setOrdersSyncResult] = useState<{
+    mode: string;
+    created: number;
+    updated: number;
+    failed: number;
+    order_items_processed: number;
+    order_items_with_cost: number;
+    order_items_missing_cost: number;
+    order_items_cost_assigned_by_variant_id: number;
+    order_items_cost_assigned_by_sku: number;
+    order_items_cost_assigned_by_sku_normalized: number;
+    order_items_cost_assigned_by_remap: number;
+    order_items_cost_preserved: number;
+    affected_orders_recalculated: number;
+    total_items_cost_after_recalc: number;
+  } | null>(null);
 
   const authHeader = async () => {
     const { data } = await supabase.auth.getSession();
@@ -317,7 +333,24 @@ function ShopifyPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Shopify orders sync failed.");
 
-      const message = `${mode === "full_backfill" ? "Full backfill" : "Recent orders sync"} finished: ${json.created ?? 0} new, ${json.updated ?? 0} updated.`;
+      setOrdersSyncResult({
+        mode: json.mode ?? mode,
+        created: json.created ?? 0,
+        updated: json.updated ?? 0,
+        failed: json.failed ?? 0,
+        order_items_processed: json.order_items_processed ?? 0,
+        order_items_with_cost: json.order_items_with_cost ?? 0,
+        order_items_missing_cost: json.order_items_missing_cost ?? 0,
+        order_items_cost_assigned_by_variant_id: json.order_items_cost_assigned_by_variant_id ?? 0,
+        order_items_cost_assigned_by_sku: json.order_items_cost_assigned_by_sku ?? 0,
+        order_items_cost_assigned_by_sku_normalized: json.order_items_cost_assigned_by_sku_normalized ?? 0,
+        order_items_cost_assigned_by_remap: json.order_items_cost_assigned_by_remap ?? 0,
+        order_items_cost_preserved: json.order_items_cost_preserved ?? 0,
+        affected_orders_recalculated: json.affected_orders_recalculated ?? 0,
+        total_items_cost_after_recalc: Number(json.total_items_cost_after_recalc ?? 0),
+      });
+
+      const message = `${mode === "full_backfill" ? "Full backfill" : "Recent orders sync"} finished: ${json.created ?? 0} new, ${json.updated ?? 0} updated · items with cost ${json.order_items_with_cost ?? 0}/${json.order_items_processed ?? 0}.`;
       if (json.completion_warning) toast.warning(json.completion_warning);
       else if (json.status === "partial") toast.warning(message);
       else toast.success(message);
@@ -733,6 +766,54 @@ function ShopifyPage() {
                     </>
                   )}
                 </div>
+                {ordersSyncResult && (
+                  <div className="grid gap-3 rounded-md border bg-muted/30 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <StatusItem label="Mode" value={ordersSyncResult.mode} />
+                    <StatusItem label="Created" value={String(ordersSyncResult.created)} />
+                    <StatusItem label="Updated" value={String(ordersSyncResult.updated)} />
+                    <StatusItem label="Failed" value={String(ordersSyncResult.failed)} />
+                    <StatusItem
+                      label="Items processed"
+                      value={String(ordersSyncResult.order_items_processed)}
+                    />
+                    <StatusItem
+                      label="Items with cost"
+                      value={String(ordersSyncResult.order_items_with_cost)}
+                    />
+                    <StatusItem
+                      label="Items missing cost"
+                      value={String(ordersSyncResult.order_items_missing_cost)}
+                    />
+                    <StatusItem
+                      label="Orders recalculated"
+                      value={String(ordersSyncResult.affected_orders_recalculated)}
+                    />
+                    <StatusItem
+                      label="Cost via variant id"
+                      value={String(ordersSyncResult.order_items_cost_assigned_by_variant_id)}
+                    />
+                    <StatusItem
+                      label="Cost via SKU"
+                      value={String(ordersSyncResult.order_items_cost_assigned_by_sku)}
+                    />
+                    <StatusItem
+                      label="Cost via SKU normalized"
+                      value={String(ordersSyncResult.order_items_cost_assigned_by_sku_normalized)}
+                    />
+                    <StatusItem
+                      label="Cost via remap"
+                      value={String(ordersSyncResult.order_items_cost_assigned_by_remap)}
+                    />
+                    <StatusItem
+                      label="Cost preserved"
+                      value={String(ordersSyncResult.order_items_cost_preserved)}
+                    />
+                    <StatusItem
+                      label="Total items cost after"
+                      value={ordersSyncResult.total_items_cost_after_recalc.toLocaleString()}
+                    />
+                  </div>
+                )}
                 {canAdmin && (
                   <p className="text-sm text-muted-foreground">
                     Reset & Sync 2026 Orders deletes all local orders from Mansouj Sales Hub, then

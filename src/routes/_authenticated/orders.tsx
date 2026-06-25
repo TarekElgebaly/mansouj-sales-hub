@@ -51,9 +51,9 @@ function OrdersPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ mode: "incremental" }),
       });
-      const json = await res.json() as { ok: boolean; created?: number; updated?: number; error?: string; errors?: string[] };
+      const json = await res.json() as { ok: boolean; created?: number; updated?: number; error?: string; errors?: string[]; order_items_with_cost?: number; order_items_missing_cost?: number; affected_orders_recalculated?: number };
       if (json.ok) {
-        toast.success(`Pulled recent Shopify orders — ${json.created ?? 0} new, ${json.updated ?? 0} updated${json.errors?.length ? `, ${json.errors.length} errors` : ""}`);
+        toast.success(`Pulled recent Shopify orders — ${json.created ?? 0} new, ${json.updated ?? 0} updated · items with cost ${json.order_items_with_cost ?? 0}, missing ${json.order_items_missing_cost ?? 0}, orders recalculated ${json.affected_orders_recalculated ?? 0}${json.errors?.length ? `, ${json.errors.length} errors` : ""}`);
         qc.invalidateQueries({ queryKey: ["orders"] });
         qc.invalidateQueries({ queryKey: ["order-items"] });
         qc.invalidateQueries({ queryKey: ["orders-all"] });
