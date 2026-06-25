@@ -861,9 +861,63 @@ function ShopifyPage() {
                       />
                     </div>
                   )}
+
+                  <div className="border-t pt-4 space-y-3">
+                    <div>
+                      <h4 className="text-sm font-medium">Backfill Order Item Costs</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Updates local order items with synced Shopify product cost. Does not
+                        modify Shopify.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={backfillOrderItemCosts}
+                      disabled={!canOps || backfillingCosts}
+                      variant="secondary"
+                    >
+                      <RefreshCw
+                        className={`mr-2 h-4 w-4 ${backfillingCosts ? "animate-spin" : ""}`}
+                      />
+                      Backfill Order Item Costs
+                    </Button>
+                    {backfillError && (
+                      <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                        {backfillError}
+                      </div>
+                    )}
+                    {backfillResult && (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <StatusItem
+                          label="Items checked"
+                          value={String(backfillResult.order_items_checked)}
+                        />
+                        <StatusItem
+                          label="Items updated"
+                          value={String(backfillResult.order_items_updated)}
+                        />
+                        <StatusItem
+                          label="Already had cost"
+                          value={String(backfillResult.order_items_already_had_cost)}
+                        />
+                        <StatusItem
+                          label="Missing variant match"
+                          value={String(backfillResult.order_items_missing_variant_match)}
+                        />
+                        <StatusItem
+                          label="Missing inventory cost"
+                          value={String(backfillResult.order_items_missing_inventory_cost)}
+                        />
+                        <StatusItem
+                          label="Failed"
+                          value={String(backfillResult.failed_count)}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </div>
+
 
             <Card>
               <CardHeader>
