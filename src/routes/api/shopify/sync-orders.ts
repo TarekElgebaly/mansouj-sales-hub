@@ -513,6 +513,11 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
               if (result.ok) {
                 if (result.existed) updatedCount++;
                 else createdCount++;
+                orderItemsProcessed += result.itemsProcessed;
+                orderItemsWithCost += result.itemsWithCost;
+                orderItemsMissingCost += result.itemsMissingCost;
+                affectedOrdersRecalculated++;
+                totalItemsCostAfterRecalc += result.itemsCostTotal;
 
                 const summary = summarizeOrder(result.order);
                 if (!firstOrderNumberImported) firstOrderNumberImported = summary.label;
