@@ -64,29 +64,69 @@ export function OrderDetail({ order, items, onChanged }: { order: any; items: an
 
       <div>
         <Label className="mb-1 block">Items</Label>
-        <Table>
-          <TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Product</TableHead><TableHead>Qty</TableHead><TableHead className="text-right">Price</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
-          <TableBody>
-            {items.map((it: any) => (
-              <TableRow key={it.id}>
-                <TableCell className="font-mono text-xs">{it.sku}</TableCell>
-                <TableCell>{it.product_name}<div className="text-xs text-muted-foreground">{it.color} · {it.size}</div></TableCell>
-                <TableCell>{it.quantity}</TableCell>
-                <TableCell className="text-right">{egp(it.unit_selling_price)}</TableCell>
-                <TableCell className="text-right">{egp(it.total_selling_price)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        {items.length === 0 ? (
+          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground text-center">
+            No line items found for this order.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>SKU</TableHead>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Variant</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">Unit price</TableHead>
+                  <TableHead className="text-right">Line total</TableHead>
+                  <TableHead className="text-right">Unit cost</TableHead>
+                  <TableHead className="text-right">Line cost</TableHead>
+                  <TableHead className="text-right">Line profit</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.map((it: any) => {
+                  const qty = Number(it.quantity ?? 0);
+                  const unitPrice = it.unit_selling_price == null ? null : Number(it.unit_selling_price);
+                  const lineTotal = it.total_selling_price == null
+                    ? (unitPrice == null ? null : unitPrice * qty)
+                    : Number(it.total_selling_price);
+                  const unitCost = it.unit_cost == null ? null : Number(it.unit_cost);
+                  const lineCost = it.total_cost == null
+                    ? (unitCost == null ? null : unitCost * qty)
+                    : Number(it.total_cost);
+                  const lineProfit = lineTotal == null || lineCost == null ? null : lineTotal - lineCost;
+                  const variantLabel = it.variant ?? [it.color, it.size].filter(Boolean).join(" · ");
+                  return (
+                    <TableRow key={it.id}>
+                      <TableCell className="font-mono text-xs">{it.sku && String(it.sku).trim() ? it.sku : "—"}</TableCell>
+                      <TableCell>{it.product_name ?? "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{variantLabel || "—"}</TableCell>
+                      <TableCell className="text-right">{qty}</TableCell>
+                      <TableCell className="text-right">{money(unitPrice)}</TableCell>
+                      <TableCell className="text-right">{money(lineTotal)}</TableCell>
+                      <TableCell className="text-right">{money(unitCost)}</TableCell>
+                      <TableCell className="text-right">{money(lineCost)}</TableCell>
+                      <TableCell className={`text-right ${tone(lineProfit)}`}>{money(lineProfit)}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 bg-muted/40 rounded-md p-3 text-sm">
-        <Info label="Selling Price" value={money(selling)} />
-        <Info label="Order Cost" value={money(cost)} />
-        <Info label="Gross Profit" value={<span className={tone(gross)}>{money(gross)}</span>} />
-        <Info label="Shipping Cost" value={money(shipping)} />
-        <Info label="Packaging Cost" value={money(packaging)} />
-        <Info label="Net Profit" value={<span className={tone(net)}>{money(net)}</span>} />
+      <div>
+        <Label className="mb-1 block">Order Profit Summary</Label>
+        <div className="grid grid-cols-2 gap-3 bg-muted/40 rounded-md p-3 text-sm">
+          <Info label="Selling Price" value={money(selling)} />
+          <Info label="Order Cost" value={money(cost)} />
+          <Info label="Gross Profit" value={<span className={tone(gross)}>{money(gross)}</span>} />
+          <Info label="Shipping Cost" value={money(shipping)} />
+          <Info label="Packaging Cost" value={money(packaging)} />
+          <Info label="Net Profit" value={<span className={tone(net)}>{money(net)}</span>} />
+        </div>
       </div>
 
       <Button onClick={save} className="w-full">Save changes</Button>

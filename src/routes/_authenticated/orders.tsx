@@ -168,7 +168,11 @@ function OrdersPage() {
   };
 
   const openOrder = orders?.find((o) => o.id === openId);
-  const openItems = items?.filter((i) => i.order_id === openId) ?? [];
+  const { data: openItems } = useQuery({
+    queryKey: ["order-items", openId],
+    enabled: !!openId,
+    queryFn: async () => (await supabase.from("order_items").select("*").eq("order_id", openId!)).data ?? [],
+  });
 
   return (
     <AppShell title="Orders" search={search} onSearch={setSearch}
@@ -321,7 +325,7 @@ function OrdersPage() {
                 <SheetTitle>{openOrder.order_number}</SheetTitle>
                 <SheetDescription>{openOrder.customer_full_name} · {fmtDate(openOrder.order_date)}</SheetDescription>
               </SheetHeader>
-              <OrderDetail order={openOrder} items={openItems} onChanged={() => qc.invalidateQueries({ queryKey: ["orders"] })} />
+              <OrderDetail order={openOrder} items={openItems ?? []} onChanged={() => { qc.invalidateQueries({ queryKey: ["orders"] }); qc.invalidateQueries({ queryKey: ["order-items", openId] }); }} />
             </>
           )}
         </SheetContent>
