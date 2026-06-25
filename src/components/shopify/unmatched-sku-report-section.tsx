@@ -17,8 +17,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, RefreshCcw, Download, AlertTriangle } from "lucide-react";
+import { Loader2, RefreshCcw, Download, AlertTriangle, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { CreateRemapDialog } from "./create-remap-dialog";
 
 type ReportRow = {
   old_sku: string | null;
