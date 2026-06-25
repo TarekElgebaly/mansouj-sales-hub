@@ -184,6 +184,43 @@ function OrdersPage() {
           <Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-4 w-4 mr-1" />Export CSV</Button>
         </div>
       }>
+      {syncResult && (
+        <Card className="mb-4">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="text-sm font-medium">Last Shopify sync result</div>
+              <Button size="icon" variant="ghost" className="h-6 w-6 -mt-1 -mr-1" onClick={() => setSyncResult(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            {syncResult.failed === 0 && syncResult.affected_orders_recalculated > 0 && (
+              <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
+                Recent orders synced and costs recalculated successfully.
+              </div>
+            )}
+            {syncResult.order_items_missing_cost > 0 && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                Some order items are missing cost. Run Sync Inventory &amp; Cost and Backfill Order Item Costs if needed.
+              </div>
+            )}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
+              <Stat label="Orders created" value={syncResult.created} />
+              <Stat label="Orders updated" value={syncResult.updated} />
+              <Stat label="Items processed" value={syncResult.order_items_processed} />
+              <Stat label="Items with cost" value={syncResult.order_items_with_cost} />
+              <Stat label="Items missing cost" value={syncResult.order_items_missing_cost} />
+              <Stat label="Orders recalculated" value={syncResult.affected_orders_recalculated} />
+              <Stat label="Cost preserved" value={syncResult.order_items_cost_preserved} />
+              <Stat label="Cost via variant id" value={syncResult.order_items_cost_assigned_by_variant_id} />
+              <Stat label="Cost via SKU" value={syncResult.order_items_cost_assigned_by_sku} />
+              <Stat label="Cost via SKU norm." value={syncResult.order_items_cost_assigned_by_sku_normalized} />
+              <Stat label="Cost via remap" value={syncResult.order_items_cost_assigned_by_remap} />
+              <Stat label="Failed" value={syncResult.failed} />
+              <Stat label="Items cost total" value={syncResult.total_items_cost_after_recalc.toLocaleString()} />
+            </div>
+          </CardContent>
+        </Card>
+      )}
       <Card>
         <CardContent className="p-3 flex flex-wrap items-center gap-2">
           <Select value={city} onValueChange={setCity}><SelectTrigger className="w-36 h-9"><SelectValue placeholder="City" /></SelectTrigger>
