@@ -238,7 +238,7 @@ export function OrdersProfitTab() {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
               {rows.length === 0 && (
