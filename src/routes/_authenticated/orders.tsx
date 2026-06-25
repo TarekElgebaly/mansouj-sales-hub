@@ -17,7 +17,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { CONFIRMATION_STATUSES, ORDER_STATUSES, egp, fmtDate, statusTone } from "@/lib/format";
 import { useUser } from "@/hooks/use-user";
-import { Download, LayoutGrid, Plus, RefreshCw, Table as TableIcon } from "lucide-react";
+import { Download, LayoutGrid, Plus, RefreshCw, Table as TableIcon, X } from "lucide-react";
 import Papa from "papaparse";
 import { toast } from "sonner";
 import { OrderDetail } from "@/components/order-detail";
