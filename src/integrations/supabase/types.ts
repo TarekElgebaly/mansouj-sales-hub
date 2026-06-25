@@ -682,6 +682,54 @@ export type Database = {
         }
         Relationships: []
       }
+      shopify_sync_runs: {
+        Row: {
+          created_at: string
+          created_count: number
+          error_message: string | null
+          failed_count: number
+          finished_at: string | null
+          id: string
+          metadata: Json
+          pages_fetched: number
+          records_processed: number
+          started_at: string
+          status: string
+          sync_type: string
+          updated_count: number
+        }
+        Insert: {
+          created_at?: string
+          created_count?: number
+          error_message?: string | null
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          metadata?: Json
+          pages_fetched?: number
+          records_processed?: number
+          started_at?: string
+          status: string
+          sync_type: string
+          updated_count?: number
+        }
+        Update: {
+          created_at?: string
+          created_count?: number
+          error_message?: string | null
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          metadata?: Json
+          pages_fetched?: number
+          records_processed?: number
+          started_at?: string
+          status?: string
+          sync_type?: string
+          updated_count?: number
+        }
+        Relationships: []
+      }
       shopify_sync_settings: {
         Row: {
           access_token: string | null
