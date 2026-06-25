@@ -20,6 +20,7 @@ import {
   Warehouse,
 } from "lucide-react";
 import { toast } from "sonner";
+import { SkuRemapSection } from "@/components/shopify/sku-remap-section";
 
 export const Route = createFileRoute("/_authenticated/shopify")({
   head: () => ({ meta: [{ title: "Shopify Sync Status — Mansouj" }] }),
@@ -132,6 +133,15 @@ type UnmatchedSample = {
   reason: string;
 };
 
+type UnmatchedSkuReportRow = {
+  old_sku: string | null;
+  item_title: string | null;
+  variant: string | null;
+  count: number;
+  reason: string;
+  example_order_numbers: string[];
+};
+
 type BackfillCostResult = {
   status: string;
   order_items_checked: number;
@@ -142,10 +152,15 @@ type BackfillCostResult = {
   matched_by_variant_id: number;
   matched_by_sku: number;
   matched_by_sku_normalized: number;
+  matched_by_remap_variant_id: number;
+  matched_by_remap_sku: number;
+  remap_matches_count: number;
+  remaining_unmatched: number;
   matched_by_barcode: number;
   matched_by_title_exact: number;
   mismatch_reasons: Record<string, number>;
   unmatched_samples: UnmatchedSample[];
+  unmatched_sku_report: UnmatchedSkuReportRow[];
   failed_count: number;
 };
 
@@ -153,6 +168,38 @@ const RESET_CONFIRMATION_MESSAGE =
   "This will delete ALL orders from Mansouj Sales Hub only. It will NOT delete anything from Shopify. Continue?";
 const RESET_SYNC_2026_CONFIRMATION_MESSAGE =
   "This will delete ALL local orders from Mansouj Sales Hub and then import only Shopify orders created in 2026. It will NOT delete anything from Shopify. Continue?";
+
+function csvEscape(v: string | number | null | undefined): string {
+  if (v === null || v === undefined) return "";
+  const s = String(v);
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function exportUnmatchedSkuReportCsv(rows: UnmatchedSkuReportRow[]) {
+  const header = ["old_sku", "item_title", "variant", "count", "example_order_numbers", "reason"];
+  const lines = [header.join(",")];
+  for (const r of rows) {
+    lines.push([
+      csvEscape(r.old_sku),
+      csvEscape(r.item_title),
+      csvEscape(r.variant),
+      csvEscape(r.count),
+      csvEscape(r.example_order_numbers.join(" | ")),
+      csvEscape(r.reason),
+    ].join(","));
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `unmatched-sku-report-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 
 function ShopifyPage() {
   const qc = useQueryClient();
@@ -386,11 +433,18 @@ function ShopifyPage() {
         matched_by_variant_id: json.matched_by_variant_id ?? 0,
         matched_by_sku: json.matched_by_sku ?? 0,
         matched_by_sku_normalized: json.matched_by_sku_normalized ?? 0,
+        matched_by_remap_variant_id: json.matched_by_remap_variant_id ?? 0,
+        matched_by_remap_sku: json.matched_by_remap_sku ?? 0,
+        remap_matches_count: json.remap_matches_count ?? 0,
+        remaining_unmatched: json.remaining_unmatched ?? 0,
         matched_by_barcode: json.matched_by_barcode ?? 0,
         matched_by_title_exact: json.matched_by_title_exact ?? 0,
         mismatch_reasons: json.mismatch_reasons ?? {},
         unmatched_samples: Array.isArray(json.unmatched_samples)
           ? json.unmatched_samples
+          : [],
+        unmatched_sku_report: Array.isArray(json.unmatched_sku_report)
+          ? json.unmatched_sku_report
           : [],
         failed_count: json.failed_count ?? 0,
       };
@@ -1018,9 +1072,77 @@ function ShopifyPage() {
                         </div>
                       </div>
                     )}
+                    {backfillResult && (
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <StatusItem
+                          label="Matched by remap (variant ID)"
+                          value={String(backfillResult.matched_by_remap_variant_id)}
+                        />
+                        <StatusItem
+                          label="Matched by remap (SKU)"
+                          value={String(backfillResult.matched_by_remap_sku)}
+                        />
+                        <StatusItem
+                          label="Remap matches total"
+                          value={String(backfillResult.remap_matches_count)}
+                        />
+                        <StatusItem
+                          label="Remaining unmatched"
+                          value={String(backfillResult.remaining_unmatched)}
+                        />
+                      </div>
+                    )}
+                    {backfillResult &&
+                      backfillResult.unmatched_sku_report &&
+                      backfillResult.unmatched_sku_report.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h5 className="text-sm font-medium">
+                              Unmatched SKU report ({backfillResult.unmatched_sku_report.length})
+                            </h5>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => exportUnmatchedSkuReportCsv(backfillResult.unmatched_sku_report)}
+                            >
+                              Export CSV
+                            </Button>
+                          </div>
+                          <div className="overflow-x-auto rounded border max-h-96">
+                            <table className="w-full text-xs">
+                              <thead className="bg-muted/40 sticky top-0">
+                                <tr>
+                                  <th className="px-2 py-1 text-left">Old SKU</th>
+                                  <th className="px-2 py-1 text-left">Item</th>
+                                  <th className="px-2 py-1 text-left">Variant</th>
+                                  <th className="px-2 py-1 text-left">Count</th>
+                                  <th className="px-2 py-1 text-left">Example orders</th>
+                                  <th className="px-2 py-1 text-left">Reason</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {backfillResult.unmatched_sku_report.map((r, idx) => (
+                                  <tr key={idx} className="border-t">
+                                    <td className="px-2 py-1 font-mono">{r.old_sku ?? "—"}</td>
+                                    <td className="px-2 py-1">{r.item_title ?? "—"}</td>
+                                    <td className="px-2 py-1">{r.variant ?? "—"}</td>
+                                    <td className="px-2 py-1 font-mono">{r.count}</td>
+                                    <td className="px-2 py-1 font-mono">
+                                      {r.example_order_numbers.join(", ") || "—"}
+                                    </td>
+                                    <td className="px-2 py-1">{r.reason}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
                   </div>
                 </CardContent>
               </Card>
+
+              <SkuRemapSection />
             </div>
 
 
