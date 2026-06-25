@@ -445,3 +445,12 @@ function NewOrderDialog({ open, onOpenChange, onCreated }: { open: boolean; onOp
   );
 }
 
+
+function Stat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-md border bg-muted/30 px-2 py-1.5">
+      <div className="text-muted-foreground text-[10px] uppercase tracking-wide">{label}</div>
+      <div className="font-medium text-sm">{value}</div>
+    </div>
+  );
+}
