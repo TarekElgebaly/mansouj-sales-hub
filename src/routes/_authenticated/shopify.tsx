@@ -344,6 +344,47 @@ function ShopifyPage() {
     }
   };
 
+  const backfillOrderItemCosts = async () => {
+    setBackfillingCosts(true);
+    setBackfillResult(null);
+    setBackfillError(null);
+    try {
+      const res = await fetch("/api/shopify/backfill-order-item-costs", {
+        method: "POST",
+        headers: {
+          ...(await authHeader()),
+          "Content-Type": "application/json",
+        },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.status === "error")
+        throw new Error(json.error ?? "Backfill failed.");
+
+      const result: BackfillCostResult = {
+        status: json.status ?? "success",
+        order_items_checked: json.order_items_checked ?? 0,
+        order_items_updated: json.order_items_updated ?? 0,
+        order_items_already_had_cost: json.order_items_already_had_cost ?? 0,
+        order_items_missing_variant_match: json.order_items_missing_variant_match ?? 0,
+        order_items_missing_inventory_cost: json.order_items_missing_inventory_cost ?? 0,
+        failed_count: json.failed_count ?? 0,
+      };
+      setBackfillResult(result);
+      toast.success(
+        `Backfill finished: ${result.order_items_updated} of ${result.order_items_checked} order items updated.`,
+      );
+      await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setBackfillError(message);
+      toast.error(message);
+    } finally {
+      setBackfillingCosts(false);
+    }
+  };
+
+
+
   const resetAllLocalOrders = async () => {
     if (!window.confirm(RESET_CONFIRMATION_MESSAGE)) return;
 
