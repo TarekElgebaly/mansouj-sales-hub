@@ -223,6 +223,18 @@ function ShopifyPage() {
   const [backfillingCosts, setBackfillingCosts] = useState(false);
   const [backfillResult, setBackfillResult] = useState<BackfillCostResult | null>(null);
   const [backfillError, setBackfillError] = useState<string | null>(null);
+  const [recalcingOrderCosts, setRecalcingOrderCosts] = useState(false);
+  const [recalcResult, setRecalcResult] = useState<{
+    orders_checked: number;
+    orders_updated: number;
+    order_items_checked: number;
+    order_items_with_cost: number;
+    order_items_missing_cost: number;
+    total_items_cost_before: number;
+    total_items_cost_after: number;
+    failed_count: number;
+  } | null>(null);
+  const [recalcError, setRecalcError] = useState<string | null>(null);
 
   const authHeader = async () => {
     const { data } = await supabase.auth.getSession();
@@ -463,6 +475,46 @@ function ShopifyPage() {
       setBackfillingCosts(false);
     }
   };
+
+  const recalculateOrderCosts = async () => {
+    setRecalcingOrderCosts(true);
+    setRecalcResult(null);
+    setRecalcError(null);
+    try {
+      const res = await fetch("/api/shopify/recalculate-order-costs", {
+        method: "POST",
+        headers: {
+          ...(await authHeader()),
+          "Content-Type": "application/json",
+        },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.status === "error")
+        throw new Error(json.error ?? "Recalculate failed.");
+      setRecalcResult({
+        orders_checked: json.orders_checked ?? 0,
+        orders_updated: json.orders_updated ?? 0,
+        order_items_checked: json.order_items_checked ?? 0,
+        order_items_with_cost: json.order_items_with_cost ?? 0,
+        order_items_missing_cost: json.order_items_missing_cost ?? 0,
+        total_items_cost_before: json.total_items_cost_before ?? 0,
+        total_items_cost_after: json.total_items_cost_after ?? 0,
+        failed_count: json.failed_count ?? 0,
+      });
+      toast.success(
+        `Recalculated costs for ${json.orders_updated ?? 0} of ${json.orders_checked ?? 0} orders.`,
+      );
+      await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setRecalcError(message);
+      toast.error(message);
+    } finally {
+      setRecalcingOrderCosts(false);
+    }
+  };
+
+
 
 
 
@@ -1141,6 +1193,51 @@ function ShopifyPage() {
                         </div>
                       )}
                   </div>
+
+                  <div className="border-t pt-4 space-y-3">
+                    <div>
+                      <h4 className="text-sm font-medium">Recalculate Order Costs</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Recomputes each local order's items_cost from
+                        order_items (quantity × unit_cost). Profit and net
+                        profit refresh automatically. Does not modify Shopify
+                        or change order revenue.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={recalculateOrderCosts}
+                      disabled={!canOps || recalcingOrderCosts}
+                      variant="secondary"
+                    >
+                      <RefreshCw
+                        className={`mr-2 h-4 w-4 ${recalcingOrderCosts ? "animate-spin" : ""}`}
+                      />
+                      Recalculate Order Costs
+                    </Button>
+                    {!canOps && (
+                      <p className="text-sm text-muted-foreground">
+                        Admin or operations access is required.
+                      </p>
+                    )}
+                    {recalcError && (
+                      <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                        {recalcError}
+                      </div>
+                    )}
+                    {recalcResult && (
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <StatusItem label="Orders checked" value={String(recalcResult.orders_checked)} />
+                        <StatusItem label="Orders updated" value={String(recalcResult.orders_updated)} />
+                        <StatusItem label="Items checked" value={String(recalcResult.order_items_checked)} />
+                        <StatusItem label="Items with cost" value={String(recalcResult.order_items_with_cost)} />
+                        <StatusItem label="Items missing cost" value={String(recalcResult.order_items_missing_cost)} />
+                        <StatusItem label="Total items_cost before" value={recalcResult.total_items_cost_before.toFixed(2)} />
+                        <StatusItem label="Total items_cost after" value={recalcResult.total_items_cost_after.toFixed(2)} />
+                        <StatusItem label="Failed" value={String(recalcResult.failed_count)} />
+                      </div>
+                    )}
+                  </div>
+
                 </CardContent>
               </Card>
 
