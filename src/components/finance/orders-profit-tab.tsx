@@ -192,8 +192,8 @@ export function OrdersProfitTab() {
               {rows.map((r) => {
                 const isOpen = !!expanded[r.id];
                 return (
-                  <>
-                    <TableRow key={r.id} className="hover:bg-muted/50">
+                  <Fragment key={r.id}>
+                    <TableRow className="hover:bg-muted/50">
                       <TableCell className="w-10">
                         <Button
                           variant="ghost"
