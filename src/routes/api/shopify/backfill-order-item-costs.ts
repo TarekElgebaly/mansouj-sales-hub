@@ -71,6 +71,11 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
         if (!auth.ok) return auth.response;
         const { supabaseAdmin } = auth;
 
+        const url = new URL(request.url);
+        const dryRun =
+          url.searchParams.get("dry_run") === "1" ||
+          url.searchParams.get("dry_run") === "true";
+
         const startedAt = new Date().toISOString();
         const syncType = "order_item_cost_backfill";
 
@@ -442,16 +447,18 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
           }
 
           // 6. Apply updates (only zero/null unit_cost; total_cost is generated).
-          for (const u of updates) {
-            const { error } = await supabaseAdmin
-              .from("order_items")
-              .update({ unit_cost: u.unit_cost })
-              .eq("id", u.id);
-            if (error) {
-              failedCount++;
-              lastError = error.message;
-            } else {
-              orderItemsUpdated++;
+          if (!dryRun) {
+            for (const u of updates) {
+              const { error } = await supabaseAdmin
+                .from("order_items")
+                .update({ unit_cost: u.unit_cost })
+                .eq("id", u.id);
+              if (error) {
+                failedCount++;
+                lastError = error.message;
+              } else {
+                orderItemsUpdated++;
+              }
             }
           }
 
@@ -517,21 +524,24 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
             touched_order_totals: false,
           };
 
-          await saveShopifySyncRun(supabaseAdmin, {
-            syncType,
-            status,
-            startedAt,
-            finishedAt,
-            recordsProcessed: orderItemsChecked,
-            updatedCount: orderItemsUpdated,
-            failedCount,
-            pagesFetched: 0,
-            errorMessage: lastError,
-            metadata,
-          });
+          if (!dryRun) {
+            await saveShopifySyncRun(supabaseAdmin, {
+              syncType,
+              status,
+              startedAt,
+              finishedAt,
+              recordsProcessed: orderItemsChecked,
+              updatedCount: orderItemsUpdated,
+              failedCount,
+              pagesFetched: 0,
+              errorMessage: lastError,
+              metadata,
+            });
+          }
 
           return Response.json({
             status,
+            dry_run: dryRun,
             order_items_checked: orderItemsChecked,
             order_items_updated: orderItemsUpdated,
             order_items_already_had_cost: orderItemsAlreadyHadCost,
