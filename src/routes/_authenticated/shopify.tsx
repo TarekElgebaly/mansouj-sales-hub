@@ -476,6 +476,46 @@ function ShopifyPage() {
     }
   };
 
+  const recalculateOrderCosts = async () => {
+    setRecalcingOrderCosts(true);
+    setRecalcResult(null);
+    setRecalcError(null);
+    try {
+      const res = await fetch("/api/shopify/recalculate-order-costs", {
+        method: "POST",
+        headers: {
+          ...(await authHeader()),
+          "Content-Type": "application/json",
+        },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.status === "error")
+        throw new Error(json.error ?? "Recalculate failed.");
+      setRecalcResult({
+        orders_checked: json.orders_checked ?? 0,
+        orders_updated: json.orders_updated ?? 0,
+        order_items_checked: json.order_items_checked ?? 0,
+        order_items_with_cost: json.order_items_with_cost ?? 0,
+        order_items_missing_cost: json.order_items_missing_cost ?? 0,
+        total_items_cost_before: json.total_items_cost_before ?? 0,
+        total_items_cost_after: json.total_items_cost_after ?? 0,
+        failed_count: json.failed_count ?? 0,
+      });
+      toast.success(
+        `Recalculated costs for ${json.orders_updated ?? 0} of ${json.orders_checked ?? 0} orders.`,
+      );
+      await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setRecalcError(message);
+      toast.error(message);
+    } finally {
+      setRecalcingOrderCosts(false);
+    }
+  };
+
+
+
 
 
   const resetAllLocalOrders = async () => {
