@@ -484,12 +484,16 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
               async (order) => {
                 const shopifyOrderId = String(order.id);
                 try {
-                  await processShopifyOrder(order);
+                  const result = await processShopifyOrder(order);
                   return {
                     ok: true as const,
                     order,
                     shopifyOrderId,
-                    existed: existingSet.has(shopifyOrderId),
+                    existed: result.existed,
+                    itemsProcessed: result.itemsProcessed,
+                    itemsWithCost: result.itemsWithCost,
+                    itemsMissingCost: result.itemsMissingCost,
+                    itemsCostTotal: result.itemsCostTotal,
                   };
                 } catch (e) {
                   return {
