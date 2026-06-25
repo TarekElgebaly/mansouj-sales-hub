@@ -531,6 +531,11 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
                 orderItemsProcessed += result.itemsProcessed;
                 orderItemsWithCost += result.itemsWithCost;
                 orderItemsMissingCost += result.itemsMissingCost;
+                orderItemsCostAssignedByVariantId += result.costAssignedByVariantId;
+                orderItemsCostAssignedBySku += result.costAssignedBySku;
+                orderItemsCostAssignedBySkuNormalized += result.costAssignedBySkuNormalized;
+                orderItemsCostAssignedByRemap += result.costAssignedByRemap;
+                orderItemsCostPreserved += result.costPreserved;
                 affectedOrdersRecalculated++;
                 totalItemsCostAfterRecalc += result.itemsCostTotal;
 
