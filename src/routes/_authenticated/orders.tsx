@@ -325,7 +325,7 @@ function OrdersPage() {
                 <SheetTitle>{openOrder.order_number}</SheetTitle>
                 <SheetDescription>{openOrder.customer_full_name} · {fmtDate(openOrder.order_date)}</SheetDescription>
               </SheetHeader>
-              <OrderDetail order={openOrder} items={openItems} onChanged={() => qc.invalidateQueries({ queryKey: ["orders"] })} />
+              <OrderDetail order={openOrder} items={openItems ?? []} onChanged={() => { qc.invalidateQueries({ queryKey: ["orders"] }); qc.invalidateQueries({ queryKey: ["order-items", openId] }); }} />
             </>
           )}
         </SheetContent>
