@@ -493,6 +493,126 @@ export type Database = {
         }
         Relationships: []
       }
+      shopify_inventory_items: {
+        Row: {
+          created_at: string
+          id: string
+          inventory_item_id: string
+          raw: Json
+          sku: string | null
+          synced_at: string
+          tracked: boolean | null
+          unit_cost_amount: number | null
+          unit_cost_currency_code: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          inventory_item_id: string
+          raw?: Json
+          sku?: string | null
+          synced_at?: string
+          tracked?: boolean | null
+          unit_cost_amount?: number | null
+          unit_cost_currency_code?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          inventory_item_id?: string
+          raw?: Json
+          sku?: string | null
+          synced_at?: string
+          tracked?: boolean | null
+          unit_cost_amount?: number | null
+          unit_cost_currency_code?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      shopify_inventory_levels: {
+        Row: {
+          available: number | null
+          created_at: string
+          id: string
+          inventory_item_id: string
+          raw: Json
+          shopify_location_id: string
+          shopify_updated_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          available?: number | null
+          created_at?: string
+          id?: string
+          inventory_item_id: string
+          raw?: Json
+          shopify_location_id: string
+          shopify_updated_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          available?: number | null
+          created_at?: string
+          id?: string
+          inventory_item_id?: string
+          raw?: Json
+          shopify_location_id?: string
+          shopify_updated_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shopify_inventory_levels_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "shopify_inventory_items"
+            referencedColumns: ["inventory_item_id"]
+          },
+          {
+            foreignKeyName: "shopify_inventory_levels_shopify_location_id_fkey"
+            columns: ["shopify_location_id"]
+            isOneToOne: false
+            referencedRelation: "shopify_locations"
+            referencedColumns: ["shopify_location_id"]
+          },
+        ]
+      }
+      shopify_locations: {
+        Row: {
+          active: boolean | null
+          address: Json
+          created_at: string
+          id: string
+          name: string
+          raw: Json
+          shopify_location_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean | null
+          address?: Json
+          created_at?: string
+          id?: string
+          name: string
+          raw?: Json
+          shopify_location_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean | null
+          address?: Json
+          created_at?: string
+          id?: string
+          name?: string
+          raw?: Json
+          shopify_location_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       shopify_oauth_states: {
         Row: {
           created_at: string
@@ -511,6 +631,54 @@ export type Database = {
           expires_at?: string
           shop_domain?: string
           state?: string
+        }
+        Relationships: []
+      }
+      shopify_products: {
+        Row: {
+          created_at: string
+          handle: string | null
+          id: string
+          image: Json | null
+          product_type: string | null
+          raw: Json
+          shopify_created_at: string | null
+          shopify_product_id: string
+          shopify_updated_at: string | null
+          status: string | null
+          title: string
+          updated_at: string
+          vendor: string | null
+        }
+        Insert: {
+          created_at?: string
+          handle?: string | null
+          id?: string
+          image?: Json | null
+          product_type?: string | null
+          raw?: Json
+          shopify_created_at?: string | null
+          shopify_product_id: string
+          shopify_updated_at?: string | null
+          status?: string | null
+          title: string
+          updated_at?: string
+          vendor?: string | null
+        }
+        Update: {
+          created_at?: string
+          handle?: string | null
+          id?: string
+          image?: Json | null
+          product_type?: string | null
+          raw?: Json
+          shopify_created_at?: string | null
+          shopify_product_id?: string
+          shopify_updated_at?: string | null
+          status?: string | null
+          title?: string
+          updated_at?: string
+          vendor?: string | null
         }
         Relationships: []
       }
@@ -591,6 +759,80 @@ export type Database = {
           webhook_endpoint?: string | null
         }
         Relationships: []
+      }
+      shopify_variants: {
+        Row: {
+          barcode: string | null
+          compare_at_price: number | null
+          created_at: string
+          id: string
+          inventory_item_id: string | null
+          inventory_quantity: number | null
+          option1: string | null
+          option2: string | null
+          option3: string | null
+          options: Json
+          price: number | null
+          raw: Json
+          shopify_created_at: string | null
+          shopify_product_id: string
+          shopify_updated_at: string | null
+          shopify_variant_id: string
+          sku: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          barcode?: string | null
+          compare_at_price?: number | null
+          created_at?: string
+          id?: string
+          inventory_item_id?: string | null
+          inventory_quantity?: number | null
+          option1?: string | null
+          option2?: string | null
+          option3?: string | null
+          options?: Json
+          price?: number | null
+          raw?: Json
+          shopify_created_at?: string | null
+          shopify_product_id: string
+          shopify_updated_at?: string | null
+          shopify_variant_id: string
+          sku?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          barcode?: string | null
+          compare_at_price?: number | null
+          created_at?: string
+          id?: string
+          inventory_item_id?: string | null
+          inventory_quantity?: number | null
+          option1?: string | null
+          option2?: string | null
+          option3?: string | null
+          options?: Json
+          price?: number | null
+          raw?: Json
+          shopify_created_at?: string | null
+          shopify_product_id?: string
+          shopify_updated_at?: string | null
+          shopify_variant_id?: string
+          sku?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shopify_variants_shopify_product_id_fkey"
+            columns: ["shopify_product_id"]
+            isOneToOne: false
+            referencedRelation: "shopify_products"
+            referencedColumns: ["shopify_product_id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
