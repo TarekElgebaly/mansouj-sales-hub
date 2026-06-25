@@ -252,6 +252,11 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
           shop_domain: domain || null,
           api_version: apiVersion || null,
           per_page: perPage,
+          order_items_processed: orderItemsProcessed,
+          order_items_with_cost: orderItemsWithCost,
+          order_items_missing_cost: orderItemsMissingCost,
+          affected_orders_recalculated: affectedOrdersRecalculated,
+          total_items_cost_after_recalc: totalItemsCostAfterRecalc,
           ...extra,
         });
 
