@@ -123,6 +123,15 @@ type InventoryCostSyncResult = {
   pages_fetched: number;
 };
 
+type UnmatchedSample = {
+  order_number: string | null;
+  order_item_title: string | null;
+  variant: string | null;
+  sku: string | null;
+  shopify_variant_id: string | null;
+  reason: string;
+};
+
 type BackfillCostResult = {
   status: string;
   order_items_checked: number;
@@ -130,6 +139,13 @@ type BackfillCostResult = {
   order_items_already_had_cost: number;
   order_items_missing_variant_match: number;
   order_items_missing_inventory_cost: number;
+  matched_by_variant_id: number;
+  matched_by_sku: number;
+  matched_by_sku_normalized: number;
+  matched_by_barcode: number;
+  matched_by_title_exact: number;
+  mismatch_reasons: Record<string, number>;
+  unmatched_samples: UnmatchedSample[];
   failed_count: number;
 };
 
@@ -367,6 +383,15 @@ function ShopifyPage() {
         order_items_already_had_cost: json.order_items_already_had_cost ?? 0,
         order_items_missing_variant_match: json.order_items_missing_variant_match ?? 0,
         order_items_missing_inventory_cost: json.order_items_missing_inventory_cost ?? 0,
+        matched_by_variant_id: json.matched_by_variant_id ?? 0,
+        matched_by_sku: json.matched_by_sku ?? 0,
+        matched_by_sku_normalized: json.matched_by_sku_normalized ?? 0,
+        matched_by_barcode: json.matched_by_barcode ?? 0,
+        matched_by_title_exact: json.matched_by_title_exact ?? 0,
+        mismatch_reasons: json.mismatch_reasons ?? {},
+        unmatched_samples: Array.isArray(json.unmatched_samples)
+          ? json.unmatched_samples
+          : [],
         failed_count: json.failed_count ?? 0,
       };
       setBackfillResult(result);
@@ -911,6 +936,86 @@ function ShopifyPage() {
                           label="Failed"
                           value={String(backfillResult.failed_count)}
                         />
+                        <StatusItem
+                          label="Matched by variant ID"
+                          value={String(backfillResult.matched_by_variant_id)}
+                        />
+                        <StatusItem
+                          label="Matched by SKU (exact)"
+                          value={String(backfillResult.matched_by_sku)}
+                        />
+                        <StatusItem
+                          label="Matched by SKU (normalized)"
+                          value={String(backfillResult.matched_by_sku_normalized)}
+                        />
+                        <StatusItem
+                          label="Matched by barcode"
+                          value={String(backfillResult.matched_by_barcode)}
+                        />
+                        <StatusItem
+                          label="Matched by title (exact)"
+                          value={String(backfillResult.matched_by_title_exact)}
+                        />
+                      </div>
+                    )}
+                    {backfillResult &&
+                      backfillResult.mismatch_reasons &&
+                      Object.keys(backfillResult.mismatch_reasons).length > 0 && (
+                        <div className="space-y-2">
+                          <h5 className="text-sm font-medium">Mismatch reasons</h5>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {Object.entries(backfillResult.mismatch_reasons).map(
+                              ([reason, count]) => (
+                                <div
+                                  key={reason}
+                                  className="flex items-center justify-between rounded border px-3 py-2 text-xs"
+                                >
+                                  <span className="text-muted-foreground">{reason}</span>
+                                  <span className="font-mono">{count}</span>
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    {backfillResult && backfillResult.unmatched_samples.length > 0 && (
+                      <div className="space-y-2">
+                        <h5 className="text-sm font-medium">
+                          Unmatched preview (first{" "}
+                          {backfillResult.unmatched_samples.length})
+                        </h5>
+                        <div className="overflow-x-auto rounded border">
+                          <table className="w-full text-xs">
+                            <thead className="bg-muted/40">
+                              <tr>
+                                <th className="px-2 py-1 text-left">Order #</th>
+                                <th className="px-2 py-1 text-left">Item</th>
+                                <th className="px-2 py-1 text-left">Variant</th>
+                                <th className="px-2 py-1 text-left">SKU</th>
+                                <th className="px-2 py-1 text-left">Shopify variant ID</th>
+                                <th className="px-2 py-1 text-left">Reason</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {backfillResult.unmatched_samples.map((s, idx) => (
+                                <tr key={idx} className="border-t">
+                                  <td className="px-2 py-1">{s.order_number ?? "—"}</td>
+                                  <td className="px-2 py-1">
+                                    {s.order_item_title ?? "—"}
+                                  </td>
+                                  <td className="px-2 py-1">{s.variant ?? "—"}</td>
+                                  <td className="px-2 py-1 font-mono">
+                                    {s.sku ?? "—"}
+                                  </td>
+                                  <td className="px-2 py-1 font-mono">
+                                    {s.shopify_variant_id ?? "—"}
+                                  </td>
+                                  <td className="px-2 py-1">{s.reason}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     )}
                   </div>
