@@ -123,6 +123,15 @@ type InventoryCostSyncResult = {
   pages_fetched: number;
 };
 
+type UnmatchedSample = {
+  order_number: string | null;
+  order_item_title: string | null;
+  variant: string | null;
+  sku: string | null;
+  shopify_variant_id: string | null;
+  reason: string;
+};
+
 type BackfillCostResult = {
   status: string;
   order_items_checked: number;
@@ -130,6 +139,13 @@ type BackfillCostResult = {
   order_items_already_had_cost: number;
   order_items_missing_variant_match: number;
   order_items_missing_inventory_cost: number;
+  matched_by_variant_id: number;
+  matched_by_sku: number;
+  matched_by_sku_normalized: number;
+  matched_by_barcode: number;
+  matched_by_title_exact: number;
+  mismatch_reasons: Record<string, number>;
+  unmatched_samples: UnmatchedSample[];
   failed_count: number;
 };
 
