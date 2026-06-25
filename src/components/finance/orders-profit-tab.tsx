@@ -39,6 +39,181 @@ function CostInput({
   );
 }
 
+type Row = {
+  id: string;
+  order_number: string | null;
+  selling: number | null;
+  cost: number | null;
+  gross: number | null;
+  shipping: number | null;
+  packaging: number | null;
+  net: number | null;
+};
+
+function Summary({ label, value, accent }: { label: string; value: number | null; accent?: boolean }) {
+  return (
+    <div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={cn(
+        "font-medium",
+        accent && value !== null ? (value >= 0 ? "text-emerald-600" : "text-red-600") : "",
+      )}>
+        {value === null ? <span className="text-muted-foreground">—</span> : egp(value)}
+      </div>
+    </div>
+  );
+}
+
+function EditableCostRow({
+  r,
+  isOpen,
+  onToggle,
+  onOpen,
+  canEdit,
+  onSaved,
+}: {
+  r: Row;
+  isOpen: boolean;
+  onToggle: () => void;
+  onOpen: () => void;
+  canEdit: boolean;
+  onSaved: () => void;
+}) {
+  const [ship, setShip] = useState<string>(r.shipping === null ? "" : String(r.shipping));
+  const [pack, setPack] = useState<string>(r.packaging === null ? "" : String(r.packaging));
+  const [saving, setSaving] = useState(false);
+
+  // Reset local state when underlying row changes (e.g., after refetch)
+  useEffect(() => {
+    setShip(r.shipping === null ? "" : String(r.shipping));
+    setPack(r.packaging === null ? "" : String(r.packaging));
+  }, [r.shipping, r.packaging]);
+
+  const parse = (v: string): number | null => {
+    if (v.trim() === "") return 0;
+    const n = Number(v);
+    if (!Number.isFinite(n)) return null;
+    if (n < 0) return null;
+    return n;
+  };
+
+  const dirty =
+    canEdit &&
+    (parse(ship) !== (r.shipping ?? 0) || parse(pack) !== (r.packaging ?? 0));
+
+  const save = async () => {
+    const s = parse(ship);
+    const p = parse(pack);
+    if (s === null || p === null) {
+      toast.error("Shipping and packaging must be numbers ≥ 0");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({ shipping_cost: s, packaging_cost: p })
+        .eq("id", r.id);
+      if (error) throw error;
+
+      // Best-effort activity log (ignored if role can't insert)
+      const { data: u } = await supabase.auth.getUser();
+      if (u.user) {
+        await supabase.from("order_activity").insert({
+          order_id: r.id,
+          user_id: u.user.id,
+          action: "update_costs",
+          details: {
+            old_shipping_cost: r.shipping,
+            new_shipping_cost: s,
+            old_packaging_cost: r.packaging,
+            new_packaging_cost: p,
+          },
+        });
+      }
+
+      toast.success(`Saved costs for ${r.order_number}`);
+      onSaved();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to save costs");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const selling = r.selling;
+  const cost = r.cost;
+  const gross = r.gross;
+  const shipNum = parse(ship) ?? 0;
+  const packNum = parse(pack) ?? 0;
+  const liveNet = gross === null ? null : gross - shipNum - packNum;
+
+  return (
+    <TableRow className="hover:bg-muted/50">
+      <TableCell className="w-10">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={onToggle}
+          aria-label={isOpen ? "Collapse" : "Expand"}
+        >
+          <ChevronRight className={cn("h-4 w-4 transition-transform", isOpen && "rotate-90")} />
+        </Button>
+      </TableCell>
+      <TableCell>
+        <button
+          type="button"
+          className="font-medium text-primary underline-offset-2 hover:underline"
+          onClick={onOpen}
+        >
+          {r.order_number}
+        </button>
+      </TableCell>
+      <TableCell className="text-right">{cell(selling)}</TableCell>
+      <TableCell className="text-right">{cell(cost)}</TableCell>
+      <TableCell className={cn(
+        "text-right font-medium",
+        gross === null ? "" : gross >= 0 ? "text-emerald-600" : "text-red-600",
+      )}>
+        {cell(gross)}
+      </TableCell>
+      <TableCell className="text-right">
+        {canEdit ? (
+          <CostInput value={ship} onChange={setShip} disabled={saving} />
+        ) : (
+          cell(r.shipping)
+        )}
+      </TableCell>
+      <TableCell className="text-right">
+        {canEdit ? (
+          <CostInput value={pack} onChange={setPack} disabled={saving} />
+        ) : (
+          cell(r.packaging)
+        )}
+      </TableCell>
+      <TableCell className={cn(
+        "text-right font-medium",
+        liveNet === null ? "" : liveNet >= 0 ? "text-emerald-600" : "text-red-600",
+      )}>
+        {cell(liveNet)}
+      </TableCell>
+      {canEdit && (
+        <TableCell className="text-right">
+          <Button
+            size="sm"
+            variant={dirty ? "default" : "outline"}
+            disabled={!dirty || saving}
+            onClick={save}
+          >
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+          </Button>
+        </TableCell>
+      )}
+    </TableRow>
+  );
+}
+
 const num = (v: unknown): number | null => {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
