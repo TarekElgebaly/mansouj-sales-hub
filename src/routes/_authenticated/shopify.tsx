@@ -400,11 +400,18 @@ function ShopifyPage() {
         matched_by_variant_id: json.matched_by_variant_id ?? 0,
         matched_by_sku: json.matched_by_sku ?? 0,
         matched_by_sku_normalized: json.matched_by_sku_normalized ?? 0,
+        matched_by_remap_variant_id: json.matched_by_remap_variant_id ?? 0,
+        matched_by_remap_sku: json.matched_by_remap_sku ?? 0,
+        remap_matches_count: json.remap_matches_count ?? 0,
+        remaining_unmatched: json.remaining_unmatched ?? 0,
         matched_by_barcode: json.matched_by_barcode ?? 0,
         matched_by_title_exact: json.matched_by_title_exact ?? 0,
         mismatch_reasons: json.mismatch_reasons ?? {},
         unmatched_samples: Array.isArray(json.unmatched_samples)
           ? json.unmatched_samples
+          : [],
+        unmatched_sku_report: Array.isArray(json.unmatched_sku_report)
+          ? json.unmatched_sku_report
           : [],
         failed_count: json.failed_count ?? 0,
       };
