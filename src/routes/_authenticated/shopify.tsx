@@ -123,6 +123,16 @@ type InventoryCostSyncResult = {
   pages_fetched: number;
 };
 
+type BackfillCostResult = {
+  status: string;
+  order_items_checked: number;
+  order_items_updated: number;
+  order_items_already_had_cost: number;
+  order_items_missing_variant_match: number;
+  order_items_missing_inventory_cost: number;
+  failed_count: number;
+};
+
 const RESET_CONFIRMATION_MESSAGE =
   "This will delete ALL orders from Mansouj Sales Hub only. It will NOT delete anything from Shopify. Continue?";
 const RESET_SYNC_2026_CONFIRMATION_MESSAGE =
