@@ -1322,7 +1322,7 @@ function ShopifyPage() {
           </>
         )}
       </div>
-    </main>
+    </AppShell>
   );
 }
 
