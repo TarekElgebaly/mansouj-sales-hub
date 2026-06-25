@@ -17,8 +17,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, RefreshCcw, Download, AlertTriangle } from "lucide-react";
+import { Loader2, RefreshCcw, Download, AlertTriangle, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { CreateRemapDialog } from "./create-remap-dialog";
 
 type ReportRow = {
   old_sku: string | null;
@@ -85,6 +86,7 @@ export function UnmatchedSkuReportSection() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ReportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [remapTarget, setRemapTarget] = useState<ReportRow | null>(null);
 
   if (!canOps) return null;
 
@@ -203,6 +205,7 @@ export function UnmatchedSkuReportSection() {
                       <TableHead>Example variant</TableHead>
                       <TableHead>Example order numbers</TableHead>
                       <TableHead>Reason</TableHead>
+                      <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -228,6 +231,18 @@ export function UnmatchedSkuReportSection() {
                         <TableCell className="text-xs font-mono">
                           {r.reason}
                         </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7"
+                            disabled={!r.old_sku}
+                            onClick={() => setRemapTarget(r)}
+                          >
+                            <Plus className="mr-1 h-3 w-3" />
+                            Create remap
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -237,6 +252,18 @@ export function UnmatchedSkuReportSection() {
           </>
         )}
       </CardContent>
+      <CreateRemapDialog
+        open={!!remapTarget}
+        onOpenChange={(o) => !o && setRemapTarget(null)}
+        initialOldSku={remapTarget?.old_sku ?? ""}
+        initialNote={
+          remapTarget
+            ? [remapTarget.item_title, remapTarget.variant]
+                .filter(Boolean)
+                .join(" — ")
+            : ""
+        }
+      />
     </Card>
   );
 }
