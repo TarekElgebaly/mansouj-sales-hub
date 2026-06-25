@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { SkuRemapSection } from "@/components/shopify/sku-remap-section";
+import { UnmatchedSkuReportSection } from "@/components/shopify/unmatched-sku-report-section";
 
 export const Route = createFileRoute("/_authenticated/shopify")({
   head: () => ({ meta: [{ title: "Shopify Sync Status — Mansouj" }] }),
