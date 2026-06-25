@@ -447,16 +447,18 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
           }
 
           // 6. Apply updates (only zero/null unit_cost; total_cost is generated).
-          for (const u of updates) {
-            const { error } = await supabaseAdmin
-              .from("order_items")
-              .update({ unit_cost: u.unit_cost })
-              .eq("id", u.id);
-            if (error) {
-              failedCount++;
-              lastError = error.message;
-            } else {
-              orderItemsUpdated++;
+          if (!dryRun) {
+            for (const u of updates) {
+              const { error } = await supabaseAdmin
+                .from("order_items")
+                .update({ unit_cost: u.unit_cost })
+                .eq("id", u.id);
+              if (error) {
+                failedCount++;
+                lastError = error.message;
+              } else {
+                orderItemsUpdated++;
+              }
             }
           }
 
