@@ -155,6 +155,9 @@ function ShopifyPage() {
     useState<InventoryCostSyncResult | null>(null);
   const [productSyncError, setProductSyncError] = useState<string | null>(null);
   const [inventoryCostSyncError, setInventoryCostSyncError] = useState<string | null>(null);
+  const [backfillingCosts, setBackfillingCosts] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<BackfillCostResult | null>(null);
+  const [backfillError, setBackfillError] = useState<string | null>(null);
 
   const authHeader = async () => {
     const { data } = await supabase.auth.getSession();
