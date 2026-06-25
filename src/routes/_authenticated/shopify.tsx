@@ -1040,9 +1040,77 @@ function ShopifyPage() {
                         </div>
                       </div>
                     )}
+                    {backfillResult && (
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <StatusItem
+                          label="Matched by remap (variant ID)"
+                          value={String(backfillResult.matched_by_remap_variant_id)}
+                        />
+                        <StatusItem
+                          label="Matched by remap (SKU)"
+                          value={String(backfillResult.matched_by_remap_sku)}
+                        />
+                        <StatusItem
+                          label="Remap matches total"
+                          value={String(backfillResult.remap_matches_count)}
+                        />
+                        <StatusItem
+                          label="Remaining unmatched"
+                          value={String(backfillResult.remaining_unmatched)}
+                        />
+                      </div>
+                    )}
+                    {backfillResult &&
+                      backfillResult.unmatched_sku_report &&
+                      backfillResult.unmatched_sku_report.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h5 className="text-sm font-medium">
+                              Unmatched SKU report ({backfillResult.unmatched_sku_report.length})
+                            </h5>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => exportUnmatchedSkuReportCsv(backfillResult.unmatched_sku_report)}
+                            >
+                              Export CSV
+                            </Button>
+                          </div>
+                          <div className="overflow-x-auto rounded border max-h-96">
+                            <table className="w-full text-xs">
+                              <thead className="bg-muted/40 sticky top-0">
+                                <tr>
+                                  <th className="px-2 py-1 text-left">Old SKU</th>
+                                  <th className="px-2 py-1 text-left">Item</th>
+                                  <th className="px-2 py-1 text-left">Variant</th>
+                                  <th className="px-2 py-1 text-left">Count</th>
+                                  <th className="px-2 py-1 text-left">Example orders</th>
+                                  <th className="px-2 py-1 text-left">Reason</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {backfillResult.unmatched_sku_report.map((r, idx) => (
+                                  <tr key={idx} className="border-t">
+                                    <td className="px-2 py-1 font-mono">{r.old_sku ?? "—"}</td>
+                                    <td className="px-2 py-1">{r.item_title ?? "—"}</td>
+                                    <td className="px-2 py-1">{r.variant ?? "—"}</td>
+                                    <td className="px-2 py-1 font-mono">{r.count}</td>
+                                    <td className="px-2 py-1 font-mono">
+                                      {r.example_order_numbers.join(", ") || "—"}
+                                    </td>
+                                    <td className="px-2 py-1">{r.reason}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
                   </div>
                 </CardContent>
               </Card>
+
+              <SkuRemapSection />
             </div>
 
 
