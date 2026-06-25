@@ -524,18 +524,20 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
             touched_order_totals: false,
           };
 
-          await saveShopifySyncRun(supabaseAdmin, {
-            syncType,
-            status,
-            startedAt,
-            finishedAt,
-            recordsProcessed: orderItemsChecked,
-            updatedCount: orderItemsUpdated,
-            failedCount,
-            pagesFetched: 0,
-            errorMessage: lastError,
-            metadata,
-          });
+          if (!dryRun) {
+            await saveShopifySyncRun(supabaseAdmin, {
+              syncType,
+              status,
+              startedAt,
+              finishedAt,
+              recordsProcessed: orderItemsChecked,
+              updatedCount: orderItemsUpdated,
+              failedCount,
+              pagesFetched: 0,
+              errorMessage: lastError,
+              metadata,
+            });
+          }
 
           return Response.json({
             status,
