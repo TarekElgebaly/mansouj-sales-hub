@@ -275,6 +275,7 @@ export function OrdersProfitTab() {
                   )}>
                     {egp(totals.net)}
                   </TableCell>
+                  {canEditCosts && <TableCell />}
                 </TableRow>
               </TableFooter>
             )}
