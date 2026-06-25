@@ -682,6 +682,42 @@ export type Database = {
         }
         Relationships: []
       }
+      shopify_sku_remaps: {
+        Row: {
+          created_at: string
+          id: string
+          inventory_item_id: string | null
+          is_active: boolean
+          new_sku: string | null
+          note: string | null
+          old_sku: string
+          shopify_variant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          inventory_item_id?: string | null
+          is_active?: boolean
+          new_sku?: string | null
+          note?: string | null
+          old_sku: string
+          shopify_variant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          inventory_item_id?: string | null
+          is_active?: boolean
+          new_sku?: string | null
+          note?: string | null
+          old_sku?: string
+          shopify_variant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       shopify_sync_runs: {
         Row: {
           created_at: string
