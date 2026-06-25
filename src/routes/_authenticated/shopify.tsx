@@ -767,51 +767,63 @@ function ShopifyPage() {
                   )}
                 </div>
                 {ordersSyncResult && (
-                  <div className="grid gap-3 rounded-md border bg-muted/30 p-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <StatusItem label="Mode" value={ordersSyncResult.mode} />
-                    <StatusItem label="Created" value={String(ordersSyncResult.created)} />
-                    <StatusItem label="Updated" value={String(ordersSyncResult.updated)} />
-                    <StatusItem label="Failed" value={String(ordersSyncResult.failed)} />
-                    <StatusItem
-                      label="Items processed"
-                      value={String(ordersSyncResult.order_items_processed)}
-                    />
-                    <StatusItem
-                      label="Items with cost"
-                      value={String(ordersSyncResult.order_items_with_cost)}
-                    />
-                    <StatusItem
-                      label="Items missing cost"
-                      value={String(ordersSyncResult.order_items_missing_cost)}
-                    />
-                    <StatusItem
-                      label="Orders recalculated"
-                      value={String(ordersSyncResult.affected_orders_recalculated)}
-                    />
-                    <StatusItem
-                      label="Cost via variant id"
-                      value={String(ordersSyncResult.order_items_cost_assigned_by_variant_id)}
-                    />
-                    <StatusItem
-                      label="Cost via SKU"
-                      value={String(ordersSyncResult.order_items_cost_assigned_by_sku)}
-                    />
-                    <StatusItem
-                      label="Cost via SKU normalized"
-                      value={String(ordersSyncResult.order_items_cost_assigned_by_sku_normalized)}
-                    />
-                    <StatusItem
-                      label="Cost via remap"
-                      value={String(ordersSyncResult.order_items_cost_assigned_by_remap)}
-                    />
-                    <StatusItem
-                      label="Cost preserved"
-                      value={String(ordersSyncResult.order_items_cost_preserved)}
-                    />
-                    <StatusItem
-                      label="Total items cost after"
-                      value={ordersSyncResult.total_items_cost_after_recalc.toLocaleString()}
-                    />
+                  <div className="space-y-3">
+                    {ordersSyncResult.failed === 0 && ordersSyncResult.affected_orders_recalculated > 0 && (
+                      <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+                        Recent orders synced and costs recalculated successfully.
+                      </div>
+                    )}
+                    {ordersSyncResult.order_items_missing_cost > 0 && (
+                      <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-300">
+                        Some order items are missing cost. Run Sync Inventory &amp; Cost and Backfill Order Item Costs if needed.
+                      </div>
+                    )}
+                    <div className="grid gap-3 rounded-md border bg-muted/30 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <StatusItem label="Mode" value={ordersSyncResult.mode} />
+                      <StatusItem label="Created" value={String(ordersSyncResult.created)} />
+                      <StatusItem label="Updated" value={String(ordersSyncResult.updated)} />
+                      <StatusItem label="Failed" value={String(ordersSyncResult.failed)} />
+                      <StatusItem
+                        label="Items processed"
+                        value={String(ordersSyncResult.order_items_processed)}
+                      />
+                      <StatusItem
+                        label="Items with cost"
+                        value={String(ordersSyncResult.order_items_with_cost)}
+                      />
+                      <StatusItem
+                        label="Items missing cost"
+                        value={String(ordersSyncResult.order_items_missing_cost)}
+                      />
+                      <StatusItem
+                        label="Orders recalculated"
+                        value={String(ordersSyncResult.affected_orders_recalculated)}
+                      />
+                      <StatusItem
+                        label="Cost via variant id"
+                        value={String(ordersSyncResult.order_items_cost_assigned_by_variant_id)}
+                      />
+                      <StatusItem
+                        label="Cost via SKU"
+                        value={String(ordersSyncResult.order_items_cost_assigned_by_sku)}
+                      />
+                      <StatusItem
+                        label="Cost via SKU normalized"
+                        value={String(ordersSyncResult.order_items_cost_assigned_by_sku_normalized)}
+                      />
+                      <StatusItem
+                        label="Cost via remap"
+                        value={String(ordersSyncResult.order_items_cost_assigned_by_remap)}
+                      />
+                      <StatusItem
+                        label="Cost preserved"
+                        value={String(ordersSyncResult.order_items_cost_preserved)}
+                      />
+                      <StatusItem
+                        label="Total items cost after"
+                        value={ordersSyncResult.total_items_cost_after_recalc.toLocaleString()}
+                      />
+                    </div>
                   </div>
                 )}
                 {canAdmin && (
