@@ -20,6 +20,7 @@ import {
   Warehouse,
 } from "lucide-react";
 import { toast } from "sonner";
+import { SkuRemapSection } from "@/components/shopify/sku-remap-section";
 
 export const Route = createFileRoute("/_authenticated/shopify")({
   head: () => ({ meta: [{ title: "Shopify Sync Status — Mansouj" }] }),
