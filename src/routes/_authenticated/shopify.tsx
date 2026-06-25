@@ -123,6 +123,16 @@ type InventoryCostSyncResult = {
   pages_fetched: number;
 };
 
+type BackfillCostResult = {
+  status: string;
+  order_items_checked: number;
+  order_items_updated: number;
+  order_items_already_had_cost: number;
+  order_items_missing_variant_match: number;
+  order_items_missing_inventory_cost: number;
+  failed_count: number;
+};
+
 const RESET_CONFIRMATION_MESSAGE =
   "This will delete ALL orders from Mansouj Sales Hub only. It will NOT delete anything from Shopify. Continue?";
 const RESET_SYNC_2026_CONFIRMATION_MESSAGE =
@@ -145,6 +155,9 @@ function ShopifyPage() {
     useState<InventoryCostSyncResult | null>(null);
   const [productSyncError, setProductSyncError] = useState<string | null>(null);
   const [inventoryCostSyncError, setInventoryCostSyncError] = useState<string | null>(null);
+  const [backfillingCosts, setBackfillingCosts] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<BackfillCostResult | null>(null);
+  const [backfillError, setBackfillError] = useState<string | null>(null);
 
   const authHeader = async () => {
     const { data } = await supabase.auth.getSession();
@@ -330,6 +343,47 @@ function ShopifyPage() {
       setSyncingInventoryCost(false);
     }
   };
+
+  const backfillOrderItemCosts = async () => {
+    setBackfillingCosts(true);
+    setBackfillResult(null);
+    setBackfillError(null);
+    try {
+      const res = await fetch("/api/shopify/backfill-order-item-costs", {
+        method: "POST",
+        headers: {
+          ...(await authHeader()),
+          "Content-Type": "application/json",
+        },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.status === "error")
+        throw new Error(json.error ?? "Backfill failed.");
+
+      const result: BackfillCostResult = {
+        status: json.status ?? "success",
+        order_items_checked: json.order_items_checked ?? 0,
+        order_items_updated: json.order_items_updated ?? 0,
+        order_items_already_had_cost: json.order_items_already_had_cost ?? 0,
+        order_items_missing_variant_match: json.order_items_missing_variant_match ?? 0,
+        order_items_missing_inventory_cost: json.order_items_missing_inventory_cost ?? 0,
+        failed_count: json.failed_count ?? 0,
+      };
+      setBackfillResult(result);
+      toast.success(
+        `Backfill finished: ${result.order_items_updated} of ${result.order_items_checked} order items updated.`,
+      );
+      await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setBackfillError(message);
+      toast.error(message);
+    } finally {
+      setBackfillingCosts(false);
+    }
+  };
+
+
 
   const resetAllLocalOrders = async () => {
     if (!window.confirm(RESET_CONFIRMATION_MESSAGE)) return;
@@ -807,9 +861,63 @@ function ShopifyPage() {
                       />
                     </div>
                   )}
+
+                  <div className="border-t pt-4 space-y-3">
+                    <div>
+                      <h4 className="text-sm font-medium">Backfill Order Item Costs</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Updates local order items with synced Shopify product cost. Does not
+                        modify Shopify.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={backfillOrderItemCosts}
+                      disabled={!canOps || backfillingCosts}
+                      variant="secondary"
+                    >
+                      <RefreshCw
+                        className={`mr-2 h-4 w-4 ${backfillingCosts ? "animate-spin" : ""}`}
+                      />
+                      Backfill Order Item Costs
+                    </Button>
+                    {backfillError && (
+                      <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                        {backfillError}
+                      </div>
+                    )}
+                    {backfillResult && (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <StatusItem
+                          label="Items checked"
+                          value={String(backfillResult.order_items_checked)}
+                        />
+                        <StatusItem
+                          label="Items updated"
+                          value={String(backfillResult.order_items_updated)}
+                        />
+                        <StatusItem
+                          label="Already had cost"
+                          value={String(backfillResult.order_items_already_had_cost)}
+                        />
+                        <StatusItem
+                          label="Missing variant match"
+                          value={String(backfillResult.order_items_missing_variant_match)}
+                        />
+                        <StatusItem
+                          label="Missing inventory cost"
+                          value={String(backfillResult.order_items_missing_inventory_cost)}
+                        />
+                        <StatusItem
+                          label="Failed"
+                          value={String(backfillResult.failed_count)}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </div>
+
 
             <Card>
               <CardHeader>
