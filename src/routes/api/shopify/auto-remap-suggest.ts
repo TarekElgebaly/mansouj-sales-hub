@@ -280,7 +280,6 @@ export const Route = createFileRoute("/api/shopify/auto-remap-suggest")({
                   inventory_item_id: r.matched_variant.inventory_item_id,
                   note: "Auto-created from exact product + variant match",
                   is_active: true,
-                  created_by: userId,
                 });
               if (error) {
                 // Treat unique conflict as already exists
