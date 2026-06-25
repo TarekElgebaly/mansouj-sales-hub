@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { SkuRemapSection } from "@/components/shopify/sku-remap-section";
 import { UnmatchedSkuReportSection } from "@/components/shopify/unmatched-sku-report-section";
 import { AutoRemapSection } from "@/components/shopify/auto-remap-section";
+import { AppShell } from "@/components/app-shell";
 
 export const Route = createFileRoute("/_authenticated/shopify")({
   head: () => ({ meta: [{ title: "Shopify Sync Status — Mansouj" }] }),
@@ -607,8 +608,9 @@ function ShopifyPage() {
   };
 
   return (
-    <main className="min-h-screen bg-muted/30 px-4 py-6 md:px-8">
+    <AppShell title="Shopify Sync">
       <div className="mx-auto max-w-5xl space-y-4">
+
         <header className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-foreground">Shopify Sync Status</h1>
@@ -1320,7 +1322,7 @@ function ShopifyPage() {
           </>
         )}
       </div>
-    </main>
+    </AppShell>
   );
 }
 
