@@ -196,16 +196,18 @@ export function UnmatchedSkuReportSection() {
               </div>
             ) : (
               <div className="border rounded-md max-h-[480px] overflow-auto">
-                <Table>
-                  <TableHeader className="sticky top-0 bg-background">
+                <Table className="min-w-[760px]">
+                  <TableHeader className="sticky top-0 bg-background z-10">
                     <TableRow>
-                      <TableHead>Old SKU</TableHead>
-                      <TableHead className="text-right">Count</TableHead>
-                      <TableHead>Example item title</TableHead>
-                      <TableHead>Example variant</TableHead>
-                      <TableHead>Example order numbers</TableHead>
-                      <TableHead>Reason</TableHead>
-                      <TableHead></TableHead>
+                      <TableHead className="w-[140px]">Old SKU</TableHead>
+                      <TableHead className="w-[80px] text-right">Count</TableHead>
+                      <TableHead className="min-w-[180px]">Example item title</TableHead>
+                      <TableHead className="min-w-[140px]">Example variant</TableHead>
+                      <TableHead className="min-w-[160px]">Example order numbers</TableHead>
+                      <TableHead className="w-[120px]">Reason</TableHead>
+                      <TableHead className="sticky right-0 bg-background z-20 w-[150px] text-right">
+                        Actions
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -217,13 +219,13 @@ export function UnmatchedSkuReportSection() {
                         <TableCell className="text-right font-medium">
                           {r.count}
                         </TableCell>
-                        <TableCell className="text-xs">
+                        <TableCell className="text-xs max-w-[240px] truncate">
                           {r.item_title ?? "—"}
                         </TableCell>
-                        <TableCell className="text-xs">
+                        <TableCell className="text-xs max-w-[180px] truncate">
                           {r.variant ?? "—"}
                         </TableCell>
-                        <TableCell className="text-xs">
+                        <TableCell className="text-xs max-w-[200px] truncate">
                           {r.example_order_numbers.length > 0
                             ? r.example_order_numbers.join(", ")
                             : "—"}
@@ -231,15 +233,15 @@ export function UnmatchedSkuReportSection() {
                         <TableCell className="text-xs font-mono">
                           {r.reason}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="sticky right-0 bg-background z-10 text-right">
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-7"
+                            className="h-8 whitespace-nowrap"
                             disabled={!r.old_sku}
                             onClick={() => setRemapTarget(r)}
                           >
-                            <Plus className="mr-1 h-3 w-3" />
+                            <Plus className="mr-1 h-3.5 w-3.5" />
                             Create remap
                           </Button>
                         </TableCell>
