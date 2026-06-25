@@ -116,6 +116,9 @@ export function OrdersProfitTab() {
   const [city, setCity] = useState<string>("all");
   const [openId, setOpenId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const { canFinance, canAdmin } = useUser();
+  const canEditCosts = canAdmin || canFinance;
+
 
   const qc = useQueryClient();
   const { data: orders } = useQuery({
