@@ -541,6 +541,7 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
 
           return Response.json({
             status,
+            dry_run: dryRun,
             order_items_checked: orderItemsChecked,
             order_items_updated: orderItemsUpdated,
             order_items_already_had_cost: orderItemsAlreadyHadCost,
