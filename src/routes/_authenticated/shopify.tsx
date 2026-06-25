@@ -936,6 +936,86 @@ function ShopifyPage() {
                           label="Failed"
                           value={String(backfillResult.failed_count)}
                         />
+                        <StatusItem
+                          label="Matched by variant ID"
+                          value={String(backfillResult.matched_by_variant_id)}
+                        />
+                        <StatusItem
+                          label="Matched by SKU (exact)"
+                          value={String(backfillResult.matched_by_sku)}
+                        />
+                        <StatusItem
+                          label="Matched by SKU (normalized)"
+                          value={String(backfillResult.matched_by_sku_normalized)}
+                        />
+                        <StatusItem
+                          label="Matched by barcode"
+                          value={String(backfillResult.matched_by_barcode)}
+                        />
+                        <StatusItem
+                          label="Matched by title (exact)"
+                          value={String(backfillResult.matched_by_title_exact)}
+                        />
+                      </div>
+                    )}
+                    {backfillResult &&
+                      backfillResult.mismatch_reasons &&
+                      Object.keys(backfillResult.mismatch_reasons).length > 0 && (
+                        <div className="space-y-2">
+                          <h5 className="text-sm font-medium">Mismatch reasons</h5>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {Object.entries(backfillResult.mismatch_reasons).map(
+                              ([reason, count]) => (
+                                <div
+                                  key={reason}
+                                  className="flex items-center justify-between rounded border px-3 py-2 text-xs"
+                                >
+                                  <span className="text-muted-foreground">{reason}</span>
+                                  <span className="font-mono">{count}</span>
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    {backfillResult && backfillResult.unmatched_samples.length > 0 && (
+                      <div className="space-y-2">
+                        <h5 className="text-sm font-medium">
+                          Unmatched preview (first{" "}
+                          {backfillResult.unmatched_samples.length})
+                        </h5>
+                        <div className="overflow-x-auto rounded border">
+                          <table className="w-full text-xs">
+                            <thead className="bg-muted/40">
+                              <tr>
+                                <th className="px-2 py-1 text-left">Order #</th>
+                                <th className="px-2 py-1 text-left">Item</th>
+                                <th className="px-2 py-1 text-left">Variant</th>
+                                <th className="px-2 py-1 text-left">SKU</th>
+                                <th className="px-2 py-1 text-left">Shopify variant ID</th>
+                                <th className="px-2 py-1 text-left">Reason</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {backfillResult.unmatched_samples.map((s, idx) => (
+                                <tr key={idx} className="border-t">
+                                  <td className="px-2 py-1">{s.order_number ?? "—"}</td>
+                                  <td className="px-2 py-1">
+                                    {s.order_item_title ?? "—"}
+                                  </td>
+                                  <td className="px-2 py-1">{s.variant ?? "—"}</td>
+                                  <td className="px-2 py-1 font-mono">
+                                    {s.sku ?? "—"}
+                                  </td>
+                                  <td className="px-2 py-1 font-mono">
+                                    {s.shopify_variant_id ?? "—"}
+                                  </td>
+                                  <td className="px-2 py-1">{s.reason}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     )}
                   </div>
