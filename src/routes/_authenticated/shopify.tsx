@@ -1193,6 +1193,51 @@ function ShopifyPage() {
                         </div>
                       )}
                   </div>
+
+                  <div className="border-t pt-4 space-y-3">
+                    <div>
+                      <h4 className="text-sm font-medium">Recalculate Order Costs</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Recomputes each local order's items_cost from
+                        order_items (quantity × unit_cost). Profit and net
+                        profit refresh automatically. Does not modify Shopify
+                        or change order revenue.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={recalculateOrderCosts}
+                      disabled={!canOps || recalcingOrderCosts}
+                      variant="secondary"
+                    >
+                      <RefreshCw
+                        className={`mr-2 h-4 w-4 ${recalcingOrderCosts ? "animate-spin" : ""}`}
+                      />
+                      Recalculate Order Costs
+                    </Button>
+                    {!canOps && (
+                      <p className="text-sm text-muted-foreground">
+                        Admin or operations access is required.
+                      </p>
+                    )}
+                    {recalcError && (
+                      <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                        {recalcError}
+                      </div>
+                    )}
+                    {recalcResult && (
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <StatusItem label="Orders checked" value={String(recalcResult.orders_checked)} />
+                        <StatusItem label="Orders updated" value={String(recalcResult.orders_updated)} />
+                        <StatusItem label="Items checked" value={String(recalcResult.order_items_checked)} />
+                        <StatusItem label="Items with cost" value={String(recalcResult.order_items_with_cost)} />
+                        <StatusItem label="Items missing cost" value={String(recalcResult.order_items_missing_cost)} />
+                        <StatusItem label="Total items_cost before" value={recalcResult.total_items_cost_before.toFixed(2)} />
+                        <StatusItem label="Total items_cost after" value={recalcResult.total_items_cost_after.toFixed(2)} />
+                        <StatusItem label="Failed" value={String(recalcResult.failed_count)} />
+                      </div>
+                    )}
+                  </div>
+
                 </CardContent>
               </Card>
 
