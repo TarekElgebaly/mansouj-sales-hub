@@ -86,6 +86,7 @@ export function UnmatchedSkuReportSection() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ReportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [remapTarget, setRemapTarget] = useState<ReportRow | null>(null);
 
   if (!canOps) return null;
 
