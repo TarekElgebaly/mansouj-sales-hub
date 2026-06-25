@@ -63,7 +63,7 @@ export const Route = createFileRoute("/api/shopify/auto-remap-suggest")({
       POST: async ({ request }) => {
         const auth = await requireOpsUser(request);
         if (!auth.ok) return auth.response;
-        const { supabaseAdmin, userId } = auth;
+        const { supabaseAdmin } = auth;
 
         const url = new URL(request.url);
         const apply =
