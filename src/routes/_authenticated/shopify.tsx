@@ -132,6 +132,15 @@ type UnmatchedSample = {
   reason: string;
 };
 
+type UnmatchedSkuReportRow = {
+  old_sku: string | null;
+  item_title: string | null;
+  variant: string | null;
+  count: number;
+  reason: string;
+  example_order_numbers: string[];
+};
+
 type BackfillCostResult = {
   status: string;
   order_items_checked: number;
@@ -142,10 +151,15 @@ type BackfillCostResult = {
   matched_by_variant_id: number;
   matched_by_sku: number;
   matched_by_sku_normalized: number;
+  matched_by_remap_variant_id: number;
+  matched_by_remap_sku: number;
+  remap_matches_count: number;
+  remaining_unmatched: number;
   matched_by_barcode: number;
   matched_by_title_exact: number;
   mismatch_reasons: Record<string, number>;
   unmatched_samples: UnmatchedSample[];
+  unmatched_sku_report: UnmatchedSkuReportRow[];
   failed_count: number;
 };
 
