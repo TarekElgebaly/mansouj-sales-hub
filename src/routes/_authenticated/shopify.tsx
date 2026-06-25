@@ -169,6 +169,38 @@ const RESET_CONFIRMATION_MESSAGE =
 const RESET_SYNC_2026_CONFIRMATION_MESSAGE =
   "This will delete ALL local orders from Mansouj Sales Hub and then import only Shopify orders created in 2026. It will NOT delete anything from Shopify. Continue?";
 
+function csvEscape(v: string | number | null | undefined): string {
+  if (v === null || v === undefined) return "";
+  const s = String(v);
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function exportUnmatchedSkuReportCsv(rows: UnmatchedSkuReportRow[]) {
+  const header = ["old_sku", "item_title", "variant", "count", "example_order_numbers", "reason"];
+  const lines = [header.join(",")];
+  for (const r of rows) {
+    lines.push([
+      csvEscape(r.old_sku),
+      csvEscape(r.item_title),
+      csvEscape(r.variant),
+      csvEscape(r.count),
+      csvEscape(r.example_order_numbers.join(" | ")),
+      csvEscape(r.reason),
+    ].join(","));
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `unmatched-sku-report-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+
 function ShopifyPage() {
   const qc = useQueryClient();
   const { canAdmin, canOps } = useUser();
