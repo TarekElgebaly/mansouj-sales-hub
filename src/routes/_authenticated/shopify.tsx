@@ -1143,6 +1143,7 @@ function ShopifyPage() {
               </Card>
 
               <SkuRemapSection />
+              <UnmatchedSkuReportSection />
             </div>
 
 
