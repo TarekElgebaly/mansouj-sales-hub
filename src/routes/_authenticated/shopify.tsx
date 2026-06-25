@@ -223,6 +223,18 @@ function ShopifyPage() {
   const [backfillingCosts, setBackfillingCosts] = useState(false);
   const [backfillResult, setBackfillResult] = useState<BackfillCostResult | null>(null);
   const [backfillError, setBackfillError] = useState<string | null>(null);
+  const [recalcingOrderCosts, setRecalcingOrderCosts] = useState(false);
+  const [recalcResult, setRecalcResult] = useState<{
+    orders_checked: number;
+    orders_updated: number;
+    order_items_checked: number;
+    order_items_with_cost: number;
+    order_items_missing_cost: number;
+    total_items_cost_before: number;
+    total_items_cost_after: number;
+    failed_count: number;
+  } | null>(null);
+  const [recalcError, setRecalcError] = useState<string | null>(null);
 
   const authHeader = async () => {
     const { data } = await supabase.auth.getSession();
