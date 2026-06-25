@@ -71,6 +71,11 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
         if (!auth.ok) return auth.response;
         const { supabaseAdmin } = auth;
 
+        const url = new URL(request.url);
+        const dryRun =
+          url.searchParams.get("dry_run") === "1" ||
+          url.searchParams.get("dry_run") === "true";
+
         const startedAt = new Date().toISOString();
         const syncType = "order_item_cost_backfill";
 
