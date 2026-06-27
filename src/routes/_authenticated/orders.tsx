@@ -51,6 +51,8 @@ function OrdersPage() {
   const [confStatus, setConfStatus] = useState<string>("all");
   const [orderStatus, setOrderStatus] = useState<string>("all");
   const [shipping, setShipping] = useState<string>("all");
+  const [month, setMonth] = useState<string>(String(new Date().getMonth()));
+  const [year, setYear] = useState<string>(String(new Date().getFullYear()));
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openId, setOpenId] = useState<string | null>(null);
   const [openNew, setOpenNew] = useState(false);
