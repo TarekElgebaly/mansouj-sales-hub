@@ -147,10 +147,22 @@ function OrdersPage() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
+    const yearNum = Number(year);
+    const monthNum = month === "all" ? null : Number(month);
     return (orders ?? []).filter((o) => {
       if (q && ![o.order_number, o.customer_full_name, o.phone, o.shopify_order_id].some((v) => v?.toLowerCase().includes(q))) {
         const orderSkus = items?.filter((i) => i.order_id === o.id).map((i) => i.sku.toLowerCase()) ?? [];
         if (!orderSkus.some((s) => s.includes(q))) return false;
+      }
+      if (o.order_date) {
+        const d = new Date(o.order_date);
+        if (monthNum !== null) {
+          if (d.getMonth() !== monthNum || d.getFullYear() !== yearNum) return false;
+        } else {
+          if (d.getFullYear() !== yearNum) return false;
+        }
+      } else if (month !== "all") {
+        return false;
       }
       if (city !== "all" && o.city !== city) return false;
       if (confStatus !== "all" && o.confirmation_status !== confStatus) return false;
@@ -158,7 +170,7 @@ function OrdersPage() {
       if (shipping !== "all" && o.shipping_company !== shipping) return false;
       return true;
     });
-  }, [orders, items, search, city, confStatus, orderStatus, shipping]);
+  }, [orders, items, search, city, confStatus, orderStatus, shipping, month, year]);
 
   const toggleAll = () => {
     if (selected.size === filtered.length) setSelected(new Set());
