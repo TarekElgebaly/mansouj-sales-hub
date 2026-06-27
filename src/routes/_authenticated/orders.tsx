@@ -256,7 +256,32 @@ function OrdersPage() {
         </Card>
       )}
       <Card>
-        <CardContent className="p-3 flex flex-wrap items-center gap-2">
+        <CardContent className="p-3 flex flex-wrap items-end gap-2">
+          <div>
+            <Label className="text-xs">Month</Label>
+            <Select value={month} onValueChange={setMonth}>
+              <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {MONTHS.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Year</Label>
+            <Select value={year} onValueChange={setYear}>
+              <SelectTrigger className="w-28 h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(() => {
+                  const currentYear = new Date().getFullYear();
+                  const years: number[] = [];
+                  for (let y = currentYear - 5; y <= currentYear + 1; y++) years.push(y);
+                  return years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>);
+                })()}
+              </SelectContent>
+            </Select>
+          </div>
           <Select value={city} onValueChange={setCity}><SelectTrigger className="w-36 h-9"><SelectValue placeholder="City" /></SelectTrigger>
             <SelectContent><SelectItem value="all">All cities</SelectItem>{cities.map((c) => <SelectItem key={c!} value={c!}>{c}</SelectItem>)}</SelectContent>
           </Select>
