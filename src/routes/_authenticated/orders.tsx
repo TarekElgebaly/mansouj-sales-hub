@@ -22,6 +22,22 @@ import Papa from "papaparse";
 import { toast } from "sonner";
 import { OrderDetail } from "@/components/order-detail";
 
+const MONTHS = [
+  { value: "all", label: "All months" },
+  { value: "0", label: "January" },
+  { value: "1", label: "February" },
+  { value: "2", label: "March" },
+  { value: "3", label: "April" },
+  { value: "4", label: "May" },
+  { value: "5", label: "June" },
+  { value: "6", label: "July" },
+  { value: "7", label: "August" },
+  { value: "8", label: "September" },
+  { value: "9", label: "October" },
+  { value: "10", label: "November" },
+  { value: "11", label: "December" },
+];
+
 export const Route = createFileRoute("/_authenticated/orders")({
   head: () => ({ meta: [{ title: "Orders — Mansouj" }] }),
   component: OrdersPage,
@@ -35,6 +51,8 @@ function OrdersPage() {
   const [confStatus, setConfStatus] = useState<string>("all");
   const [orderStatus, setOrderStatus] = useState<string>("all");
   const [shipping, setShipping] = useState<string>("all");
+  const [month, setMonth] = useState<string>(String(new Date().getMonth()));
+  const [year, setYear] = useState<string>(String(new Date().getFullYear()));
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openId, setOpenId] = useState<string | null>(null);
   const [openNew, setOpenNew] = useState(false);
@@ -129,10 +147,24 @@ function OrdersPage() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
+    const yearNum = Number(year);
+    const monthNum = month === "all" ? null : Number(month);
     return (orders ?? []).filter((o) => {
       if (q && ![o.order_number, o.customer_full_name, o.phone, o.shopify_order_id].some((v) => v?.toLowerCase().includes(q))) {
         const orderSkus = items?.filter((i) => i.order_id === o.id).map((i) => i.sku.toLowerCase()) ?? [];
         if (!orderSkus.some((s) => s.includes(q))) return false;
+      }
+      if (o.order_date) {
+        const [y, m] = o.order_date.split("-");
+        const orderYear = Number(y);
+        const orderMonth = Number(m) - 1;
+        if (monthNum !== null) {
+          if (orderMonth !== monthNum || orderYear !== yearNum) return false;
+        } else {
+          if (orderYear !== yearNum) return false;
+        }
+      } else if (month !== "all") {
+        return false;
       }
       if (city !== "all" && o.city !== city) return false;
       if (confStatus !== "all" && o.confirmation_status !== confStatus) return false;
@@ -140,7 +172,7 @@ function OrdersPage() {
       if (shipping !== "all" && o.shipping_company !== shipping) return false;
       return true;
     });
-  }, [orders, items, search, city, confStatus, orderStatus, shipping]);
+  }, [orders, items, search, city, confStatus, orderStatus, shipping, month, year]);
 
   const toggleAll = () => {
     if (selected.size === filtered.length) setSelected(new Set());
@@ -226,7 +258,32 @@ function OrdersPage() {
         </Card>
       )}
       <Card>
-        <CardContent className="p-3 flex flex-wrap items-center gap-2">
+        <CardContent className="p-3 flex flex-wrap items-end gap-2">
+          <div>
+            <Label className="text-xs">Month</Label>
+            <Select value={month} onValueChange={setMonth}>
+              <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {MONTHS.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Year</Label>
+            <Select value={year} onValueChange={setYear}>
+              <SelectTrigger className="w-28 h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(() => {
+                  const currentYear = new Date().getFullYear();
+                  const years: number[] = [];
+                  for (let y = currentYear - 5; y <= currentYear + 1; y++) years.push(y);
+                  return years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>);
+                })()}
+              </SelectContent>
+            </Select>
+          </div>
           <Select value={city} onValueChange={setCity}><SelectTrigger className="w-36 h-9"><SelectValue placeholder="City" /></SelectTrigger>
             <SelectContent><SelectItem value="all">All cities</SelectItem>{cities.map((c) => <SelectItem key={c!} value={c!}>{c}</SelectItem>)}</SelectContent>
           </Select>
