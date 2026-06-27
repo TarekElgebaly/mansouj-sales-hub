@@ -155,11 +155,13 @@ function OrdersPage() {
         if (!orderSkus.some((s) => s.includes(q))) return false;
       }
       if (o.order_date) {
-        const d = new Date(o.order_date);
+        const [y, m] = o.order_date.split("-");
+        const orderYear = Number(y);
+        const orderMonth = Number(m) - 1;
         if (monthNum !== null) {
-          if (d.getMonth() !== monthNum || d.getFullYear() !== yearNum) return false;
+          if (orderMonth !== monthNum || orderYear !== yearNum) return false;
         } else {
-          if (d.getFullYear() !== yearNum) return false;
+          if (orderYear !== yearNum) return false;
         }
       } else if (month !== "all") {
         return false;
