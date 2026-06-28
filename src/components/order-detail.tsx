@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +18,7 @@ export function OrderDetail({ order, items, onChanged }: { order: any; items: an
   const [confirm, setConfirm] = useState(order.confirmation_status);
   const [status, setStatus] = useState(order.order_status);
   const [note, setNote] = useState(order.internal_notes ?? "");
+  const cancelled = status === "Cancelled";
 
   const save = async () => {
     const { error } = await supabase.from("orders").update({
@@ -28,10 +30,10 @@ export function OrderDetail({ order, items, onChanged }: { order: any; items: an
     onChanged?.();
   };
 
-  const selling = order.total_selling_price ?? null;
-  const cost = order.items_cost ?? null;
-  const shipping = order.shipping_cost ?? null;
-  const packaging = order.packaging_cost ?? null;
+  const selling = cancelled ? 0 : order.total_selling_price ?? null;
+  const cost = cancelled ? 0 : order.items_cost ?? null;
+  const shipping = cancelled ? 0 : order.shipping_cost ?? null;
+  const packaging = cancelled ? 0 : order.packaging_cost ?? null;
   const gross = selling == null ? null : selling - (cost ?? 0);
   const net = gross == null ? null : gross - (shipping ?? 0) - (packaging ?? 0);
   const money = (v: number | null) => v == null ? <span className="text-muted-foreground">—</span> : egp(v);
@@ -39,6 +41,14 @@ export function OrderDetail({ order, items, onChanged }: { order: any; items: an
 
   return (
     <div className="space-y-4 mt-4">
+      {cancelled && (
+        <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+          <Badge variant="destructive">Cancelled</Badge>
+          <span className="text-sm text-muted-foreground">
+            Cancelled products remain visible below; finance values count as zero.
+          </span>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div><Label>Confirmation</Label>
           <Select value={confirm} onValueChange={setConfirm}><SelectTrigger><SelectValue /></SelectTrigger>
@@ -91,11 +101,11 @@ export function OrderDetail({ order, items, onChanged }: { order: any; items: an
                   const lineTotal = it.total_selling_price == null
                     ? (unitPrice == null ? null : unitPrice * qty)
                     : Number(it.total_selling_price);
-                  const unitCost = it.unit_cost == null ? null : Number(it.unit_cost);
-                  const lineCost = it.total_cost == null
+                  const unitCost = cancelled ? 0 : it.unit_cost == null ? null : Number(it.unit_cost);
+                  const lineCost = cancelled ? 0 : it.total_cost == null
                     ? (unitCost == null ? null : unitCost * qty)
                     : Number(it.total_cost);
-                  const lineProfit = lineTotal == null || lineCost == null ? null : lineTotal - lineCost;
+                  const lineProfit = cancelled ? 0 : lineTotal == null || lineCost == null ? null : lineTotal - lineCost;
                   const variantLabel = it.variant ?? [it.color, it.size].filter(Boolean).join(" · ");
                   return (
                     <TableRow key={it.id}>
