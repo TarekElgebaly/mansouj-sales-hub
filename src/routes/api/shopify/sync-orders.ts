@@ -203,17 +203,15 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
         let createdCount = 0;
         let updatedCount = 0;
         let failedCount = 0;
-        let pagesFetched = 0;
         let orderItemsProcessed = 0;
+        let orderItemsInserted = 0;
+        let orderItemsUpdated = 0;
+        let staleOrderItemsRemoved = 0;
+        let zeroQuantityItemsSkipped = 0;
         let orderItemsWithCost = 0;
         let orderItemsMissingCost = 0;
-        let orderItemsCostAssignedByVariantId = 0;
-        let orderItemsCostAssignedBySku = 0;
-        let orderItemsCostAssignedBySkuNormalized = 0;
-        let orderItemsCostAssignedByRemap = 0;
-        let orderItemsCostPreserved = 0;
         let affectedOrdersRecalculated = 0;
-        let totalItemsCostAfterRecalc = 0;
+        let pagesFetched = 0;
         let cursorAfter: string | null = null;
         let firstOrderNumberImported: string | null = null;
         let lastOrderNumberImported: string | null = null;
@@ -228,6 +226,12 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
         let lastShopifyPageInfo: string | null = null;
         let completionWarning: string | null = null;
         let completionCheckError: string | null = null;
+        const staleOrderItemExamples: Array<{
+          order_number: string;
+          old_sku: string;
+          old_product_title: string;
+          reason: string;
+        }> = [];
         const errors: string[] = [];
 
         const runMetadata = (extra: Record<string, unknown> = {}) => ({
@@ -242,9 +246,19 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
           min_created_at_imported: minCreatedAtImported,
           max_created_at_imported: maxCreatedAtImported,
           records_processed: recordsProcessed,
+          orders_processed: recordsProcessed,
           created_count: createdCount,
           updated_count: updatedCount,
           failed_count: failedCount,
+          order_items_processed: orderItemsProcessed,
+          order_items_inserted: orderItemsInserted,
+          order_items_updated: orderItemsUpdated,
+          stale_order_items_removed: staleOrderItemsRemoved,
+          zero_quantity_items_skipped: zeroQuantityItemsSkipped,
+          order_items_with_cost: orderItemsWithCost,
+          order_items_missing_cost: orderItemsMissingCost,
+          affected_orders_recalculated: affectedOrdersRecalculated,
+          stale_order_item_examples: staleOrderItemExamples,
           stopped_reason: stoppedReason,
           next_page_missing: nextPageMissing,
           last_shopify_page_info: lastShopifyPageInfo,
@@ -257,16 +271,6 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
           shop_domain: domain || null,
           api_version: apiVersion || null,
           per_page: perPage,
-          order_items_processed: orderItemsProcessed,
-          order_items_with_cost: orderItemsWithCost,
-          order_items_missing_cost: orderItemsMissingCost,
-          order_items_cost_assigned_by_variant_id: orderItemsCostAssignedByVariantId,
-          order_items_cost_assigned_by_sku: orderItemsCostAssignedBySku,
-          order_items_cost_assigned_by_sku_normalized: orderItemsCostAssignedBySkuNormalized,
-          order_items_cost_assigned_by_remap: orderItemsCostAssignedByRemap,
-          order_items_cost_preserved: orderItemsCostPreserved,
-          affected_orders_recalculated: affectedOrdersRecalculated,
-          total_items_cost_after_recalc: totalItemsCostAfterRecalc,
           ...extra,
         });
 
@@ -494,21 +498,13 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
               async (order) => {
                 const shopifyOrderId = String(order.id);
                 try {
-                  const result = await processShopifyOrder(order);
+                  const processResult = await processShopifyOrder(order);
                   return {
                     ok: true as const,
                     order,
                     shopifyOrderId,
-                    existed: result.existed,
-                    itemsProcessed: result.itemsProcessed,
-                    itemsWithCost: result.itemsWithCost,
-                    itemsMissingCost: result.itemsMissingCost,
-                    itemsCostTotal: result.itemsCostTotal,
-                    costAssignedByVariantId: result.costAssignedByVariantId,
-                    costAssignedBySku: result.costAssignedBySku,
-                    costAssignedBySkuNormalized: result.costAssignedBySkuNormalized,
-                    costAssignedByRemap: result.costAssignedByRemap,
-                    costPreserved: result.costPreserved,
+                    existed: existingSet.has(shopifyOrderId),
+                    processResult,
                   };
                 } catch (e) {
                   return {
@@ -528,16 +524,19 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
               if (result.ok) {
                 if (result.existed) updatedCount++;
                 else createdCount++;
-                orderItemsProcessed += result.itemsProcessed;
-                orderItemsWithCost += result.itemsWithCost;
-                orderItemsMissingCost += result.itemsMissingCost;
-                orderItemsCostAssignedByVariantId += result.costAssignedByVariantId;
-                orderItemsCostAssignedBySku += result.costAssignedBySku;
-                orderItemsCostAssignedBySkuNormalized += result.costAssignedBySkuNormalized;
-                orderItemsCostAssignedByRemap += result.costAssignedByRemap;
-                orderItemsCostPreserved += result.costPreserved;
-                affectedOrdersRecalculated++;
-                totalItemsCostAfterRecalc += result.itemsCostTotal;
+
+                orderItemsProcessed += result.processResult.order_items_processed;
+                orderItemsInserted += result.processResult.order_items_inserted;
+                orderItemsUpdated += result.processResult.order_items_updated;
+                staleOrderItemsRemoved += result.processResult.stale_order_items_removed;
+                zeroQuantityItemsSkipped += result.processResult.zero_quantity_items_skipped;
+                orderItemsWithCost += result.processResult.order_items_with_cost;
+                orderItemsMissingCost += result.processResult.order_items_missing_cost;
+                affectedOrdersRecalculated += result.processResult.affected_orders_recalculated;
+                for (const example of result.processResult.stale_order_item_examples) {
+                  if (staleOrderItemExamples.length >= 10) break;
+                  staleOrderItemExamples.push(example);
+                }
 
                 const summary = summarizeOrder(result.order);
                 if (!firstOrderNumberImported) firstOrderNumberImported = summary.label;
@@ -600,7 +599,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             source: "shopify",
             entity: "orders",
             status,
-            message: `${syncType}: created=${createdCount} updated=${updatedCount} failed=${failedCount} pages=${pagesFetched}${errorMessage ? " | " + errorMessage : ""}`,
+            message: `${syncType}: created=${createdCount} updated=${updatedCount} failed=${failedCount} pages=${pagesFetched} item_inserted=${orderItemsInserted} item_updated=${orderItemsUpdated} stale_items_removed=${staleOrderItemsRemoved} zero_qty_skipped=${zeroQuantityItemsSkipped}${errorMessage ? " | " + errorMessage : ""}`,
             rows_processed: recordsProcessed,
           } as never);
 
@@ -641,17 +640,17 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             updated: updatedCount,
             failed: failedCount,
             records_processed: recordsProcessed,
-            pages_fetched: pagesFetched,
+            orders_processed: recordsProcessed,
             order_items_processed: orderItemsProcessed,
+            order_items_inserted: orderItemsInserted,
+            order_items_updated: orderItemsUpdated,
+            stale_order_items_removed: staleOrderItemsRemoved,
+            zero_quantity_items_skipped: zeroQuantityItemsSkipped,
             order_items_with_cost: orderItemsWithCost,
             order_items_missing_cost: orderItemsMissingCost,
-            order_items_cost_assigned_by_variant_id: orderItemsCostAssignedByVariantId,
-            order_items_cost_assigned_by_sku: orderItemsCostAssignedBySku,
-            order_items_cost_assigned_by_sku_normalized: orderItemsCostAssignedBySkuNormalized,
-            order_items_cost_assigned_by_remap: orderItemsCostAssignedByRemap,
-            order_items_cost_preserved: orderItemsCostPreserved,
             affected_orders_recalculated: affectedOrdersRecalculated,
-            total_items_cost_after_recalc: totalItemsCostAfterRecalc,
+            stale_order_item_examples: staleOrderItemExamples,
+            pages_fetched: pagesFetched,
             cursor_before: cursorBefore,
             cursor_after: nextCursor,
             incremental_window_start: incrementalStart,
