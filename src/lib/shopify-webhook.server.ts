@@ -148,7 +148,8 @@ function normalizeSku(value?: string | null): string {
   return (value ?? "").trim().toLowerCase().replace(/[\s_-]+/g, "");
 }
 
-function lineItemEffectiveQuantity(line: ShopifyLineItem): number {
+function lineItemEffectiveQuantity(line: ShopifyLineItem, preserveOriginalQuantity = false): number {
+  if (preserveOriginalQuantity) return Math.max(0, Math.trunc(toNumber(line.quantity)));
   if (line.current_quantity != null) return Math.max(0, Math.trunc(toNumber(line.current_quantity)));
   return Math.max(0, Math.trunc(toNumber(line.quantity)));
 }
@@ -189,13 +190,14 @@ function lineItemUnitSellingPrice(line: ShopifyLineItem, quantity: number): numb
 function prepareLineItems(
   payload: ShopifyOrderPayload,
   orderNumber: string,
+  preserveOriginalQuantities = false,
 ): { currentItems: PreparedLineItem[]; zeroSkipped: number; zeroExamples: RemovedOrderItemDebug[] } {
   const currentItems: PreparedLineItem[] = [];
   const zeroExamples: RemovedOrderItemDebug[] = [];
   let zeroSkipped = 0;
 
   for (const line of payload.line_items ?? []) {
-    const quantity = lineItemEffectiveQuantity(line);
+    const quantity = lineItemEffectiveQuantity(line, preserveOriginalQuantities);
     const sku = lineItemSku(line);
     const productName = line.title ?? line.name ?? "Unknown";
     const variant = line.variant_title ?? null;
@@ -401,6 +403,8 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
   const shopifyOrderId = String(payload.id);
   const orderNumber =
     payload.name ?? (payload.order_number ? `#${payload.order_number}` : shopifyOrderId);
+  const orderStatus = mapOrderStatus(payload);
+  const isCancelled = orderStatus === "Cancelled";
   const ship = payload.shipping_address ?? payload.billing_address ?? null;
   const cust = payload.customer ?? null;
 
@@ -450,9 +454,13 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     }
   }
 
-  const { currentItems, zeroSkipped, zeroExamples } = prepareLineItems(payload, orderNumber);
-  const totalSelling = currentOrderTotal(payload, currentItems);
-  const shipCost = shippingCost(payload);
+  const { currentItems, zeroSkipped, zeroExamples } = prepareLineItems(
+    payload,
+    orderNumber,
+    isCancelled,
+  );
+  const totalSelling = isCancelled ? 0 : currentOrderTotal(payload, currentItems);
+  const shipCost = isCancelled ? 0 : shippingCost(payload);
   const packagingCost = 0;
 
   const orderRow = {
@@ -469,7 +477,7 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     full_address: address,
     payment_gateway: payload.gateway ?? payload.payment_gateway_names?.[0] ?? null,
     confirmation_status: "Fresh Calls",
-    order_status: mapOrderStatus(payload),
+    order_status: orderStatus,
     internal_notes: payload.note ?? null,
     total_selling_price: totalSelling,
     items_cost: 0,
@@ -511,10 +519,11 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
   });
 
   const costs = await resolveLineItemCosts(supabaseAdmin, currentItems, existingItems);
-  const itemsCost = currentItems.reduce(
+  const resolvedItemsCost = currentItems.reduce(
     (sum, item, index) => sum + item.quantity * (costs[index] ?? 0),
     0,
   );
+  const itemsCost = isCancelled ? 0 : resolvedItemsCost;
 
   const { error: deleteErr } = await supabaseAdmin.from("order_items").delete().eq("order_id", orderId);
   if (deleteErr) throw new Error(`order_items replace delete failed: ${deleteErr.message}`);
@@ -530,7 +539,7 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
         size: item.size,
         quantity: item.quantity,
         unit_selling_price: item.unitSellingPrice,
-        unit_cost: costs[index] ?? 0,
+        unit_cost: isCancelled ? 0 : costs[index] ?? 0,
       };
     });
     const { error: itemsErr } = await supabaseAdmin.from("order_items").insert(rows as never);
@@ -545,7 +554,7 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
 
   const orderItemsUpdated = currentItems.filter((item) => existingFallbackKeys.has(item.fallbackKey)).length;
   const orderItemsInserted = currentItems.length - orderItemsUpdated;
-  const withCost = costs.filter((cost) => cost > 0).length;
+  const withCost = isCancelled ? 0 : costs.filter((cost) => cost > 0).length;
 
   return {
     orderId,
