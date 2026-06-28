@@ -9,6 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { INVENTORY_STATUSES, egp, statusTone } from "@/lib/format";
+import { AccessDenied } from "@/components/access-denied";
+import { useUser } from "@/hooks/use-user";
 
 export const Route = createFileRoute("/_authenticated/inventory")({
   head: () => ({ meta: [{ title: "Inventory — Mansouj" }] }),
@@ -16,6 +18,7 @@ export const Route = createFileRoute("/_authenticated/inventory")({
 });
 
 function InventoryPage() {
+  const { loading, canAccessInventory } = useUser();
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"all" | "low">("all");
   const [status, setStatus] = useState<string>("all");
@@ -23,6 +26,7 @@ function InventoryPage() {
 
   const { data } = useQuery({
     queryKey: ["inventory"],
+    enabled: canAccessInventory,
     queryFn: async () => (await supabase.from("inventory").select("*").order("product_name")).data ?? [],
   });
 
@@ -38,6 +42,9 @@ function InventoryPage() {
       return true;
     });
   }, [data, search, status, color, view]);
+
+  if (loading) return <AppShell title="Inventory"><div className="text-sm text-muted-foreground">Checking access...</div></AppShell>;
+  if (!canAccessInventory) return <AccessDenied title="Inventory" message="Your role does not include Inventory access." />;
 
   return (
     <AppShell title="Inventory" search={search} onSearch={setSearch}>
