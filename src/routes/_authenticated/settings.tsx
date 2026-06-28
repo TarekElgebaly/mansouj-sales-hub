@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useUser, type AppRole } from "@/hooks/use-user";
+import { notifyRolesChanged, useUser, type AppRole } from "@/hooks/use-user";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -20,7 +20,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
 const ROLES: AppRole[] = ["admin", "operations", "finance", "shipping", "viewer"];
 
 function SettingsPage() {
-  const { user, hasRole, roles } = useUser();
+  const { user, hasRole, roles, canManageTeam } = useUser();
   const qc = useQueryClient();
   const [grantEmail, setGrantEmail] = useState("");
   const [grantRole, setGrantRole] = useState<AppRole>("operations");
@@ -28,11 +28,15 @@ function SettingsPage() {
   const isAdmin = hasRole("admin");
 
   const { data: members } = useQuery({
-    queryKey: ["members"],
+    queryKey: ["members", user?.id, isAdmin],
+    enabled: !!user,
     queryFn: async () => {
       const { data: profiles } = await supabase.from("profiles").select("id,full_name,email,created_at");
       const { data: ur } = await supabase.from("user_roles").select("user_id,role");
-      return (profiles ?? []).map((p) => ({ ...p, roles: (ur ?? []).filter((r) => r.user_id === p.id).map((r) => r.role) }));
+      return (profiles ?? []).map((p) => ({
+        ...p,
+        roles: (ur ?? []).filter((r) => r.user_id === p.id).map((r) => r.role as AppRole),
+      }));
     },
   });
 
@@ -42,22 +46,28 @@ function SettingsPage() {
     if (error) return toast.error(error.message);
     toast.success("You are now admin");
     qc.invalidateQueries();
-    window.location.reload();
+    notifyRolesChanged();
   };
 
   const grantRoleTo = async () => {
-    const target = members?.find((m) => m.email === grantEmail);
-    if (!target) return toast.error("No team member with that email");
+    const email = grantEmail.trim().toLowerCase();
+    if (!email) return toast.error("Enter an email address.");
+    const target = members?.find((m) => (m.email ?? "").toLowerCase() === email);
+    if (!target) return toast.error("This email has not signed up yet. The user must sign up first before a role can be assigned.");
+    if (target.roles.includes(grantRole)) return toast.error(`${target.email} already has the ${grantRole} role.`);
     const { error } = await supabase.from("user_roles").insert({ user_id: target.id, role: grantRole });
     if (error) return toast.error(error.message);
-    toast.success(`Granted ${grantRole} to ${grantEmail}`);
+    toast.success(`Granted ${grantRole} to ${target.email}`);
+    setGrantEmail("");
     qc.invalidateQueries({ queryKey: ["members"] });
+    notifyRolesChanged();
   };
 
   const revokeRole = async (uid: string, role: AppRole) => {
     const { error } = await supabase.from("user_roles").delete().eq("user_id", uid).eq("role", role);
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["members"] });
+    notifyRolesChanged();
   };
 
   const noAdminYet = members && !members.some((m) => m.roles.includes("admin"));
@@ -86,7 +96,7 @@ function SettingsPage() {
         </Card>
       )}
 
-      {isAdmin && (
+      {canManageTeam && (
         <Card className="mt-4">
           <CardHeader><CardTitle>Grant role</CardTitle><CardDescription>Team members must have signed up first.</CardDescription></CardHeader>
           <CardContent className="flex flex-wrap gap-2 items-end">
@@ -97,7 +107,7 @@ function SettingsPage() {
                 <SelectContent>{ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <Button onClick={grantRoleTo}>Grant</Button>
+            <Button onClick={grantRoleTo} disabled={!grantEmail.trim()}>Grant</Button>
           </CardContent>
         </Card>
       )}
@@ -115,8 +125,8 @@ function SettingsPage() {
                   <TableCell className="flex flex-wrap gap-1">
                     {m.roles.length === 0 ? <Badge variant="outline">none</Badge> :
                       m.roles.map((r) => (
-                        <Badge key={r as string} variant="secondary" className="cursor-pointer" onClick={() => isAdmin && revokeRole(m.id, r as AppRole)} title={isAdmin ? "Click to revoke" : ""}>
-                          {r as string}{isAdmin && " ×"}
+                        <Badge key={r as string} variant="secondary" className={canManageTeam ? "cursor-pointer" : ""} onClick={() => canManageTeam && revokeRole(m.id, r as AppRole)} title={canManageTeam ? "Click to revoke" : ""}>
+                          {r as string}{canManageTeam && " ×"}
                         </Badge>
                       ))}
                   </TableCell>
