@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtDateTime } from "@/lib/format";
+import { AccessDenied } from "@/components/access-denied";
+import { useUser } from "@/hooks/use-user";
 import Papa from "papaparse";
 import { toast } from "sonner";
 import { FileUp } from "lucide-react";
@@ -21,9 +23,11 @@ export const Route = createFileRoute("/_authenticated/import")({
 
 function ImportPage() {
   const qc = useQueryClient();
+  const { loading, canAdmin } = useUser();
   const [baseId, setBaseId] = useState("");
   const { data: logs } = useQuery({
     queryKey: ["migration-logs"],
+    enabled: canAdmin,
     queryFn: async () => (await supabase.from("migration_logs").select("*").order("created_at", { ascending: false }).limit(50)).data ?? [],
   });
 
@@ -55,6 +59,9 @@ function ImportPage() {
       },
     });
   };
+
+  if (loading) return <AppShell title="Airtable Import"><div className="text-sm text-muted-foreground">Checking access...</div></AppShell>;
+  if (!canAdmin) return <AccessDenied title="Airtable Import" message="Only admins can access import tools." />;
 
   return (
     <AppShell title="Airtable Import">
