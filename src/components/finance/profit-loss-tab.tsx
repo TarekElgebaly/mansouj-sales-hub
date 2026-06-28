@@ -4,23 +4,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { egp } from "@/lib/format";
+import { financeNumber, isCancelledOrder } from "@/lib/order-finance";
 import { cn } from "@/lib/utils";
 import { EXPENSE_CATEGORIES } from "./expenses-tab";
 import { usePeriod } from "./period-filter";
-
-const num = (v: unknown): number | null => {
-  if (v === null || v === undefined || v === "") return null;
-  const n = Number(v);
-  if (!Number.isFinite(n) || n === 0) return null;
-  return n;
-};
 
 export function ProfitLossTab() {
   const { from, to, label } = usePeriod();
 
   const { data: orders } = useQuery({
     queryKey: ["pl-orders", from, to],
-    queryFn: async () => (await supabase.from("orders").select("total_selling_price,items_cost,shipping_cost,packaging_cost,order_date")
+    queryFn: async () => (await supabase.from("orders").select("total_selling_price,items_cost,shipping_cost,packaging_cost,order_date,order_status")
       .gte("order_date", from).lte("order_date", to)).data ?? [],
   });
   const { data: expenses } = useQuery({
@@ -41,11 +35,12 @@ export function ProfitLossTab() {
 
   const netProfit = useMemo(() => {
     return (orders ?? []).reduce((sum, o) => {
-      const selling = num(o.total_selling_price);
-      if (selling === null) return sum;
-      const cost = num(o.items_cost) ?? 0;
-      const shipping = num(o.shipping_cost) ?? 0;
-      const packaging = num(o.packaging_cost) ?? 0;
+      if (isCancelledOrder(o)) return sum;
+      const selling = financeNumber(o, "total_selling_price");
+      if (selling === 0) return sum;
+      const cost = financeNumber(o, "items_cost");
+      const shipping = financeNumber(o, "shipping_cost");
+      const packaging = financeNumber(o, "packaging_cost");
       return sum + (selling - cost - shipping - packaging);
     }, 0);
   }, [orders]);
