@@ -7,10 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { egp, fmtDate, statusTone } from "@/lib/format";
 import { financeNumber, isCancelledOrder } from "@/lib/order-finance";
+import { AccessDenied } from "@/components/access-denied";
+import { useUser } from "@/hooks/use-user";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from "recharts";
-import { ShoppingBag, AlertTriangle, Truck, CheckCircle2, XCircle, Undo2, Banknote, PackageX } from "lucide-react";
+import { ShoppingBag, AlertTriangle, Truck, CheckCircle2, XCircle, Undo2, PackageX } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Mansouj" }] }),
@@ -34,12 +36,15 @@ function Stat({ label, value, icon: Icon, tone = "default" }: any) {
 }
 
 function Dashboard() {
+  const { loading, canAccessDashboard } = useUser();
   const { data: orders } = useQuery({
     queryKey: ["orders-all"],
+    enabled: canAccessDashboard,
     queryFn: async () => (await supabase.from("orders").select("*").order("created_at", { ascending: false })).data ?? [],
   });
   const { data: lowStock } = useQuery({
     queryKey: ["low-stock"],
+    enabled: canAccessDashboard,
     queryFn: async () => (await supabase.from("inventory").select("*").in("status", ["Low Stock", "Out of Stock"])).data ?? [],
   });
 
@@ -53,7 +58,6 @@ function Dashboard() {
     delivered: orders?.filter((o) => o.delivered).length ?? 0,
     cancelled: orders?.filter((o) => ["Cancelled", "Cancel with confirmation"].includes(o.order_status)).length ?? 0,
     rto: orders?.filter((o) => o.rto).length ?? 0,
-    netProfit: nonCancelledOrders.reduce((s, o) => s + financeNumber(o, "net_profit"), 0),
   };
 
   const byStatus = ORDER_STATUS_KEYS.map((s) => ({
@@ -73,6 +77,9 @@ function Dashboard() {
 
   const PIE = ["hsl(var(--primary))", "#22c55e", "#f59e0b", "#ef4444", "#6366f1", "#06b6d4", "#a855f7", "#ec4899", "#64748b"];
 
+  if (loading) return <AppShell title="Dashboard"><div className="text-sm text-muted-foreground">Checking access...</div></AppShell>;
+  if (!canAccessDashboard) return <AccessDenied title="Dashboard" message="Your role does not include Dashboard access." />;
+
   return (
     <AppShell title="Dashboard">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -83,7 +90,6 @@ function Dashboard() {
         <Stat label="Delivered" value={stats.delivered} icon={CheckCircle2} tone="good" />
         <Stat label="Cancelled" value={stats.cancelled} icon={XCircle} tone="danger" />
         <Stat label="RTO" value={stats.rto} icon={Undo2} tone="danger" />
-        <Stat label="Net profit" value={egp(stats.netProfit)} icon={Banknote} tone="good" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
