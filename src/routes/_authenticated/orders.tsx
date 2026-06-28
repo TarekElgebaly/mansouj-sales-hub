@@ -297,8 +297,6 @@ function OrdersPage() {
                     <TableHead>City</TableHead><TableHead>Date</TableHead>
                     <TableHead>Confirmation</TableHead><TableHead>Status</TableHead>
                     <TableHead>Shipping</TableHead><TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-right">Shipping Cost</TableHead>
-                    <TableHead className="text-right">Packaging Cost</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -314,12 +312,10 @@ function OrdersPage() {
                       <TableCell><Badge variant={statusTone(o.order_status)}>{o.order_status}</Badge></TableCell>
                       <TableCell className="text-xs">{o.shipping_company ?? "—"}</TableCell>
                       <TableCell className="text-right">{egp(Number(o.total_selling_price ?? 0))}</TableCell>
-                      <TableCell className="text-right">{egp(Number(o.shipping_cost ?? 0))}</TableCell>
-                      <TableCell className="text-right">{egp(Number(o.packaging_cost ?? 0))}</TableCell>
                     </TableRow>
                   ))}
                   {filtered.length === 0 && (
-                    <TableRow><TableCell colSpan={canManageOrders ? 12 : 11} className="text-center text-muted-foreground py-8">No orders match.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={canManageOrders ? 10 : 9} className="text-center text-muted-foreground py-8">No orders match.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
