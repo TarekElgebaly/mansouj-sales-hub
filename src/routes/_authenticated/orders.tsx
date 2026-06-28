@@ -16,8 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { CONFIRMATION_STATUSES, ORDER_STATUSES, egp, fmtDate, statusTone } from "@/lib/format";
-import { financeNumber } from "@/lib/order-finance";
 import { useUser } from "@/hooks/use-user";
+import { AccessDenied } from "@/components/access-denied";
 import { Download, LayoutGrid, Plus, RefreshCw, Table as TableIcon, X } from "lucide-react";
 import Papa from "papaparse";
 import { toast } from "sonner";
@@ -46,7 +46,7 @@ export const Route = createFileRoute("/_authenticated/orders")({
 
 function OrdersPage() {
   const qc = useQueryClient();
-  const { canOps } = useUser();
+  const { loading, canAccessOrders, canManageOrders } = useUser();
   const [search, setSearch] = useState("");
   const [city, setCity] = useState<string>("all");
   const [confStatus, setConfStatus] = useState<string>("all");
@@ -63,15 +63,7 @@ function OrdersPage() {
     updated: number;
     failed: number;
     order_items_processed: number;
-    order_items_with_cost: number;
-    order_items_missing_cost: number;
-    order_items_cost_preserved: number;
-    order_items_cost_assigned_by_variant_id: number;
-    order_items_cost_assigned_by_sku: number;
-    order_items_cost_assigned_by_sku_normalized: number;
-    order_items_cost_assigned_by_remap: number;
     affected_orders_recalculated: number;
-    total_items_cost_after_recalc: number;
   } | null>(null);
 
   const pullShopify = async () => {
@@ -93,15 +85,7 @@ function OrdersPage() {
         error?: string;
         errors?: string[];
         order_items_processed?: number;
-        order_items_with_cost?: number;
-        order_items_missing_cost?: number;
-        order_items_cost_preserved?: number;
-        order_items_cost_assigned_by_variant_id?: number;
-        order_items_cost_assigned_by_sku?: number;
-        order_items_cost_assigned_by_sku_normalized?: number;
-        order_items_cost_assigned_by_remap?: number;
         affected_orders_recalculated?: number;
-        total_items_cost_after_recalc?: number;
       };
       if (json.ok) {
         setSyncResult({
@@ -109,17 +93,9 @@ function OrdersPage() {
           updated: json.updated ?? 0,
           failed: json.failed ?? 0,
           order_items_processed: json.order_items_processed ?? 0,
-          order_items_with_cost: json.order_items_with_cost ?? 0,
-          order_items_missing_cost: json.order_items_missing_cost ?? 0,
-          order_items_cost_preserved: json.order_items_cost_preserved ?? 0,
-          order_items_cost_assigned_by_variant_id: json.order_items_cost_assigned_by_variant_id ?? 0,
-          order_items_cost_assigned_by_sku: json.order_items_cost_assigned_by_sku ?? 0,
-          order_items_cost_assigned_by_sku_normalized: json.order_items_cost_assigned_by_sku_normalized ?? 0,
-          order_items_cost_assigned_by_remap: json.order_items_cost_assigned_by_remap ?? 0,
           affected_orders_recalculated: json.affected_orders_recalculated ?? 0,
-          total_items_cost_after_recalc: Number(json.total_items_cost_after_recalc ?? 0),
         });
-        toast.success(`Pulled recent Shopify orders — ${json.created ?? 0} new, ${json.updated ?? 0} updated · items with cost ${json.order_items_with_cost ?? 0}/${json.order_items_processed ?? 0}${json.errors?.length ? `, ${json.errors.length} errors` : ""}`);
+        toast.success(`Pulled recent Shopify orders — ${json.created ?? 0} new, ${json.updated ?? 0} updated${json.errors?.length ? `, ${json.errors.length} errors` : ""}`);
         qc.invalidateQueries({ queryKey: ["orders"] });
         qc.invalidateQueries({ queryKey: ["order-items"] });
         qc.invalidateQueries({ queryKey: ["orders-all"] });
@@ -136,10 +112,12 @@ function OrdersPage() {
 
   const { data: orders } = useQuery({
     queryKey: ["orders"],
+    enabled: canAccessOrders,
     queryFn: async () => (await supabase.from("orders").select("*").order("created_at", { ascending: false })).data ?? [],
   });
   const { data: items } = useQuery({
     queryKey: ["order-items"],
+    enabled: canAccessOrders,
     queryFn: async () => (await supabase.from("order_items").select("*")).data ?? [],
   });
 
@@ -184,6 +162,7 @@ function OrdersPage() {
   };
 
   const bulkStatus = async (status: string) => {
+    if (!canManageOrders) return toast.error("You do not have permission to update orders.");
     if (!selected.size) return;
     const { error } = await supabase.from("orders").update({ order_status: status as any }).in("id", [...selected]);
     if (error) return toast.error(error.message);
@@ -203,16 +182,23 @@ function OrdersPage() {
   const openOrder = orders?.find((o) => o.id === openId);
   const { data: openItems } = useQuery({
     queryKey: ["order-items", openId],
-    enabled: !!openId,
+    enabled: !!openId && canAccessOrders,
     queryFn: async () => (await supabase.from("order_items").select("*").eq("order_id", openId!)).data ?? [],
   });
+
+  if (loading) {
+    return <AppShell title="Orders"><div className="text-sm text-muted-foreground">Checking access...</div></AppShell>;
+  }
+  if (!canAccessOrders) {
+    return <AccessDenied title="Orders" message="Your role does not include Orders access." />;
+  }
 
   return (
     <AppShell title="Orders" search={search} onSearch={setSearch}
       actions={
         <div className="flex items-center gap-2">
-          {canOps && <Button size="sm" onClick={() => setOpenNew(true)}><Plus className="h-4 w-4 mr-1" />New Order</Button>}
-          {canOps && (
+          {canManageOrders && <Button size="sm" onClick={() => setOpenNew(true)}><Plus className="h-4 w-4 mr-1" />New Order</Button>}
+          {canManageOrders && (
             <Button size="sm" variant="outline" onClick={pullShopify} disabled={syncing}>
               <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} />
               {syncing ? "Pulling..." : "Pull recent Shopify orders"}
@@ -232,28 +218,15 @@ function OrdersPage() {
             </div>
             {syncResult.failed === 0 && syncResult.affected_orders_recalculated > 0 && (
               <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
-                Recent orders synced and costs recalculated successfully.
-              </div>
-            )}
-            {syncResult.order_items_missing_cost > 0 && (
-              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-                Some order items are missing cost. Run Sync Inventory &amp; Cost and Backfill Order Item Costs if needed.
+                Recent orders synced successfully.
               </div>
             )}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
               <Stat label="Orders created" value={syncResult.created} />
               <Stat label="Orders updated" value={syncResult.updated} />
               <Stat label="Items processed" value={syncResult.order_items_processed} />
-              <Stat label="Items with cost" value={syncResult.order_items_with_cost} />
-              <Stat label="Items missing cost" value={syncResult.order_items_missing_cost} />
               <Stat label="Orders recalculated" value={syncResult.affected_orders_recalculated} />
-              <Stat label="Cost preserved" value={syncResult.order_items_cost_preserved} />
-              <Stat label="Cost via variant id" value={syncResult.order_items_cost_assigned_by_variant_id} />
-              <Stat label="Cost via SKU" value={syncResult.order_items_cost_assigned_by_sku} />
-              <Stat label="Cost via SKU norm." value={syncResult.order_items_cost_assigned_by_sku_normalized} />
-              <Stat label="Cost via remap" value={syncResult.order_items_cost_assigned_by_remap} />
               <Stat label="Failed" value={syncResult.failed} />
-              <Stat label="Items cost total" value={syncResult.total_items_cost_after_recalc.toLocaleString()} />
             </div>
           </CardContent>
         </Card>
@@ -297,7 +270,7 @@ function OrdersPage() {
           <Select value={shipping} onValueChange={setShipping}><SelectTrigger className="w-40 h-9"><SelectValue placeholder="Shipping" /></SelectTrigger>
             <SelectContent><SelectItem value="all">All carriers</SelectItem>{shippingCos.map((c) => <SelectItem key={c!} value={c!}>{c}</SelectItem>)}</SelectContent>
           </Select>
-          {selected.size > 0 && (
+          {canManageOrders && selected.size > 0 && (
             <div className="ml-auto flex items-center gap-2">
               <span className="text-xs text-muted-foreground">{selected.size} selected</span>
               <Select onValueChange={bulkStatus}><SelectTrigger className="w-44 h-9"><SelectValue placeholder="Bulk: set status…" /></SelectTrigger>
@@ -319,17 +292,17 @@ function OrdersPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-10"><Checkbox checked={filtered.length > 0 && selected.size === filtered.length} onCheckedChange={toggleAll} /></TableHead>
+                    {canManageOrders && <TableHead className="w-10"><Checkbox checked={filtered.length > 0 && selected.size === filtered.length} onCheckedChange={toggleAll} /></TableHead>}
                     <TableHead>Order</TableHead><TableHead>Customer</TableHead><TableHead>Phone</TableHead>
                     <TableHead>City</TableHead><TableHead>Date</TableHead>
                     <TableHead>Confirmation</TableHead><TableHead>Status</TableHead>
-                    <TableHead>Shipping</TableHead><TableHead className="text-right">Total</TableHead><TableHead className="text-right">Net</TableHead>
+                    <TableHead>Shipping</TableHead><TableHead className="text-right">Total</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.map((o) => (
                     <TableRow key={o.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setOpenId(o.id)}>
-                      <TableCell onClick={(e) => e.stopPropagation()}><Checkbox checked={selected.has(o.id)} onCheckedChange={() => toggle(o.id)} /></TableCell>
+                      {canManageOrders && <TableCell onClick={(e) => e.stopPropagation()}><Checkbox checked={selected.has(o.id)} onCheckedChange={() => toggle(o.id)} /></TableCell>}
                       <TableCell className="font-medium">{o.order_number}</TableCell>
                       <TableCell>{o.customer_full_name}</TableCell>
                       <TableCell className="font-mono text-xs">{o.phone}</TableCell>
@@ -338,12 +311,11 @@ function OrdersPage() {
                       <TableCell><Badge variant={statusTone(o.confirmation_status)}>{o.confirmation_status}</Badge></TableCell>
                       <TableCell><Badge variant={statusTone(o.order_status)}>{o.order_status}</Badge></TableCell>
                       <TableCell className="text-xs">{o.shipping_company ?? "—"}</TableCell>
-                      <TableCell className="text-right">{egp(financeNumber(o, "total_selling_price"))}</TableCell>
-                      <TableCell className="text-right text-emerald-600">{egp(financeNumber(o, "net_profit"))}</TableCell>
+                      <TableCell className="text-right">{egp(Number(o.total_selling_price ?? 0))}</TableCell>
                     </TableRow>
                   ))}
                   {filtered.length === 0 && (
-                    <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-8">No orders match.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={canManageOrders ? 10 : 9} className="text-center text-muted-foreground py-8">No orders match.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -363,7 +335,7 @@ function OrdersPage() {
                         <CardContent className="p-3">
                           <div className="text-xs font-semibold">{o.order_number}</div>
                           <div className="text-sm">{o.customer_full_name}</div>
-                          <div className="text-xs text-muted-foreground">{o.city} · {egp(financeNumber(o, "total_selling_price"))}</div>
+                          <div className="text-xs text-muted-foreground">{o.city} · {egp(Number(o.total_selling_price ?? 0))}</div>
                         </CardContent>
                       </Card>
                     ))}
@@ -405,11 +377,10 @@ function NewOrderDialog({ open, onOpenChange, onCreated }: { open: boolean; onOp
   const [productName, setProductName] = useState("");
   const [qty, setQty] = useState(1);
   const [price, setPrice] = useState("");
-  const [cost, setCost] = useState("");
 
   const reset = () => {
     setOrderNumber(""); setName(""); setPhone(""); setCity(""); setArea(""); setAddress("");
-    setSku(""); setProductName(""); setQty(1); setPrice(""); setCost("");
+    setSku(""); setProductName(""); setQty(1); setPrice("");
   };
 
   const submit = async () => {
@@ -418,13 +389,10 @@ function NewOrderDialog({ open, onOpenChange, onCreated }: { open: boolean; onOp
       return;
     }
     const unitPrice = Number(price);
-    const unitCost = Number(cost);
     if (!unitPrice || unitPrice <= 0) { toast.error("Please enter a valid unit selling price."); return; }
-    if (unitCost < 0) { toast.error("Unit cost cannot be negative."); return; }
 
     setSaving(true);
     const totalSelling = unitPrice * qty;
-    const totalCost = unitCost * qty;
 
     const { data: orderData, error: orderErr } = await supabase.from("orders").insert({
       order_number: orderNumber.trim(),
@@ -434,7 +402,6 @@ function NewOrderDialog({ open, onOpenChange, onCreated }: { open: boolean; onOp
       area: area.trim() || null,
       full_address: address.trim() || null,
       total_selling_price: totalSelling,
-      items_cost: totalCost,
       confirmation_status: "Fresh Calls",
       order_status: "New",
     }).select("id").single();
@@ -451,7 +418,6 @@ function NewOrderDialog({ open, onOpenChange, onCreated }: { open: boolean; onOp
       product_name: productName.trim(),
       quantity: qty,
       unit_selling_price: unitPrice,
-      unit_cost: unitCost,
     });
 
     if (itemErr) {
@@ -491,10 +457,9 @@ function NewOrderDialog({ open, onOpenChange, onCreated }: { open: boolean; onOp
               <div><Label>SKU</Label><Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="SKU-123" /></div>
               <div><Label>Product name</Label><Input value={productName} onChange={(e) => setProductName(e.target.value)} placeholder="Product name" /></div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div><Label>Qty</Label><Input type="number" min={1} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value)))} /></div>
               <div><Label>Unit price (EGP)</Label><Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} /></div>
-              <div><Label>Unit cost (EGP)</Label><Input type="number" min={0} value={cost} onChange={(e) => setCost(e.target.value)} /></div>
             </div>
           </div>
         </div>
