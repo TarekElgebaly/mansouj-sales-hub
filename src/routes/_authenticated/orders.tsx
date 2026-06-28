@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { CONFIRMATION_STATUSES, ORDER_STATUSES, egp, fmtDate, statusTone } from "@/lib/format";
+import { financeNumber } from "@/lib/order-finance";
 import { useUser } from "@/hooks/use-user";
 import { Download, LayoutGrid, Plus, RefreshCw, Table as TableIcon, X } from "lucide-react";
 import Papa from "papaparse";
@@ -337,8 +338,8 @@ function OrdersPage() {
                       <TableCell><Badge variant={statusTone(o.confirmation_status)}>{o.confirmation_status}</Badge></TableCell>
                       <TableCell><Badge variant={statusTone(o.order_status)}>{o.order_status}</Badge></TableCell>
                       <TableCell className="text-xs">{o.shipping_company ?? "—"}</TableCell>
-                      <TableCell className="text-right">{egp(o.total_selling_price)}</TableCell>
-                      <TableCell className="text-right text-emerald-600">{egp(o.net_profit)}</TableCell>
+                      <TableCell className="text-right">{egp(financeNumber(o, "total_selling_price"))}</TableCell>
+                      <TableCell className="text-right text-emerald-600">{egp(financeNumber(o, "net_profit"))}</TableCell>
                     </TableRow>
                   ))}
                   {filtered.length === 0 && (
@@ -362,7 +363,7 @@ function OrdersPage() {
                         <CardContent className="p-3">
                           <div className="text-xs font-semibold">{o.order_number}</div>
                           <div className="text-sm">{o.customer_full_name}</div>
-                          <div className="text-xs text-muted-foreground">{o.city} · {egp(o.total_selling_price)}</div>
+                          <div className="text-xs text-muted-foreground">{o.city} · {egp(financeNumber(o, "total_selling_price"))}</div>
                         </CardContent>
                       </Card>
                     ))}
