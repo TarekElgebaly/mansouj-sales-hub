@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { egp, fmtDate, statusTone } from "@/lib/format";
+import { financeNumber, isCancelledOrder } from "@/lib/order-finance";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from "recharts";
@@ -43,6 +44,7 @@ function Dashboard() {
   });
 
   const today = new Date().toISOString().slice(0, 10);
+  const nonCancelledOrders = orders?.filter((order) => !isCancelledOrder(order)) ?? [];
   const stats = {
     total: orders?.length ?? 0,
     today: orders?.filter((o) => o.order_date === today).length ?? 0,
@@ -51,7 +53,7 @@ function Dashboard() {
     delivered: orders?.filter((o) => o.delivered).length ?? 0,
     cancelled: orders?.filter((o) => ["Cancelled", "Cancel with confirmation"].includes(o.order_status)).length ?? 0,
     rto: orders?.filter((o) => o.rto).length ?? 0,
-    netProfit: orders?.reduce((s, o) => s + Number(o.net_profit ?? 0), 0) ?? 0,
+    netProfit: nonCancelledOrders.reduce((s, o) => s + financeNumber(o, "net_profit"), 0),
   };
 
   const byStatus = ORDER_STATUS_KEYS.map((s) => ({
@@ -63,7 +65,9 @@ function Dashboard() {
     const iso = d.toISOString().slice(0, 10);
     return {
       day: d.toLocaleDateString("en-GB", { weekday: "short" }),
-      revenue: orders?.filter((o) => o.order_date === iso).reduce((s, o) => s + Number(o.total_selling_price), 0) ?? 0,
+      revenue: nonCancelledOrders
+        .filter((o) => o.order_date === iso)
+        .reduce((s, o) => s + financeNumber(o, "total_selling_price"), 0),
     };
   });
 
@@ -129,7 +133,7 @@ function Dashboard() {
                     <TableCell>{o.customer_full_name}</TableCell>
                     <TableCell>{fmtDate(o.order_date)}</TableCell>
                     <TableCell><Badge variant={statusTone(o.order_status)}>{o.order_status}</Badge></TableCell>
-                    <TableCell className="text-right">{egp(o.total_selling_price)}</TableCell>
+                    <TableCell className="text-right">{egp(financeNumber(o, "total_selling_price"))}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
