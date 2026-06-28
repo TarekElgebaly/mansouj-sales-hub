@@ -6,6 +6,8 @@ import { AppShell } from "@/components/app-shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { egp, fmtDate } from "@/lib/format";
+import { AccessDenied } from "@/components/access-denied";
+import { useUser } from "@/hooks/use-user";
 
 export const Route = createFileRoute("/_authenticated/customers")({
   head: () => ({ meta: [{ title: "Customers — Mansouj" }] }),
@@ -13,13 +15,16 @@ export const Route = createFileRoute("/_authenticated/customers")({
 });
 
 function CustomersPage() {
+  const { loading, canAccessCustomers } = useUser();
   const [search, setSearch] = useState("");
   const { data: customers } = useQuery({
     queryKey: ["customers"],
+    enabled: canAccessCustomers,
     queryFn: async () => (await supabase.from("customers").select("*").order("created_at", { ascending: false })).data ?? [],
   });
   const { data: orders } = useQuery({
     queryKey: ["orders-for-customers"],
+    enabled: canAccessCustomers,
     queryFn: async () => (await supabase.from("orders").select("customer_id,total_selling_price,order_date")).data ?? [],
   });
 
@@ -38,6 +43,9 @@ function CustomersPage() {
       return [c.full_name, c.phone, c.city, c.area].some((v) => v?.toLowerCase().includes(q));
     });
   }, [customers, orders, search]);
+
+  if (loading) return <AppShell title="Customers"><div className="text-sm text-muted-foreground">Checking access...</div></AppShell>;
+  if (!canAccessCustomers) return <AccessDenied title="Customers" message="Your role does not include Customers access." />;
 
   return (
     <AppShell title="Customers" search={search} onSearch={setSearch}>
