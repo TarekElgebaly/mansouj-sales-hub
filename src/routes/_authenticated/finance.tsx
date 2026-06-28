@@ -7,6 +7,8 @@ import { ExpensesTab } from "@/components/finance/expenses-tab";
 import { PayrollTab } from "@/components/finance/payroll-tab";
 import { ProfitLossTab } from "@/components/finance/profit-loss-tab";
 import { PeriodProvider, PeriodFilter } from "@/components/finance/period-filter";
+import { AccessDenied } from "@/components/access-denied";
+import { useUser } from "@/hooks/use-user";
 
 export const Route = createFileRoute("/_authenticated/finance")({
   head: () => ({ meta: [{ title: "Finance — Mansouj" }] }),
@@ -14,7 +16,10 @@ export const Route = createFileRoute("/_authenticated/finance")({
 });
 
 function FinancePage() {
+  const { loading, canAccessFinance } = useUser();
   const [tab, setTab] = useState("orders");
+  if (loading) return <AppShell title="Finance"><div className="text-sm text-muted-foreground">Checking access...</div></AppShell>;
+  if (!canAccessFinance) return <AccessDenied title="Finance" message="Your role does not include Finance access." />;
   return (
     <AppShell title="Finance">
       <PeriodProvider>
