@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { ORDER_STATUSES, egp, fmtDate } from "@/lib/format";
+import { ORDER_STATUSES, egp, fmtDate, statusTone } from "@/lib/format";
+import { financeNullable, isCancelledOrder } from "@/lib/order-finance";
 import { cn } from "@/lib/utils";
 import { OrderDetail } from "@/components/order-detail";
 import { usePeriod } from "./period-filter";
@@ -42,6 +44,7 @@ function CostInput({
 type Row = {
   id: string;
   order_number: string | null;
+  order_status: string | null;
   selling: number | null;
   cost: number | null;
   gross: number | null;
@@ -79,6 +82,7 @@ function EditableCostRow({
   canEdit: boolean;
   onSaved: () => void;
 }) {
+  const cancelled = isCancelledOrder(r);
   const [ship, setShip] = useState<string>(r.shipping === null ? "" : String(r.shipping));
   const [pack, setPack] = useState<string>(r.packaging === null ? "" : String(r.packaging));
   const [saving, setSaving] = useState(false);
@@ -98,6 +102,7 @@ function EditableCostRow({
   };
 
   const dirty =
+    !cancelled &&
     canEdit &&
     (parse(ship) !== (r.shipping ?? 0) || parse(pack) !== (r.packaging ?? 0));
 
@@ -170,6 +175,11 @@ function EditableCostRow({
           {r.order_number}
         </button>
       </TableCell>
+      <TableCell>
+        <Badge variant={statusTone(r.order_status ?? "")}>
+          {cancelled ? "Cancelled" : r.order_status ?? "—"}
+        </Badge>
+      </TableCell>
       <TableCell className="text-right">{cell(selling)}</TableCell>
       <TableCell className="text-right">{cell(cost)}</TableCell>
       <TableCell className={cn(
@@ -179,14 +189,14 @@ function EditableCostRow({
         {cell(gross)}
       </TableCell>
       <TableCell className="text-right">
-        {canEdit ? (
+        {canEdit && !cancelled ? (
           <CostInput value={ship} onChange={setShip} disabled={saving} />
         ) : (
           cell(r.shipping)
         )}
       </TableCell>
       <TableCell className="text-right">
-        {canEdit ? (
+        {canEdit && !cancelled ? (
           <CostInput value={pack} onChange={setPack} disabled={saving} />
         ) : (
           cell(r.packaging)
@@ -223,7 +233,7 @@ const num = (v: unknown): number | null => {
 const cell = (v: number | null) => (v === null ? <span className="text-muted-foreground">—</span> : egp(v));
 const dash = <span className="text-muted-foreground">—</span>;
 
-function ExpandedItems({ orderId }: { orderId: string }) {
+function ExpandedItems({ orderId, cancelled }: { orderId: string; cancelled: boolean }) {
   const { data, isLoading } = useQuery({
     queryKey: ["order-items", orderId],
     queryFn: async () =>
@@ -256,16 +266,18 @@ function ExpandedItems({ orderId }: { orderId: string }) {
         <TableBody>
           {data.map((it: any) => {
             const qty = Number(it.quantity) || 0;
-            const unitPrice = num(it.unit_price);
-            const unitCost = num(it.unit_cost);
-            const lineTotal = unitPrice === null ? null : unitPrice * qty;
-            const lineCost = unitCost === null ? null : unitCost * qty;
-            const lineProfit = lineTotal === null ? null : lineTotal - (lineCost ?? 0);
+            const unitPrice = num(it.unit_selling_price ?? it.unit_price);
+            const unitCost = cancelled ? 0 : num(it.unit_cost);
+            const lineTotal = num(it.total_selling_price) ?? (unitPrice === null ? null : unitPrice * qty);
+            const lineCost = cancelled ? 0 : unitCost === null ? null : unitCost * qty;
+            const lineProfit = cancelled ? 0 : lineTotal === null ? null : lineTotal - (lineCost ?? 0);
+            const productTitle = it.product_name ?? it.product_title;
+            const variantTitle = it.variant ?? it.variant_title;
             return (
               <TableRow key={it.id}>
                 <TableCell className="font-mono text-xs">{it.sku || dash}</TableCell>
-                <TableCell>{it.product_title || dash}</TableCell>
-                <TableCell>{it.variant_title || dash}</TableCell>
+                <TableCell>{productTitle || dash}</TableCell>
+                <TableCell>{variantTitle || dash}</TableCell>
                 <TableCell className="text-right">{qty}</TableCell>
                 <TableCell className="text-right">{cell(unitPrice)}</TableCell>
                 <TableCell className="text-right">{cell(lineTotal)}</TableCell>
@@ -323,13 +335,13 @@ export function OrdersProfitTab() {
       .filter((o) => orderStatus === "all" || o.order_status === orderStatus)
       .filter((o) => city === "all" || o.city === city)
       .map((o) => {
-        const selling = num(o.total_selling_price);
-        const cost = num(o.items_cost);
-        const shipping = num(o.shipping_cost);
-        const packaging = num(o.packaging_cost);
+        const selling = financeNullable(o, "total_selling_price");
+        const cost = financeNullable(o, "items_cost");
+        const shipping = financeNullable(o, "shipping_cost");
+        const packaging = financeNullable(o, "packaging_cost");
         const gross = selling === null ? null : selling - (cost ?? 0);
         const net = gross === null ? null : gross - (shipping ?? 0) - (packaging ?? 0);
-        return { id: o.id, order_number: o.order_number, selling, cost, gross, shipping, packaging, net };
+        return { id: o.id, order_number: o.order_number, order_status: o.order_status, selling, cost, gross, shipping, packaging, net };
       });
   }, [orders, orderStatus, city]);
 
@@ -384,6 +396,7 @@ export function OrdersProfitTab() {
               <TableRow>
                 <TableHead className="w-10"></TableHead>
                 <TableHead>Order Number</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Selling Price</TableHead>
                 <TableHead className="text-right">Order Cost</TableHead>
                 <TableHead className="text-right">Gross Profit</TableHead>
@@ -396,7 +409,7 @@ export function OrdersProfitTab() {
             <TableBody>
               {rows.map((r) => {
                 const isOpen = !!expanded[r.id];
-                const colCount = canEditCosts ? 9 : 8;
+                const colCount = canEditCosts ? 10 : 9;
                 return (
                   <Fragment key={r.id}>
                     <EditableCostRow
@@ -410,7 +423,7 @@ export function OrdersProfitTab() {
                     {isOpen && (
                       <TableRow key={`${r.id}-items`}>
                         <TableCell colSpan={colCount} className="p-0">
-                          <ExpandedItems orderId={r.id} />
+                          <ExpandedItems orderId={r.id} cancelled={isCancelledOrder(r)} />
                           <div className="px-4 py-3 border-t bg-background/50 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-sm">
                             <Summary label="Selling Price" value={r.selling} />
                             <Summary label="Order Cost" value={r.cost} />
@@ -426,7 +439,7 @@ export function OrdersProfitTab() {
                 );
               })}
               {rows.length === 0 && (
-                <TableRow><TableCell colSpan={canEditCosts ? 9 : 8} className="text-center text-muted-foreground py-8">No orders match.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={canEditCosts ? 10 : 9} className="text-center text-muted-foreground py-8">No orders match.</TableCell></TableRow>
               )}
             </TableBody>
             {rows.length > 0 && (
@@ -434,6 +447,7 @@ export function OrdersProfitTab() {
                 <TableRow>
                   <TableCell></TableCell>
                   <TableCell className="font-semibold">Totals</TableCell>
+                  <TableCell></TableCell>
                   <TableCell className="text-right font-semibold">{egp(totals.selling)}</TableCell>
                   <TableCell className="text-right font-semibold">{egp(totals.cost)}</TableCell>
                   <TableCell className={cn(
