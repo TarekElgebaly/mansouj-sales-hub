@@ -7,42 +7,26 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupConte
   SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
   useSidebar } from "@/components/ui/sidebar";
 import { supabase } from "@/integrations/supabase/client";
-import { useUser } from "@/hooks/use-user";
 
 const items = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, permission: "dashboard" },
-  { title: "Orders", url: "/orders", icon: ShoppingBag, permission: "orders" },
-  { title: "Customers", url: "/customers", icon: Users, permission: "customers" },
-  { title: "Inventory", url: "/inventory", icon: Package, permission: "inventory" },
-  { title: "Areas", url: "/areas", icon: MapPin, permission: "admin" },
-  { title: "Finance", url: "/finance", icon: DollarSign, permission: "finance" },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Orders", url: "/orders", icon: ShoppingBag },
+  { title: "Customers", url: "/customers", icon: Users },
+  { title: "Inventory", url: "/inventory", icon: Package },
+  { title: "Areas", url: "/areas", icon: MapPin },
+  { title: "Finance", url: "/finance", icon: DollarSign },
 ] as const;
 
 const integrations = [
-  { title: "Shopify Sync", url: "/shopify", icon: RefreshCw, permission: "admin" },
-  { title: "Airtable Import", url: "/import", icon: FileUp, permission: "admin" },
-  { title: "Settings", url: "/settings", icon: SettingsIcon, permission: "settings" },
+  { title: "Shopify Sync", url: "/shopify", icon: RefreshCw },
+  { title: "Airtable Import", url: "/import", icon: FileUp },
+  { title: "Settings", url: "/settings", icon: SettingsIcon },
 ] as const;
 
 export function AppSidebar() {
   const { state } = useSidebar();
-  const permissions = useUser();
   const collapsed = state === "collapsed";
   const path = useRouterState({ select: (r) => r.location.pathname });
-  const allowed = (permission: (typeof items[number] | typeof integrations[number])["permission"]) => {
-    switch (permission) {
-      case "admin": return permissions.canAdmin;
-      case "dashboard": return permissions.canAccessDashboard;
-      case "orders": return permissions.canAccessOrders;
-      case "customers": return permissions.canAccessCustomers;
-      case "inventory": return permissions.canAccessInventory;
-      case "finance": return permissions.canAccessFinance;
-      case "settings": return true;
-      default: return false;
-    }
-  };
-  const visibleItems = items.filter((it) => allowed(it.permission));
-  const visibleIntegrations = integrations.filter((it) => allowed(it.permission));
 
   return (
     <Sidebar collapsible="icon">
@@ -62,7 +46,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Operations</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleItems.map((it) => (
+              {items.map((it) => (
                 <SidebarMenuItem key={it.url}>
                   <SidebarMenuButton asChild isActive={path.startsWith(it.url)}>
                     <Link to={it.url}><it.icon className="h-4 w-4" />{!collapsed && <span>{it.title}</span>}</Link>
@@ -76,7 +60,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>System</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleIntegrations.map((it) => (
+              {integrations.map((it) => (
                 <SidebarMenuItem key={it.url}>
                   <SidebarMenuButton asChild isActive={path.startsWith(it.url)}>
                     <Link to={it.url}><it.icon className="h-4 w-4" />{!collapsed && <span>{it.title}</span>}</Link>

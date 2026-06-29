@@ -17,7 +17,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { CONFIRMATION_STATUSES, ORDER_STATUSES, egp, fmtDate, statusTone } from "@/lib/format";
 import { useUser } from "@/hooks/use-user";
-import { AccessDenied } from "@/components/access-denied";
 import { Download, LayoutGrid, Plus, RefreshCw, Table as TableIcon, X } from "lucide-react";
 import Papa from "papaparse";
 import { toast } from "sonner";
@@ -46,7 +45,7 @@ export const Route = createFileRoute("/_authenticated/orders")({
 
 function OrdersPage() {
   const qc = useQueryClient();
-  const { loading, canAccessOrders, canManageOrders } = useUser();
+  const { canOps } = useUser();
   const [search, setSearch] = useState("");
   const [city, setCity] = useState<string>("all");
   const [confStatus, setConfStatus] = useState<string>("all");
@@ -112,12 +111,10 @@ function OrdersPage() {
 
   const { data: orders } = useQuery({
     queryKey: ["orders"],
-    enabled: canAccessOrders,
     queryFn: async () => (await supabase.from("orders").select("*").order("created_at", { ascending: false })).data ?? [],
   });
   const { data: items } = useQuery({
     queryKey: ["order-items"],
-    enabled: canAccessOrders,
     queryFn: async () => (await supabase.from("order_items").select("*")).data ?? [],
   });
 
@@ -162,7 +159,6 @@ function OrdersPage() {
   };
 
   const bulkStatus = async (status: string) => {
-    if (!canManageOrders) return toast.error("You do not have permission to update orders.");
     if (!selected.size) return;
     const { error } = await supabase.from("orders").update({ order_status: status as any }).in("id", [...selected]);
     if (error) return toast.error(error.message);
@@ -182,23 +178,16 @@ function OrdersPage() {
   const openOrder = orders?.find((o) => o.id === openId);
   const { data: openItems } = useQuery({
     queryKey: ["order-items", openId],
-    enabled: !!openId && canAccessOrders,
+    enabled: !!openId,
     queryFn: async () => (await supabase.from("order_items").select("*").eq("order_id", openId!)).data ?? [],
   });
-
-  if (loading) {
-    return <AppShell title="Orders"><div className="text-sm text-muted-foreground">Checking access...</div></AppShell>;
-  }
-  if (!canAccessOrders) {
-    return <AccessDenied title="Orders" message="Your role does not include Orders access." />;
-  }
 
   return (
     <AppShell title="Orders" search={search} onSearch={setSearch}
       actions={
         <div className="flex items-center gap-2">
-          {canManageOrders && <Button size="sm" onClick={() => setOpenNew(true)}><Plus className="h-4 w-4 mr-1" />New Order</Button>}
-          {canManageOrders && (
+          {canOps && <Button size="sm" onClick={() => setOpenNew(true)}><Plus className="h-4 w-4 mr-1" />New Order</Button>}
+          {canOps && (
             <Button size="sm" variant="outline" onClick={pullShopify} disabled={syncing}>
               <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} />
               {syncing ? "Pulling..." : "Pull recent Shopify orders"}
@@ -270,7 +259,7 @@ function OrdersPage() {
           <Select value={shipping} onValueChange={setShipping}><SelectTrigger className="w-40 h-9"><SelectValue placeholder="Shipping" /></SelectTrigger>
             <SelectContent><SelectItem value="all">All carriers</SelectItem>{shippingCos.map((c) => <SelectItem key={c!} value={c!}>{c}</SelectItem>)}</SelectContent>
           </Select>
-          {canManageOrders && selected.size > 0 && (
+          {selected.size > 0 && (
             <div className="ml-auto flex items-center gap-2">
               <span className="text-xs text-muted-foreground">{selected.size} selected</span>
               <Select onValueChange={bulkStatus}><SelectTrigger className="w-44 h-9"><SelectValue placeholder="Bulk: set status…" /></SelectTrigger>
@@ -292,7 +281,7 @@ function OrdersPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {canManageOrders && <TableHead className="w-10"><Checkbox checked={filtered.length > 0 && selected.size === filtered.length} onCheckedChange={toggleAll} /></TableHead>}
+                    <TableHead className="w-10"><Checkbox checked={filtered.length > 0 && selected.size === filtered.length} onCheckedChange={toggleAll} /></TableHead>
                     <TableHead>Order</TableHead><TableHead>Customer</TableHead><TableHead>Phone</TableHead>
                     <TableHead>City</TableHead><TableHead>Date</TableHead>
                     <TableHead>Confirmation</TableHead><TableHead>Status</TableHead>
@@ -302,7 +291,7 @@ function OrdersPage() {
                 <TableBody>
                   {filtered.map((o) => (
                     <TableRow key={o.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setOpenId(o.id)}>
-                      {canManageOrders && <TableCell onClick={(e) => e.stopPropagation()}><Checkbox checked={selected.has(o.id)} onCheckedChange={() => toggle(o.id)} /></TableCell>}
+                      <TableCell onClick={(e) => e.stopPropagation()}><Checkbox checked={selected.has(o.id)} onCheckedChange={() => toggle(o.id)} /></TableCell>
                       <TableCell className="font-medium">{o.order_number}</TableCell>
                       <TableCell>{o.customer_full_name}</TableCell>
                       <TableCell className="font-mono text-xs">{o.phone}</TableCell>
@@ -315,7 +304,7 @@ function OrdersPage() {
                     </TableRow>
                   ))}
                   {filtered.length === 0 && (
-                    <TableRow><TableCell colSpan={canManageOrders ? 10 : 9} className="text-center text-muted-foreground py-8">No orders match.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">No orders match.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>

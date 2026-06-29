@@ -6,8 +6,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { egp } from "@/lib/format";
-import { AccessDenied } from "@/components/access-denied";
-import { useUser } from "@/hooks/use-user";
 
 export const Route = createFileRoute("/_authenticated/areas")({
   head: () => ({ meta: [{ title: "Areas — Mansouj" }] }),
@@ -15,14 +13,10 @@ export const Route = createFileRoute("/_authenticated/areas")({
 });
 
 function AreasPage() {
-  const { loading, canAdmin } = useUser();
   const { data } = useQuery({
     queryKey: ["areas"],
-    enabled: canAdmin,
     queryFn: async () => (await supabase.from("areas").select("*").order("city")).data ?? [],
   });
-  if (loading) return <AppShell title="Areas & shipping zones"><div className="text-sm text-muted-foreground">Checking access...</div></AppShell>;
-  if (!canAdmin) return <AccessDenied title="Areas & shipping zones" message="Only admins can access shipping zone settings." />;
   return (
     <AppShell title="Areas & shipping zones">
       <Card>

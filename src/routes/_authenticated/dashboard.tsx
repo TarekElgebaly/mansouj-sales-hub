@@ -7,8 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { egp, fmtDate, statusTone } from "@/lib/format";
 import { financeNumber, isCancelledOrder } from "@/lib/order-finance";
-import { AccessDenied } from "@/components/access-denied";
-import { useUser } from "@/hooks/use-user";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from "recharts";
@@ -36,15 +34,12 @@ function Stat({ label, value, icon: Icon, tone = "default" }: any) {
 }
 
 function Dashboard() {
-  const { loading, canAccessDashboard } = useUser();
   const { data: orders } = useQuery({
     queryKey: ["orders-all"],
-    enabled: canAccessDashboard,
     queryFn: async () => (await supabase.from("orders").select("*").order("created_at", { ascending: false })).data ?? [],
   });
   const { data: lowStock } = useQuery({
     queryKey: ["low-stock"],
-    enabled: canAccessDashboard,
     queryFn: async () => (await supabase.from("inventory").select("*").in("status", ["Low Stock", "Out of Stock"])).data ?? [],
   });
 
@@ -76,9 +71,6 @@ function Dashboard() {
   });
 
   const PIE = ["hsl(var(--primary))", "#22c55e", "#f59e0b", "#ef4444", "#6366f1", "#06b6d4", "#a855f7", "#ec4899", "#64748b"];
-
-  if (loading) return <AppShell title="Dashboard"><div className="text-sm text-muted-foreground">Checking access...</div></AppShell>;
-  if (!canAccessDashboard) return <AccessDenied title="Dashboard" message="Your role does not include Dashboard access." />;
 
   return (
     <AppShell title="Dashboard">
