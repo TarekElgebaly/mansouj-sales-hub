@@ -137,10 +137,23 @@ function shippingCost(p: ShopifyOrderPayload): number {
   return (p.shipping_lines ?? []).reduce((s, l) => s + (Number(l.price) || 0), 0);
 }
 
+function defaultShippingCost(): number {
+  return 200;
+}
+
+function defaultPackagingCost(currentItems: PreparedLineItem[]): number {
+  return currentItems.reduce((sum, item) => sum + item.quantity, 0) * 100;
+}
+
 function mapOrderStatus(payload: ShopifyOrderPayload): string {
-  if (payload.cancelled_at) return "Cancelled";
-  if (payload.fulfillment_status === "fulfilled") return "Delivered";
-  if (payload.fulfillment_status) return "Shipped";
+  const fulfillmentStatus = (payload.fulfillment_status ?? "").toLowerCase();
+  const financialStatus = (payload.financial_status ?? "").toLowerCase();
+  if (payload.cancelled_at || fulfillmentStatus === "cancelled" || financialStatus === "voided") {
+    return "Cancelled";
+  }
+  if (fulfillmentStatus === "fulfilled") return "Delivered";
+  if (fulfillmentStatus === "partially_fulfilled") return "Ready";
+  if (!fulfillmentStatus || fulfillmentStatus === "unfulfilled") return "New";
   return "New";
 }
 
@@ -459,9 +472,20 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     orderNumber,
     isCancelled,
   );
+
+  const { data: existingOrder } = await supabaseAdmin
+    .from("orders")
+    .select("id,shipping_cost,packaging_cost")
+    .eq("shopify_order_id", shopifyOrderId)
+    .maybeSingle();
+
   const totalSelling = isCancelled ? 0 : currentOrderTotal(payload, currentItems);
-  const shipCost = isCancelled ? 0 : shippingCost(payload);
-  const packagingCost = 0;
+  const existingShippingCost = toNumber(existingOrder?.shipping_cost);
+  const existingPackagingCost = toNumber(existingOrder?.packaging_cost);
+  const shipCost = existingShippingCost > 0 ? existingShippingCost : defaultShippingCost();
+  const packagingCost = existingPackagingCost > 0
+    ? existingPackagingCost
+    : defaultPackagingCost(currentItems);
 
   const orderRow = {
     shopify_order_id: shopifyOrderId,

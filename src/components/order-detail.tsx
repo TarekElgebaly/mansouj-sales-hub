@@ -55,7 +55,7 @@ export function OrderDetail({ order, items, onChanged }: { order: any; items: an
         <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
           <Badge variant="destructive">Cancelled</Badge>
           <span className="text-sm text-muted-foreground">
-            Cancelled products remain visible below; Finance counts this order as zero.
+            Cancelled products remain visible below; shipping and packaging costs stay editable.
           </span>
         </div>
       )}

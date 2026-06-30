@@ -286,6 +286,8 @@ function OrdersPage() {
                     <TableHead>City</TableHead><TableHead>Date</TableHead>
                     <TableHead>Confirmation</TableHead><TableHead>Status</TableHead>
                     <TableHead>Shipping</TableHead><TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-right">Shipping Cost</TableHead>
+                    <TableHead className="text-right">Packaging Cost</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -301,10 +303,12 @@ function OrdersPage() {
                       <TableCell><Badge variant={statusTone(o.order_status)}>{o.order_status}</Badge></TableCell>
                       <TableCell className="text-xs">{o.shipping_company ?? "—"}</TableCell>
                       <TableCell className="text-right">{egp(Number(o.total_selling_price ?? 0))}</TableCell>
+                      <TableCell className="text-right">{egp(Number(o.shipping_cost ?? 0))}</TableCell>
+                      <TableCell className="text-right">{egp(Number(o.packaging_cost ?? 0))}</TableCell>
                     </TableRow>
                   ))}
                   {filtered.length === 0 && (
-                    <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">No orders match.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground py-8">No orders match.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -393,6 +397,8 @@ function NewOrderDialog({ open, onOpenChange, onCreated }: { open: boolean; onOp
       total_selling_price: totalSelling,
       confirmation_status: "Fresh Calls",
       order_status: "New",
+      shipping_cost: 200,
+      packaging_cost: qty * 100,
     }).select("id").single();
 
     if (orderErr || !orderData) {

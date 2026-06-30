@@ -102,7 +102,6 @@ function EditableCostRow({
   };
 
   const dirty =
-    !cancelled &&
     canEdit &&
     (parse(ship) !== (r.shipping ?? 0) || parse(pack) !== (r.packaging ?? 0));
 
@@ -189,14 +188,14 @@ function EditableCostRow({
         {cell(gross)}
       </TableCell>
       <TableCell className="text-right">
-        {canEdit && !cancelled ? (
+        {canEdit ? (
           <CostInput value={ship} onChange={setShip} disabled={saving} />
         ) : (
           cell(r.shipping)
         )}
       </TableCell>
       <TableCell className="text-right">
-        {canEdit && !cancelled ? (
+        {canEdit ? (
           <CostInput value={pack} onChange={setPack} disabled={saving} />
         ) : (
           cell(r.packaging)
