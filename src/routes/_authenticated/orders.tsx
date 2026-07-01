@@ -21,6 +21,7 @@ import { Download, LayoutGrid, Loader2, Plus, RefreshCw, Table as TableIcon, X }
 import Papa from "papaparse";
 import { toast } from "sonner";
 import { OrderDetail } from "@/components/order-detail";
+import { saveOrderCosts } from "@/lib/order-costs";
 
 const MONTHS = [
   { value: "all", label: "All months" },
@@ -404,28 +405,12 @@ function OrderCostCells({ order, canEdit, onSaved }: { order: any; canEdit: bool
 
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("orders")
-        .update({ shipping_cost: s, packaging_cost: p })
-        .eq("id", order.id);
-      if (error) throw error;
-
-      // Best-effort activity log — never let this fail the save.
-      try {
-        await supabase.from("order_activity").insert({
-          order_id: order.id,
-          action: "update_costs",
-          details: {
-            old_shipping_cost: order.shipping_cost,
-            new_shipping_cost: s,
-            old_packaging_cost: order.packaging_cost,
-            new_packaging_cost: p,
-            source: "orders_table",
-          },
-        });
-      } catch {
-        // Ignore activity log failure — main save already succeeded.
-      }
+      await saveOrderCosts({
+        orderId: order.id,
+        shippingCost: s,
+        packagingCost: p,
+        source: "orders_table",
+      });
 
       toast.success(`Saved costs for ${order.order_number}`);
       onSaved();

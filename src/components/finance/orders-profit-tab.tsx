@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { OrderDetail } from "@/components/order-detail";
 import { usePeriod } from "./period-filter";
 import { useUser } from "@/hooks/use-user";
+import { saveOrderCosts } from "@/lib/order-costs";
 
 function CostInput({
   value,
@@ -114,27 +115,12 @@ function EditableCostRow({
     }
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("orders")
-        .update({ shipping_cost: s, packaging_cost: p })
-        .eq("id", r.id);
-      if (error) throw error;
-
-      // Best-effort activity log (ignored if role can't insert)
-      const { data: u } = await supabase.auth.getUser();
-      if (u.user) {
-        await supabase.from("order_activity").insert({
-          order_id: r.id,
-          user_id: u.user.id,
-          action: "update_costs",
-          details: {
-            old_shipping_cost: r.shipping,
-            new_shipping_cost: s,
-            old_packaging_cost: r.packaging,
-            new_packaging_cost: p,
-          },
-        });
-      }
+      await saveOrderCosts({
+        orderId: r.id,
+        shippingCost: s,
+        packagingCost: p,
+        source: "finance_orders_profit",
+      });
 
       toast.success(`Saved costs for ${r.order_number}`);
       onSaved();

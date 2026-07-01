@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CONFIRMATION_STATUSES, ORDER_STATUSES, egp } from "@/lib/format";
 import { toast } from "sonner";
+import { saveOrderCosts } from "@/lib/order-costs";
 
 function Info({ label, value }: { label: string; value: any }) {
   return <div><div className="text-xs text-muted-foreground">{label}</div><div className="font-medium">{value}</div></div>;
@@ -27,21 +28,44 @@ export function OrderDetail({ order, items, onChanged }: { order: any; items: an
     const packaging = Number(packagingCost || 0);
     if (!Number.isFinite(shipping) || shipping < 0) return toast.error("Shipping cost must be zero or more.");
     if (!Number.isFinite(packaging) || packaging < 0) return toast.error("Packaging cost must be zero or more.");
-    const { error } = await supabase.from("orders").update({
-      confirmation_status: confirm,
-      order_status: status,
-      internal_notes: note,
-      shipping_cost: shipping,
-      packaging_cost: packaging,
-    }).eq("id", order.id);
-    if (error) return toast.error(error.message);
-    await supabase.from("order_activity").insert({
-      order_id: order.id,
-      action: "updated",
-      details: { confirm, status, shipping_cost: shipping, packaging_cost: packaging },
-    });
-    toast.success("Saved");
-    onChanged?.();
+    const statusChanged =
+      confirm !== order.confirmation_status ||
+      status !== order.order_status ||
+      note !== (order.internal_notes ?? "");
+    const costsChanged =
+      shipping !== Number(order.shipping_cost ?? 0) ||
+      packaging !== Number(order.packaging_cost ?? 0);
+
+    try {
+      if (statusChanged) {
+        const { error } = await supabase.from("orders").update({
+          confirmation_status: confirm,
+          order_status: status,
+          internal_notes: note,
+        }).eq("id", order.id);
+        if (error) throw error;
+
+        await supabase.from("order_activity").insert({
+          order_id: order.id,
+          action: "updated",
+          details: { confirm, status },
+        });
+      }
+
+      if (costsChanged) {
+        await saveOrderCosts({
+          orderId: order.id,
+          shippingCost: shipping,
+          packagingCost: packaging,
+          source: "order_details",
+        });
+      }
+
+      toast.success("Saved");
+      onChanged?.();
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to save order.");
+    }
   };
 
   const selling = order.total_selling_price ?? null;

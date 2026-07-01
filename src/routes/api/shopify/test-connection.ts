@@ -8,6 +8,7 @@ import {
   normalizeShopDomain,
   validateShopDomain,
 } from "@/lib/shopify-auth.server";
+import { requireRoles } from "@/lib/route-auth.server";
 
 type AccessScopeResponse = {
   access_scopes?: Array<{ handle: string }>;
@@ -20,34 +21,11 @@ type ShopResponse = {
   };
 };
 
-async function requireOpsUser(request: Request) {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const authHeader = request.headers.get("authorization") ?? "";
-  const token = authHeader.replace(/^Bearer\s+/i, "");
-  if (!token)
-    return { ok: false as const, response: Response.json({ error: "Unauthorized" }, { status: 401 }) };
-
-  const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
-  if (userErr || !userData?.user) {
-    return { ok: false as const, response: Response.json({ error: "Unauthorized" }, { status: 401 }) };
-  }
-
-  const { data: roleRow } = await supabaseAdmin
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userData.user.id)
-    .in("role", ["admin", "operations"])
-    .maybeSingle();
-  if (!roleRow) return { ok: false as const, response: Response.json({ error: "Forbidden" }, { status: 403 }) };
-
-  return { ok: true as const, supabaseAdmin };
-}
-
 export const Route = createFileRoute("/api/shopify/test-connection")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const auth = await requireOpsUser(request);
+        const auth = await requireRoles(request, ["admin", "operations"]);
         if (!auth.ok) return auth.response;
         const { supabaseAdmin } = auth;
 

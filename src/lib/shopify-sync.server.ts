@@ -5,6 +5,7 @@ import {
   normalizeShopDomain,
   validateShopDomain,
 } from "@/lib/shopify-auth.server";
+import { requireRoles } from "@/lib/route-auth.server";
 
 export type ShopifySyncStatus = "running" | "success" | "partial" | "error";
 
@@ -20,29 +21,7 @@ export class ShopifyApiError extends Error {
 }
 
 export async function requireOpsUser(request: Request) {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const authHeader = request.headers.get("authorization") ?? "";
-  const token = authHeader.replace(/^Bearer\s+/i, "");
-  if (!token) {
-    return { ok: false as const, response: Response.json({ error: "Unauthorized" }, { status: 401 }) };
-  }
-
-  const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
-  if (userErr || !userData?.user) {
-    return { ok: false as const, response: Response.json({ error: "Unauthorized" }, { status: 401 }) };
-  }
-
-  const { data: roleRow } = await supabaseAdmin
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userData.user.id)
-    .in("role", ["admin", "operations"])
-    .maybeSingle();
-  if (!roleRow) {
-    return { ok: false as const, response: Response.json({ error: "Forbidden" }, { status: 403 }) };
-  }
-
-  return { ok: true as const, supabaseAdmin, userId: userData.user.id };
+  return requireRoles(request, ["admin", "operations"]);
 }
 
 export function getShopifyAdminConfig() {

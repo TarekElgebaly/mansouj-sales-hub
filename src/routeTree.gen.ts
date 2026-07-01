@@ -30,6 +30,7 @@ import { Route as ApiShopifyResetAndSync2026OrdersRouteImport } from './routes/a
 import { Route as ApiShopifyRecalculateOrderCostsRouteImport } from './routes/api/shopify/recalculate-order-costs'
 import { Route as ApiShopifyBackfillOrderItemCostsRouteImport } from './routes/api/shopify/backfill-order-item-costs'
 import { Route as ApiShopifyAutoRemapSuggestRouteImport } from './routes/api/shopify/auto-remap-suggest'
+import { Route as ApiOrdersUpdateCostsRouteImport } from './routes/api/orders/update-costs'
 import { Route as ApiOrdersResetAllRouteImport } from './routes/api/orders/reset-all'
 import { Route as ApiPublicShopifyWebhooksOrdersUpdatedRouteImport } from './routes/api/public/shopify/webhooks/orders-updated'
 import { Route as ApiPublicShopifyWebhooksOrdersCreateRouteImport } from './routes/api/public/shopify/webhooks/orders-create'
@@ -144,6 +145,11 @@ const ApiShopifyAutoRemapSuggestRoute =
     path: '/api/shopify/auto-remap-suggest',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiOrdersUpdateCostsRoute = ApiOrdersUpdateCostsRouteImport.update({
+  id: '/api/orders/update-costs',
+  path: '/api/orders/update-costs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOrdersResetAllRoute = ApiOrdersResetAllRouteImport.update({
   id: '/api/orders/reset-all',
   path: '/api/orders/reset-all',
@@ -175,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/shopify': typeof AuthenticatedShopifyRoute
   '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
+  '/api/orders/update-costs': typeof ApiOrdersUpdateCostsRoute
   '/api/shopify/auto-remap-suggest': typeof ApiShopifyAutoRemapSuggestRoute
   '/api/shopify/backfill-order-item-costs': typeof ApiShopifyBackfillOrderItemCostsRoute
   '/api/shopify/recalculate-order-costs': typeof ApiShopifyRecalculateOrderCostsRoute
@@ -200,6 +207,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/shopify': typeof AuthenticatedShopifyRoute
   '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
+  '/api/orders/update-costs': typeof ApiOrdersUpdateCostsRoute
   '/api/shopify/auto-remap-suggest': typeof ApiShopifyAutoRemapSuggestRoute
   '/api/shopify/backfill-order-item-costs': typeof ApiShopifyBackfillOrderItemCostsRoute
   '/api/shopify/recalculate-order-costs': typeof ApiShopifyRecalculateOrderCostsRoute
@@ -227,6 +235,7 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/shopify': typeof AuthenticatedShopifyRoute
   '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
+  '/api/orders/update-costs': typeof ApiOrdersUpdateCostsRoute
   '/api/shopify/auto-remap-suggest': typeof ApiShopifyAutoRemapSuggestRoute
   '/api/shopify/backfill-order-item-costs': typeof ApiShopifyBackfillOrderItemCostsRoute
   '/api/shopify/recalculate-order-costs': typeof ApiShopifyRecalculateOrderCostsRoute
@@ -254,6 +263,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/shopify'
     | '/api/orders/reset-all'
+    | '/api/orders/update-costs'
     | '/api/shopify/auto-remap-suggest'
     | '/api/shopify/backfill-order-item-costs'
     | '/api/shopify/recalculate-order-costs'
@@ -279,6 +289,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/shopify'
     | '/api/orders/reset-all'
+    | '/api/orders/update-costs'
     | '/api/shopify/auto-remap-suggest'
     | '/api/shopify/backfill-order-item-costs'
     | '/api/shopify/recalculate-order-costs'
@@ -305,6 +316,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/shopify'
     | '/api/orders/reset-all'
+    | '/api/orders/update-costs'
     | '/api/shopify/auto-remap-suggest'
     | '/api/shopify/backfill-order-item-costs'
     | '/api/shopify/recalculate-order-costs'
@@ -323,6 +335,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiOrdersResetAllRoute: typeof ApiOrdersResetAllRoute
+  ApiOrdersUpdateCostsRoute: typeof ApiOrdersUpdateCostsRoute
   ApiShopifyAutoRemapSuggestRoute: typeof ApiShopifyAutoRemapSuggestRoute
   ApiShopifyBackfillOrderItemCostsRoute: typeof ApiShopifyBackfillOrderItemCostsRoute
   ApiShopifyRecalculateOrderCostsRoute: typeof ApiShopifyRecalculateOrderCostsRoute
@@ -485,6 +498,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiShopifyAutoRemapSuggestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/orders/update-costs': {
+      id: '/api/orders/update-costs'
+      path: '/api/orders/update-costs'
+      fullPath: '/api/orders/update-costs'
+      preLoaderRoute: typeof ApiOrdersUpdateCostsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/orders/reset-all': {
       id: '/api/orders/reset-all'
       path: '/api/orders/reset-all'
@@ -541,6 +561,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiOrdersResetAllRoute: ApiOrdersResetAllRoute,
+  ApiOrdersUpdateCostsRoute: ApiOrdersUpdateCostsRoute,
   ApiShopifyAutoRemapSuggestRoute: ApiShopifyAutoRemapSuggestRoute,
   ApiShopifyBackfillOrderItemCostsRoute: ApiShopifyBackfillOrderItemCostsRoute,
   ApiShopifyRecalculateOrderCostsRoute: ApiShopifyRecalculateOrderCostsRoute,
