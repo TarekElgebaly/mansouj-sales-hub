@@ -45,7 +45,8 @@ export const Route = createFileRoute("/_authenticated/orders")({
 
 function OrdersPage() {
   const qc = useQueryClient();
-  const { canOps } = useUser();
+  const { canOps, canFinance } = useUser();
+  const canEditCosts = canOps || canFinance;
   const [search, setSearch] = useState("");
   const [city, setCity] = useState<string>("all");
   const [confStatus, setConfStatus] = useState<string>("all");
