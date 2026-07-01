@@ -480,11 +480,11 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     .maybeSingle();
 
   const totalSelling = isCancelled ? 0 : currentOrderTotal(payload, currentItems);
-  const existingShippingCost = toNumber(existingOrder?.shipping_cost);
-  const existingPackagingCost = toNumber(existingOrder?.packaging_cost);
-  const shipCost = existingShippingCost > 0 ? existingShippingCost : defaultShippingCost();
-  const packagingCost = existingPackagingCost > 0
-    ? existingPackagingCost
+  const shipCost = existingOrder
+    ? toNumber(existingOrder.shipping_cost)
+    : defaultShippingCost();
+  const packagingCost = existingOrder
+    ? toNumber(existingOrder.packaging_cost)
     : defaultPackagingCost(currentItems);
 
   const orderRow = {

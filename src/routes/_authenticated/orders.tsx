@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/app-shell";
@@ -17,7 +17,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { CONFIRMATION_STATUSES, ORDER_STATUSES, egp, fmtDate, statusTone } from "@/lib/format";
 import { useUser } from "@/hooks/use-user";
-import { Download, LayoutGrid, Plus, RefreshCw, Table as TableIcon, X } from "lucide-react";
+import { Download, LayoutGrid, Loader2, Plus, RefreshCw, Table as TableIcon, X } from "lucide-react";
 import Papa from "papaparse";
 import { toast } from "sonner";
 import { OrderDetail } from "@/components/order-detail";
@@ -303,8 +303,14 @@ function OrdersPage() {
                       <TableCell><Badge variant={statusTone(o.order_status)}>{o.order_status}</Badge></TableCell>
                       <TableCell className="text-xs">{o.shipping_company ?? "—"}</TableCell>
                       <TableCell className="text-right">{egp(Number(o.total_selling_price ?? 0))}</TableCell>
-                      <TableCell className="text-right">{egp(Number(o.shipping_cost ?? 0))}</TableCell>
-                      <TableCell className="text-right">{egp(Number(o.packaging_cost ?? 0))}</TableCell>
+                      <OrderCostCells
+                        order={o}
+                        canEdit={canOps}
+                        onSaved={() => {
+                          qc.invalidateQueries({ queryKey: ["orders"] });
+                          qc.invalidateQueries({ queryKey: ["orders-finance"] });
+                        }}
+                      />
                     </TableRow>
                   ))}
                   {filtered.length === 0 && (
@@ -348,13 +354,128 @@ function OrdersPage() {
                 <SheetTitle>{openOrder.order_number}</SheetTitle>
                 <SheetDescription>{openOrder.customer_full_name} · {fmtDate(openOrder.order_date)}</SheetDescription>
               </SheetHeader>
-              <OrderDetail order={openOrder} items={openItems ?? []} onChanged={() => { qc.invalidateQueries({ queryKey: ["orders"] }); qc.invalidateQueries({ queryKey: ["order-items", openId] }); }} />
+              <OrderDetail order={openOrder} items={openItems ?? []} onChanged={() => {
+                qc.invalidateQueries({ queryKey: ["orders"] });
+                qc.invalidateQueries({ queryKey: ["orders-finance"] });
+                qc.invalidateQueries({ queryKey: ["order-items", openId] });
+              }} />
             </>
           )}
         </SheetContent>
       </Sheet>
       <NewOrderDialog open={openNew} onOpenChange={setOpenNew} onCreated={() => qc.invalidateQueries({ queryKey: ["orders"] })} />
     </AppShell>
+  );
+}
+
+function OrderCostCells({ order, canEdit, onSaved }: { order: any; canEdit: boolean; onSaved: () => void }) {
+  const [shippingCost, setShippingCost] = useState(String(order.shipping_cost ?? 0));
+  const [packagingCost, setPackagingCost] = useState(String(order.packaging_cost ?? 0));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setShippingCost(String(order.shipping_cost ?? 0));
+    setPackagingCost(String(order.packaging_cost ?? 0));
+  }, [order.shipping_cost, order.packaging_cost]);
+
+  const parseCost = (value: string): number | null => {
+    if (value.trim() === "") return 0;
+    const n = Number(value);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return n;
+  };
+
+  const shipping = parseCost(shippingCost);
+  const packaging = parseCost(packagingCost);
+  const dirty =
+    canEdit &&
+    shipping !== null &&
+    packaging !== null &&
+    (shipping !== Number(order.shipping_cost ?? 0) || packaging !== Number(order.packaging_cost ?? 0));
+
+  const save = async () => {
+    const s = parseCost(shippingCost);
+    const p = parseCost(packagingCost);
+    if (s === null || p === null) {
+      toast.error("Shipping and packaging must be zero or more.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({ shipping_cost: s, packaging_cost: p })
+        .eq("id", order.id);
+      if (error) throw error;
+
+      await supabase.from("order_activity").insert({
+        order_id: order.id,
+        action: "update_costs",
+        details: {
+          old_shipping_cost: order.shipping_cost,
+          new_shipping_cost: s,
+          old_packaging_cost: order.packaging_cost,
+          new_packaging_cost: p,
+          source: "orders_table",
+        },
+      });
+
+      toast.success(`Saved costs for ${order.order_number}`);
+      onSaved();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to save costs");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!canEdit) {
+    return (
+      <>
+        <TableCell className="text-right">{egp(Number(order.shipping_cost ?? 0))}</TableCell>
+        <TableCell className="text-right">{egp(Number(order.packaging_cost ?? 0))}</TableCell>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+        <Input
+          type="number"
+          min={0}
+          step="0.01"
+          inputMode="decimal"
+          className="h-8 w-24 ml-auto text-right"
+          value={shippingCost}
+          disabled={saving}
+          onChange={(e) => setShippingCost(e.target.value)}
+        />
+      </TableCell>
+      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-end gap-2">
+          <Input
+            type="number"
+            min={0}
+            step="0.01"
+            inputMode="decimal"
+            className="h-8 w-24 text-right"
+            value={packagingCost}
+            disabled={saving}
+            onChange={(e) => setPackagingCost(e.target.value)}
+          />
+          <Button
+            size="sm"
+            variant={dirty ? "default" : "outline"}
+            disabled={!dirty || saving}
+            onClick={save}
+          >
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+          </Button>
+        </div>
+      </TableCell>
+    </>
   );
 }
 

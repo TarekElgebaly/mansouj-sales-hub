@@ -417,7 +417,10 @@ export function OrdersProfitTab() {
                       onToggle={() => toggle(r.id)}
                       onOpen={() => setOpenId(r.id)}
                       canEdit={canEditCosts}
-                      onSaved={() => qc.invalidateQueries({ queryKey: ["orders-finance"] })}
+                      onSaved={() => {
+                        qc.invalidateQueries({ queryKey: ["orders-finance"] });
+                        qc.invalidateQueries({ queryKey: ["orders"] });
+                      }}
                     />
                     {isOpen && (
                       <TableRow key={`${r.id}-items`}>
@@ -481,6 +484,7 @@ export function OrdersProfitTab() {
               </SheetHeader>
               <OrderDetail order={openOrder} items={openItems ?? []} onChanged={() => {
                 qc.invalidateQueries({ queryKey: ["orders-finance"] });
+                qc.invalidateQueries({ queryKey: ["orders"] });
                 qc.invalidateQueries({ queryKey: ["order-items", openId] });
               }} />
             </>
