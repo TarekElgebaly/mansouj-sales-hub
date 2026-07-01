@@ -7,6 +7,7 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupConte
   SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
   useSidebar } from "@/components/ui/sidebar";
 import { supabase } from "@/integrations/supabase/client";
+import { lockFinanceSession } from "@/hooks/use-finance-lock";
 
 const items = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -74,7 +75,7 @@ export function AppSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={async () => { await supabase.auth.signOut(); window.location.href = "/auth"; }}>
+            <SidebarMenuButton onClick={async () => { lockFinanceSession(); await supabase.auth.signOut(); window.location.href = "/auth"; }}>
               <LogOut className="h-4 w-4" />{!collapsed && <span>Sign out</span>}
             </SidebarMenuButton>
           </SidebarMenuItem>
