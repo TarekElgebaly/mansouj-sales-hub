@@ -410,22 +410,31 @@ function OrderCostCells({ order, canEdit, onSaved }: { order: any; canEdit: bool
         .eq("id", order.id);
       if (error) throw error;
 
-      await supabase.from("order_activity").insert({
-        order_id: order.id,
-        action: "update_costs",
-        details: {
-          old_shipping_cost: order.shipping_cost,
-          new_shipping_cost: s,
-          old_packaging_cost: order.packaging_cost,
-          new_packaging_cost: p,
-          source: "orders_table",
-        },
-      });
+      // Best-effort activity log — never let this fail the save.
+      try {
+        await supabase.from("order_activity").insert({
+          order_id: order.id,
+          action: "update_costs",
+          details: {
+            old_shipping_cost: order.shipping_cost,
+            new_shipping_cost: s,
+            old_packaging_cost: order.packaging_cost,
+            new_packaging_cost: p,
+            source: "orders_table",
+          },
+        });
+      } catch {
+        // Ignore activity log failure — main save already succeeded.
+      }
 
       toast.success(`Saved costs for ${order.order_number}`);
       onSaved();
     } catch (e: any) {
-      toast.error(e?.message || "Failed to save costs");
+      const raw = e?.message || String(e ?? "");
+      const friendly = /Unexpected token .* is not valid JSON/i.test(raw) || /Forbidden/i.test(raw)
+        ? "You do not have permission to update order costs. Ask an admin to grant the finance or operations role."
+        : raw || "Failed to save costs";
+      toast.error(friendly);
     } finally {
       setSaving(false);
     }
