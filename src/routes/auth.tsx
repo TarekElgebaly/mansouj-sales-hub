@@ -19,6 +19,7 @@ function AuthPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -29,38 +30,80 @@ function AuthPage() {
 
   const signIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    setMessage(null);
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
     setLoading(false);
-    if (error) return toast.error(error.message);
+    if (error) {
+      setMessage({ type: "error", text: error.message });
+      return toast.error(error.message);
+    }
     toast.success("Signed in");
     nav({ to: "/dashboard", replace: true });
   };
 
   const signUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setMessage(null);
     const fullName = name.trim();
+    const cleanEmail = email.trim();
     if (!fullName) return toast.error("Name is required.");
+    if (!cleanEmail) return toast.error("Email is required.");
 
     setLoading(true);
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: cleanEmail,
       password,
       options: {
         data: { full_name: fullName },
       },
     });
+
+    if (error) {
+      setLoading(false);
+      setMessage({ type: "error", text: error.message });
+      return toast.error(error.message);
+    }
+
+    if (!data.user?.id) {
+      const text = "Signup did not return a Supabase Auth user.";
+      setLoading(false);
+      setMessage({ type: "error", text });
+      return toast.error(text);
+    }
+
+    const ensureRes = await fetch("/api/auth/ensure-signup-profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: data.user.id,
+        full_name: fullName,
+        email: cleanEmail,
+      }),
+    });
+    const ensureJson = await ensureRes.json().catch(() => ({}));
     setLoading(false);
 
-    if (error) return toast.error(error.message);
+    if (!ensureRes.ok || !ensureJson.ok) {
+      const text = ensureJson.error ?? "Account was created, but profile/role setup failed.";
+      setMessage({ type: "error", text });
+      return toast.error(text);
+    }
 
     if (data.session) {
-      toast.success("Account created");
+      const text = "Account created. You can sign in now.";
+      setMessage({ type: "success", text });
+      toast.success(text);
       nav({ to: "/dashboard", replace: true });
       return;
     }
 
-    toast.success("Account created. You can sign in after confirming your email.");
+    const text = "Account created. Please check your email to confirm your account.";
+    setMessage({ type: "success", text });
+    toast.success(text);
     setMode("signin");
   };
 
@@ -88,6 +131,17 @@ function AuthPage() {
               {loading ? (isSignUp ? "Creating account…" : "Signing in…") : (isSignUp ? "Sign up" : "Sign in")}
             </Button>
           </form>
+          {message && (
+            <div
+              className={`mt-3 rounded-md border px-3 py-2 text-sm ${
+                message.type === "error"
+                  ? "border-destructive/40 bg-destructive/10 text-destructive"
+                  : "border-emerald-500/40 bg-emerald-500/10 text-emerald-700"
+              }`}
+            >
+              {message.text}
+            </div>
+          )}
           <p className="text-xs text-muted-foreground text-center pt-4">
             {isSignUp
               ? "New accounts start as viewer. An admin can grant more access later."
@@ -97,7 +151,10 @@ function AuthPage() {
             type="button"
             variant="ghost"
             className="mt-2 w-full"
-            onClick={() => setMode(isSignUp ? "signin" : "signup")}
+            onClick={() => {
+              setMessage(null);
+              setMode(isSignUp ? "signin" : "signup");
+            }}
             disabled={loading}
           >
             {isSignUp ? "Back to sign in" : "Create an account"}

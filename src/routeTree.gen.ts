@@ -32,6 +32,7 @@ import { Route as ApiShopifyBackfillOrderItemCostsRouteImport } from './routes/a
 import { Route as ApiShopifyAutoRemapSuggestRouteImport } from './routes/api/shopify/auto-remap-suggest'
 import { Route as ApiOrdersUpdateCostsRouteImport } from './routes/api/orders/update-costs'
 import { Route as ApiOrdersResetAllRouteImport } from './routes/api/orders/reset-all'
+import { Route as ApiAuthEnsureSignupProfileRouteImport } from './routes/api/auth/ensure-signup-profile'
 import { Route as ApiPublicShopifyWebhooksOrdersUpdatedRouteImport } from './routes/api/public/shopify/webhooks/orders-updated'
 import { Route as ApiPublicShopifyWebhooksOrdersCreateRouteImport } from './routes/api/public/shopify/webhooks/orders-create'
 
@@ -155,6 +156,12 @@ const ApiOrdersResetAllRoute = ApiOrdersResetAllRouteImport.update({
   path: '/api/orders/reset-all',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthEnsureSignupProfileRoute =
+  ApiAuthEnsureSignupProfileRouteImport.update({
+    id: '/api/auth/ensure-signup-profile',
+    path: '/api/auth/ensure-signup-profile',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicShopifyWebhooksOrdersUpdatedRoute =
   ApiPublicShopifyWebhooksOrdersUpdatedRouteImport.update({
     id: '/api/public/shopify/webhooks/orders-updated',
@@ -180,6 +187,7 @@ export interface FileRoutesByFullPath {
   '/orders': typeof AuthenticatedOrdersRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shopify': typeof AuthenticatedShopifyRoute
+  '/api/auth/ensure-signup-profile': typeof ApiAuthEnsureSignupProfileRoute
   '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
   '/api/orders/update-costs': typeof ApiOrdersUpdateCostsRoute
   '/api/shopify/auto-remap-suggest': typeof ApiShopifyAutoRemapSuggestRoute
@@ -206,6 +214,7 @@ export interface FileRoutesByTo {
   '/orders': typeof AuthenticatedOrdersRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shopify': typeof AuthenticatedShopifyRoute
+  '/api/auth/ensure-signup-profile': typeof ApiAuthEnsureSignupProfileRoute
   '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
   '/api/orders/update-costs': typeof ApiOrdersUpdateCostsRoute
   '/api/shopify/auto-remap-suggest': typeof ApiShopifyAutoRemapSuggestRoute
@@ -234,6 +243,7 @@ export interface FileRoutesById {
   '/_authenticated/orders': typeof AuthenticatedOrdersRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/shopify': typeof AuthenticatedShopifyRoute
+  '/api/auth/ensure-signup-profile': typeof ApiAuthEnsureSignupProfileRoute
   '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
   '/api/orders/update-costs': typeof ApiOrdersUpdateCostsRoute
   '/api/shopify/auto-remap-suggest': typeof ApiShopifyAutoRemapSuggestRoute
@@ -262,6 +272,7 @@ export interface FileRouteTypes {
     | '/orders'
     | '/settings'
     | '/shopify'
+    | '/api/auth/ensure-signup-profile'
     | '/api/orders/reset-all'
     | '/api/orders/update-costs'
     | '/api/shopify/auto-remap-suggest'
@@ -288,6 +299,7 @@ export interface FileRouteTypes {
     | '/orders'
     | '/settings'
     | '/shopify'
+    | '/api/auth/ensure-signup-profile'
     | '/api/orders/reset-all'
     | '/api/orders/update-costs'
     | '/api/shopify/auto-remap-suggest'
@@ -315,6 +327,7 @@ export interface FileRouteTypes {
     | '/_authenticated/orders'
     | '/_authenticated/settings'
     | '/_authenticated/shopify'
+    | '/api/auth/ensure-signup-profile'
     | '/api/orders/reset-all'
     | '/api/orders/update-costs'
     | '/api/shopify/auto-remap-suggest'
@@ -334,6 +347,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiAuthEnsureSignupProfileRoute: typeof ApiAuthEnsureSignupProfileRoute
   ApiOrdersResetAllRoute: typeof ApiOrdersResetAllRoute
   ApiOrdersUpdateCostsRoute: typeof ApiOrdersUpdateCostsRoute
   ApiShopifyAutoRemapSuggestRoute: typeof ApiShopifyAutoRemapSuggestRoute
@@ -512,6 +526,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOrdersResetAllRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/ensure-signup-profile': {
+      id: '/api/auth/ensure-signup-profile'
+      path: '/api/auth/ensure-signup-profile'
+      fullPath: '/api/auth/ensure-signup-profile'
+      preLoaderRoute: typeof ApiAuthEnsureSignupProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/shopify/webhooks/orders-updated': {
       id: '/api/public/shopify/webhooks/orders-updated'
       path: '/api/public/shopify/webhooks/orders-updated'
@@ -560,6 +581,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiAuthEnsureSignupProfileRoute: ApiAuthEnsureSignupProfileRoute,
   ApiOrdersResetAllRoute: ApiOrdersResetAllRoute,
   ApiOrdersUpdateCostsRoute: ApiOrdersUpdateCostsRoute,
   ApiShopifyAutoRemapSuggestRoute: ApiShopifyAutoRemapSuggestRoute,

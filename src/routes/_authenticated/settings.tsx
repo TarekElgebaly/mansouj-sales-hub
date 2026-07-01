@@ -46,7 +46,8 @@ function SettingsPage() {
   };
 
   const grantRoleTo = async () => {
-    const target = members?.find((m) => m.email === grantEmail);
+    const email = grantEmail.trim().toLowerCase();
+    const target = members?.find((m) => String(m.email ?? "").trim().toLowerCase() === email);
     if (!target) return toast.error("This user has not signed up yet. Ask them to create an account first.");
     const { error } = await supabase.from("user_roles").insert({ user_id: target.id, role: grantRole });
     if (error) return toast.error(error.message);
