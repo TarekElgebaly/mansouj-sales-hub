@@ -141,8 +141,8 @@ function defaultShippingCost(): number {
   return 200;
 }
 
-function defaultPackagingCost(currentItems: PreparedLineItem[]): number {
-  return currentItems.reduce((sum, item) => sum + item.quantity, 0) * 100;
+function defaultPackagingCost(): number {
+  return 140;
 }
 
 function mapOrderStatus(payload: ShopifyOrderPayload): string {
@@ -485,7 +485,7 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     : defaultShippingCost();
   const packagingCost = existingOrder
     ? toNumber(existingOrder.packaging_cost)
-    : defaultPackagingCost(currentItems);
+    : defaultPackagingCost();
 
   const orderRow = {
     shopify_order_id: shopifyOrderId,

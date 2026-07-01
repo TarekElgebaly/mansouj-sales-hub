@@ -519,7 +519,7 @@ function NewOrderDialog({ open, onOpenChange, onCreated }: { open: boolean; onOp
       confirmation_status: "Fresh Calls",
       order_status: "New",
       shipping_cost: 200,
-      packaging_cost: qty * 100,
+      packaging_cost: 140,
     }).select("id").single();
 
     if (orderErr || !orderData) {
