@@ -13,6 +13,18 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
+function authErrorMessage(error: { message?: string; code?: string } | null) {
+  const raw = error?.message || "Authentication failed.";
+  const code = error?.code || "";
+  if (
+    code === "email_provider_disabled" ||
+    /signups?\s+(are\s+)?(not\s+allowed|disabled)/i.test(raw)
+  ) {
+    return "Signups are currently disabled in Supabase. Please enable Email signups in Supabase Auth settings.";
+  }
+  return raw;
+}
+
 function AuthPage() {
   const nav = useNavigate();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -38,8 +50,9 @@ function AuthPage() {
     });
     setLoading(false);
     if (error) {
-      setMessage({ type: "error", text: error.message });
-      return toast.error(error.message);
+      const text = authErrorMessage(error);
+      setMessage({ type: "error", text });
+      return toast.error(text);
     }
     toast.success("Signed in");
     nav({ to: "/dashboard", replace: true });
@@ -64,8 +77,9 @@ function AuthPage() {
 
     if (error) {
       setLoading(false);
-      setMessage({ type: "error", text: error.message });
-      return toast.error(error.message);
+      const text = authErrorMessage(error);
+      setMessage({ type: "error", text });
+      return toast.error(text);
     }
 
     if (!data.user?.id) {
