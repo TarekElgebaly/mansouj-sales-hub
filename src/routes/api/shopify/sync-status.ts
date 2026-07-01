@@ -22,12 +22,12 @@ async function requireOpsUser(request: Request) {
   const authHeader = request.headers.get("authorization") ?? "";
   const token = authHeader.replace(/^Bearer\s+/i, "");
   if (!token) {
-    return { ok: false as const, response: new Response("Unauthorized", { status: 401 }) };
+    return { ok: false as const, response: Response.json({ error: "Unauthorized" }, { status: 401 }) };
   }
 
   const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token);
   if (userErr || !userData?.user) {
-    return { ok: false as const, response: new Response("Unauthorized", { status: 401 }) };
+    return { ok: false as const, response: Response.json({ error: "Unauthorized" }, { status: 401 }) };
   }
 
   const { data: roleRow } = await supabaseAdmin
@@ -37,7 +37,7 @@ async function requireOpsUser(request: Request) {
     .in("role", ["admin", "operations"])
     .maybeSingle();
   if (!roleRow) {
-    return { ok: false as const, response: new Response("Forbidden", { status: 403 }) };
+    return { ok: false as const, response: Response.json({ error: "Forbidden" }, { status: 403 }) };
   }
 
   return { ok: true as const, supabaseAdmin };
