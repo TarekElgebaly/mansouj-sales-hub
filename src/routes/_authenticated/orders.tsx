@@ -306,7 +306,7 @@ function OrdersPage() {
                       <TableCell className="text-right">{egp(Number(o.total_selling_price ?? 0))}</TableCell>
                       <OrderCostCells
                         order={o}
-                        canEdit={canOps}
+                        canEdit={canEditCosts}
                         onSaved={() => {
                           qc.invalidateQueries({ queryKey: ["orders"] });
                           qc.invalidateQueries({ queryKey: ["orders-finance"] });
