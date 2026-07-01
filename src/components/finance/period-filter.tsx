@@ -31,10 +31,13 @@ export function PeriodProvider({ children }: { children: ReactNode }) {
   const [year, setYear] = useState(now.getFullYear());
 
   const { from, to } = useMemo(() => {
-    const iso = (d: Date) => d.toISOString().slice(0, 10);
-    const start = new Date(year, month, 1);
-    const end = new Date(year, month + 1, 0);
-    return { from: iso(start), to: iso(end) };
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const monthNumber = month + 1;
+    const lastDay = new Date(year, monthNumber, 0).getDate();
+    return {
+      from: `${year}-${pad(monthNumber)}-01`,
+      to: `${year}-${pad(monthNumber)}-${pad(lastDay)}`,
+    };
   }, [month, year]);
 
   const value: Ctx = { month, year, setMonth, setYear, from, to, label: `${MONTHS[month]} ${year}` };
