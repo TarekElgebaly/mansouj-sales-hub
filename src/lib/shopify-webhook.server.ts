@@ -49,12 +49,6 @@ type ShopifyCustomer = {
   email?: string | null;
 };
 
-type ShopifyFulfillment = {
-  status?: string | null;
-  shipment_status?: string | null;
-  delivery_status?: string | null;
-};
-
 export type ShopifyOrderPayload = {
   id: number | string;
   name?: string | null;
@@ -62,6 +56,8 @@ export type ShopifyOrderPayload = {
   created_at?: string | null;
   updated_at?: string | null;
   processed_at?: string | null;
+  closed_at?: string | null;
+  status?: string | null;
   current_total_price?: string | null;
   total_price?: string | null;
   current_subtotal_price?: string | null;
@@ -72,9 +68,6 @@ export type ShopifyOrderPayload = {
   payment_gateway_names?: string[] | null;
   financial_status?: string | null;
   fulfillment_status?: string | null;
-  delivery_status?: string | null;
-  shipment_status?: string | null;
-  fulfillments?: ShopifyFulfillment[] | null;
   cancelled_at?: string | null;
   note?: string | null;
   tags?: string | null;
@@ -158,19 +151,9 @@ function normalizeStatus(value?: string | null): string {
   return String(value ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
 }
 
-function isDeliveredStatus(value?: string | null): boolean {
-  return normalizeStatus(value) === "delivered";
-}
-
-function hasShopifyDeliveredStatus(payload: ShopifyOrderPayload): boolean {
-  if (isDeliveredStatus(payload.delivery_status) || isDeliveredStatus(payload.shipment_status)) {
-    return true;
-  }
-
-  return (payload.fulfillments ?? []).some((fulfillment) =>
-    isDeliveredStatus(fulfillment.delivery_status) ||
-    isDeliveredStatus(fulfillment.shipment_status),
-  );
+function isShopifyClosedOrArchived(payload: ShopifyOrderPayload): boolean {
+  const status = normalizeStatus(payload.status);
+  return Boolean(payload.closed_at) || status === "closed" || status === "archived";
 }
 
 function mapOrderStatus(payload: ShopifyOrderPayload): string {
@@ -179,8 +162,9 @@ function mapOrderStatus(payload: ShopifyOrderPayload): string {
   if (payload.cancelled_at || fulfillmentStatus === "cancelled" || financialStatus === "voided") {
     return "Cancelled";
   }
-  if (hasShopifyDeliveredStatus(payload)) return "Delivered";
-  if (fulfillmentStatus === "fulfilled") return "Shipped";
+  if (fulfillmentStatus === "fulfilled") {
+    return financialStatus === "paid" && isShopifyClosedOrArchived(payload) ? "Delivered" : "Shipped";
+  }
   if (fulfillmentStatus === "partially_fulfilled" || fulfillmentStatus === "partial") return "Ready";
   if (!fulfillmentStatus || fulfillmentStatus === "unfulfilled") return "New";
   return "New";
