@@ -290,7 +290,7 @@ function OrdersPage() {
                     <TableHead>Order</TableHead><TableHead>Customer</TableHead><TableHead>Phone</TableHead>
                     <TableHead>City</TableHead><TableHead>Date</TableHead>
                     <TableHead>Confirmation</TableHead><TableHead>Status</TableHead>
-                    <TableHead>Shipping</TableHead><TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
                     <TableHead className="text-right">Shipping Cost</TableHead>
                     <TableHead className="text-right">Packaging Cost</TableHead>
                   </TableRow>
@@ -306,7 +306,6 @@ function OrdersPage() {
                       <TableCell>{fmtDate(o.order_date)}</TableCell>
                       <TableCell><Badge variant={statusTone(o.confirmation_status)}>{o.confirmation_status}</Badge></TableCell>
                       <TableCell><Badge variant={statusTone(o.order_status)}>{o.order_status}</Badge></TableCell>
-                      <TableCell className="text-xs">{o.shipping_company ?? "—"}</TableCell>
                       <TableCell className="text-right">{egp(Number(o.total_selling_price ?? 0))}</TableCell>
                       <OrderCostCells
                         order={o}
@@ -319,7 +318,7 @@ function OrdersPage() {
                     </TableRow>
                   ))}
                   {filtered.length === 0 && (
-                    <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground py-8">No orders match.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-8">No orders match.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
