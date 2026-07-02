@@ -49,6 +49,12 @@ type ShopifyCustomer = {
   email?: string | null;
 };
 
+type ShopifyFulfillment = {
+  status?: string | null;
+  shipment_status?: string | null;
+  delivery_status?: string | null;
+};
+
 export type ShopifyOrderPayload = {
   id: number | string;
   name?: string | null;
@@ -66,6 +72,9 @@ export type ShopifyOrderPayload = {
   payment_gateway_names?: string[] | null;
   financial_status?: string | null;
   fulfillment_status?: string | null;
+  delivery_status?: string | null;
+  shipment_status?: string | null;
+  fulfillments?: ShopifyFulfillment[] | null;
   cancelled_at?: string | null;
   note?: string | null;
   tags?: string | null;
@@ -145,14 +154,34 @@ function defaultPackagingCost(): number {
   return 140;
 }
 
+function normalizeStatus(value?: string | null): string {
+  return String(value ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+}
+
+function isDeliveredStatus(value?: string | null): boolean {
+  return normalizeStatus(value) === "delivered";
+}
+
+function hasShopifyDeliveredStatus(payload: ShopifyOrderPayload): boolean {
+  if (isDeliveredStatus(payload.delivery_status) || isDeliveredStatus(payload.shipment_status)) {
+    return true;
+  }
+
+  return (payload.fulfillments ?? []).some((fulfillment) =>
+    isDeliveredStatus(fulfillment.delivery_status) ||
+    isDeliveredStatus(fulfillment.shipment_status),
+  );
+}
+
 function mapOrderStatus(payload: ShopifyOrderPayload): string {
-  const fulfillmentStatus = (payload.fulfillment_status ?? "").toLowerCase();
-  const financialStatus = (payload.financial_status ?? "").toLowerCase();
+  const fulfillmentStatus = normalizeStatus(payload.fulfillment_status);
+  const financialStatus = normalizeStatus(payload.financial_status);
   if (payload.cancelled_at || fulfillmentStatus === "cancelled" || financialStatus === "voided") {
     return "Cancelled";
   }
-  if (fulfillmentStatus === "fulfilled") return "Delivered";
-  if (fulfillmentStatus === "partially_fulfilled") return "Ready";
+  if (hasShopifyDeliveredStatus(payload)) return "Delivered";
+  if (fulfillmentStatus === "fulfilled") return "Shipped";
+  if (fulfillmentStatus === "partially_fulfilled" || fulfillmentStatus === "partial") return "Ready";
   if (!fulfillmentStatus || fulfillmentStatus === "unfulfilled") return "New";
   return "New";
 }
@@ -416,8 +445,8 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
   const shopifyOrderId = String(payload.id);
   const orderNumber =
     payload.name ?? (payload.order_number ? `#${payload.order_number}` : shopifyOrderId);
-  const orderStatus = mapOrderStatus(payload);
-  const isCancelled = orderStatus === "Cancelled";
+  const mappedOrderStatus = mapOrderStatus(payload);
+  const shopifyDelivered = mappedOrderStatus === "Delivered";
   const ship = payload.shipping_address ?? payload.billing_address ?? null;
   const cust = payload.customer ?? null;
 
@@ -467,17 +496,24 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     }
   }
 
+  const { data: existingOrder } = await supabaseAdmin
+    .from("orders")
+    .select("id,shipping_cost,packaging_cost,order_status,delivered")
+    .eq("shopify_order_id", shopifyOrderId)
+    .maybeSingle();
+
+  const preserveManualDelivered =
+    !shopifyDelivered &&
+    mappedOrderStatus !== "Cancelled" &&
+    existingOrder?.delivered === true;
+  const orderStatus = preserveManualDelivered ? "Delivered" : mappedOrderStatus;
+  const isCancelled = orderStatus === "Cancelled";
+
   const { currentItems, zeroSkipped, zeroExamples } = prepareLineItems(
     payload,
     orderNumber,
     isCancelled,
   );
-
-  const { data: existingOrder } = await supabaseAdmin
-    .from("orders")
-    .select("id,shipping_cost,packaging_cost")
-    .eq("shopify_order_id", shopifyOrderId)
-    .maybeSingle();
 
   const totalSelling = isCancelled ? 0 : currentOrderTotal(payload, currentItems);
   const shipCost = existingOrder
@@ -502,6 +538,7 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     payment_gateway: payload.gateway ?? payload.payment_gateway_names?.[0] ?? null,
     confirmation_status: "Fresh Calls",
     order_status: orderStatus,
+    delivered: orderStatus === "Delivered",
     internal_notes: payload.note ?? null,
     total_selling_price: totalSelling,
     items_cost: 0,

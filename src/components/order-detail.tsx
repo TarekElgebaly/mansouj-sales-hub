@@ -41,6 +41,7 @@ export function OrderDetail({ order, items, onChanged }: { order: any; items: an
         const { error } = await supabase.from("orders").update({
           confirmation_status: confirm,
           order_status: status,
+          delivered: status === "Delivered",
           internal_notes: note,
         }).eq("id", order.id);
         if (error) throw error;

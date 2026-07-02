@@ -162,7 +162,10 @@ function OrdersPage() {
 
   const bulkStatus = async (status: string) => {
     if (!selected.size) return;
-    const { error } = await supabase.from("orders").update({ order_status: status as any }).in("id", [...selected]);
+    const { error } = await supabase
+      .from("orders")
+      .update({ order_status: status as any, delivered: status === "Delivered" })
+      .in("id", [...selected]);
     if (error) return toast.error(error.message);
     toast.success(`Updated ${selected.size} orders`);
     setSelected(new Set());
