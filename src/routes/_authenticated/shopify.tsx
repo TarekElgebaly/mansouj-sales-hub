@@ -167,10 +167,27 @@ type BackfillCostResult = {
   failed_count: number;
 };
 
+type ForceUpdateCostResult = {
+  status: string;
+  items_checked: number;
+  items_updated: number;
+  items_skipped: number;
+  missing_cost: number;
+  missing_match: number;
+  orders_recalculated: number;
+  total_cost_before: number;
+  total_cost_after: number;
+  failed_count: number;
+  match_counts: Record<string, number>;
+  mismatch_reasons: Record<string, number>;
+};
+
 const RESET_CONFIRMATION_MESSAGE =
   "This will delete ALL orders from Mansouj Sales Hub only. It will NOT delete anything from Shopify. Continue?";
 const RESET_SYNC_2026_CONFIRMATION_MESSAGE =
   "This will delete ALL local orders from Mansouj Sales Hub and then import only Shopify orders created in 2026. It will NOT delete anything from Shopify. Continue?";
+const FORCE_UPDATE_COSTS_CONFIRMATION_MESSAGE =
+  "This will overwrite existing local order item costs with the latest synced Shopify costs. It will NOT change Shopify, selling price, shipping cost, packaging cost, statuses, notes, or customer data. Continue?";
 
 function csvEscape(v: string | number | null | undefined): string {
   if (v === null || v === undefined) return "";
@@ -183,14 +200,16 @@ function exportUnmatchedSkuReportCsv(rows: UnmatchedSkuReportRow[]) {
   const header = ["old_sku", "item_title", "variant", "count", "example_order_numbers", "reason"];
   const lines = [header.join(",")];
   for (const r of rows) {
-    lines.push([
-      csvEscape(r.old_sku),
-      csvEscape(r.item_title),
-      csvEscape(r.variant),
-      csvEscape(r.count),
-      csvEscape(r.example_order_numbers.join(" | ")),
-      csvEscape(r.reason),
-    ].join(","));
+    lines.push(
+      [
+        csvEscape(r.old_sku),
+        csvEscape(r.item_title),
+        csvEscape(r.variant),
+        csvEscape(r.count),
+        csvEscape(r.example_order_numbers.join(" | ")),
+        csvEscape(r.reason),
+      ].join(","),
+    );
   }
   const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
@@ -202,7 +221,6 @@ function exportUnmatchedSkuReportCsv(rows: UnmatchedSkuReportRow[]) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-
 
 function ShopifyPage() {
   const qc = useQueryClient();
@@ -224,6 +242,9 @@ function ShopifyPage() {
   const [backfillingCosts, setBackfillingCosts] = useState(false);
   const [backfillResult, setBackfillResult] = useState<BackfillCostResult | null>(null);
   const [backfillError, setBackfillError] = useState<string | null>(null);
+  const [forcingCostUpdate, setForcingCostUpdate] = useState(false);
+  const [forceCostResult, setForceCostResult] = useState<ForceUpdateCostResult | null>(null);
+  const [forceCostError, setForceCostError] = useState<string | null>(null);
   const [recalcingOrderCosts, setRecalcingOrderCosts] = useState(false);
   const [recalcResult, setRecalcResult] = useState<{
     orders_checked: number;
@@ -343,7 +364,8 @@ function ShopifyPage() {
         order_items_missing_cost: json.order_items_missing_cost ?? 0,
         order_items_cost_assigned_by_variant_id: json.order_items_cost_assigned_by_variant_id ?? 0,
         order_items_cost_assigned_by_sku: json.order_items_cost_assigned_by_sku ?? 0,
-        order_items_cost_assigned_by_sku_normalized: json.order_items_cost_assigned_by_sku_normalized ?? 0,
+        order_items_cost_assigned_by_sku_normalized:
+          json.order_items_cost_assigned_by_sku_normalized ?? 0,
         order_items_cost_assigned_by_remap: json.order_items_cost_assigned_by_remap ?? 0,
         order_items_cost_preserved: json.order_items_cost_preserved ?? 0,
         affected_orders_recalculated: json.affected_orders_recalculated ?? 0,
@@ -468,8 +490,7 @@ function ShopifyPage() {
         },
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || json.status === "error")
-        throw new Error(json.error ?? "Backfill failed.");
+      if (!res.ok || json.status === "error") throw new Error(json.error ?? "Backfill failed.");
 
       const result: BackfillCostResult = {
         status: json.status ?? "success",
@@ -488,9 +509,7 @@ function ShopifyPage() {
         matched_by_barcode: json.matched_by_barcode ?? 0,
         matched_by_title_exact: json.matched_by_title_exact ?? 0,
         mismatch_reasons: json.mismatch_reasons ?? {},
-        unmatched_samples: Array.isArray(json.unmatched_samples)
-          ? json.unmatched_samples
-          : [],
+        unmatched_samples: Array.isArray(json.unmatched_samples) ? json.unmatched_samples : [],
         unmatched_sku_report: Array.isArray(json.unmatched_sku_report)
           ? json.unmatched_sku_report
           : [],
@@ -510,6 +529,61 @@ function ShopifyPage() {
     }
   };
 
+  const forceUpdateOrderItemCosts = async () => {
+    if (!window.confirm(FORCE_UPDATE_COSTS_CONFIRMATION_MESSAGE)) return;
+
+    setForcingCostUpdate(true);
+    setForceCostResult(null);
+    setForceCostError(null);
+    try {
+      const res = await fetch("/api/shopify/force-update-order-item-costs", {
+        method: "POST",
+        headers: {
+          ...(await authHeader()),
+          "Content-Type": "application/json",
+        },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.status === "error") throw new Error(json.error ?? "Force update failed.");
+
+      const result: ForceUpdateCostResult = {
+        status: json.status ?? "success",
+        items_checked: json.items_checked ?? 0,
+        items_updated: json.items_updated ?? 0,
+        items_skipped: json.items_skipped ?? 0,
+        missing_cost: json.missing_cost ?? 0,
+        missing_match: json.missing_match ?? 0,
+        orders_recalculated: json.orders_recalculated ?? 0,
+        total_cost_before: Number(json.total_cost_before ?? 0),
+        total_cost_after: Number(json.total_cost_after ?? 0),
+        failed_count: json.failed_count ?? 0,
+        match_counts: json.match_counts ?? {},
+        mismatch_reasons: json.mismatch_reasons ?? {},
+      };
+      setForceCostResult(result);
+      if (result.status === "partial") {
+        toast.warning(
+          `Force update finished with ${result.failed_count} failures: ${result.items_updated} items updated.`,
+        );
+      } else {
+        toast.success(
+          `Force update finished: ${result.items_updated} items updated, ${result.orders_recalculated} orders recalculated.`,
+        );
+      }
+      await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
+      await qc.invalidateQueries({ queryKey: ["orders"] });
+      await qc.invalidateQueries({ queryKey: ["orders-all"] });
+      await qc.invalidateQueries({ queryKey: ["orders-finance"] });
+      await qc.invalidateQueries({ queryKey: ["order-items"] });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setForceCostError(message);
+      toast.error(message);
+    } finally {
+      setForcingCostUpdate(false);
+    }
+  };
+
   const recalculateOrderCosts = async () => {
     setRecalcingOrderCosts(true);
     setRecalcResult(null);
@@ -523,8 +597,7 @@ function ShopifyPage() {
         },
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || json.status === "error")
-        throw new Error(json.error ?? "Recalculate failed.");
+      if (!res.ok || json.status === "error") throw new Error(json.error ?? "Recalculate failed.");
       setRecalcResult({
         orders_checked: json.orders_checked ?? 0,
         orders_updated: json.orders_updated ?? 0,
@@ -547,10 +620,6 @@ function ShopifyPage() {
       setRecalcingOrderCosts(false);
     }
   };
-
-
-
-
 
   const resetAllLocalOrders = async () => {
     if (!window.confirm(RESET_CONFIRMATION_MESSAGE)) return;
@@ -643,7 +712,6 @@ function ShopifyPage() {
   return (
     <AppShell title="Shopify Sync">
       <div className="mx-auto max-w-5xl space-y-4">
-
         <header className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-foreground">Shopify Sync Status</h1>
@@ -722,7 +790,9 @@ function ShopifyPage() {
                 <div className="flex flex-wrap gap-2">
                   <Button
                     onClick={() => syncOrders("incremental")}
-                    disabled={syncingRecent || syncingBackfill || resettingOrders || resetSyncing2026}
+                    disabled={
+                      syncingRecent || syncingBackfill || resettingOrders || resetSyncing2026
+                    }
                   >
                     <RefreshCw className={`mr-2 h-4 w-4 ${syncingRecent ? "animate-spin" : ""}`} />
                     Sync Recent Orders
@@ -730,7 +800,9 @@ function ShopifyPage() {
                   <Button
                     variant="outline"
                     onClick={() => syncOrders("full_backfill")}
-                    disabled={syncingRecent || syncingBackfill || resettingOrders || resetSyncing2026}
+                    disabled={
+                      syncingRecent || syncingBackfill || resettingOrders || resetSyncing2026
+                    }
                   >
                     <RefreshCw
                       className={`mr-2 h-4 w-4 ${syncingBackfill ? "animate-spin" : ""}`}
@@ -768,14 +840,16 @@ function ShopifyPage() {
                 </div>
                 {ordersSyncResult && (
                   <div className="space-y-3">
-                    {ordersSyncResult.failed === 0 && ordersSyncResult.affected_orders_recalculated > 0 && (
-                      <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-700 dark:text-emerald-300">
-                        Recent orders synced and costs recalculated successfully.
-                      </div>
-                    )}
+                    {ordersSyncResult.failed === 0 &&
+                      ordersSyncResult.affected_orders_recalculated > 0 && (
+                        <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+                          Recent orders synced and costs recalculated successfully.
+                        </div>
+                      )}
                     {ordersSyncResult.order_items_missing_cost > 0 && (
                       <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-300">
-                        Some order items are missing cost. Run Sync Inventory &amp; Cost and Backfill Order Item Costs if needed.
+                        Some order items are missing cost. Run Sync Inventory &amp; Cost and
+                        Backfill Order Item Costs if needed.
                       </div>
                     )}
                     <div className="grid gap-3 rounded-md border bg-muted/30 p-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -862,18 +936,9 @@ function ShopifyPage() {
                       label="Records processed"
                       value={String(resetSync2026Result.records_processed)}
                     />
-                    <StatusItem
-                      label="Created"
-                      value={String(resetSync2026Result.created_count)}
-                    />
-                    <StatusItem
-                      label="Updated"
-                      value={String(resetSync2026Result.updated_count)}
-                    />
-                    <StatusItem
-                      label="Failed"
-                      value={String(resetSync2026Result.failed_count)}
-                    />
+                    <StatusItem label="Created" value={String(resetSync2026Result.created_count)} />
+                    <StatusItem label="Updated" value={String(resetSync2026Result.updated_count)} />
+                    <StatusItem label="Failed" value={String(resetSync2026Result.failed_count)} />
                     <StatusItem
                       label="Pages fetched"
                       value={String(resetSync2026Result.pages_fetched)}
@@ -982,10 +1047,7 @@ function ShopifyPage() {
                           label="Pages fetched"
                           value={String(productSyncResult.pages_fetched)}
                         />
-                        <StatusItem
-                          label="Failed"
-                          value={String(productSyncResult.failed_count)}
-                        />
+                        <StatusItem label="Failed" value={String(productSyncResult.failed_count)} />
                         <StatusItem
                           label="Shop domain"
                           value={productSyncResult.shop_domain_used ?? "-"}
@@ -1009,8 +1071,9 @@ function ShopifyPage() {
                         <StatusItem
                           label="Response shape"
                           value={`keys: ${
-                            productSyncResult.raw_shopify_response_shape_summary?.response_keys?.join(", ") ||
-                            "-"
+                            productSyncResult.raw_shopify_response_shape_summary?.response_keys?.join(
+                              ", ",
+                            ) || "-"
                           }; products array: ${
                             productSyncResult.raw_shopify_response_shape_summary
                               ?.products_is_array === true
@@ -1094,8 +1157,8 @@ function ShopifyPage() {
                     <div>
                       <h4 className="text-sm font-medium">Backfill Order Item Costs</h4>
                       <p className="text-xs text-muted-foreground">
-                        Updates local order items with synced Shopify product cost. Does not
-                        modify Shopify.
+                        Updates local order items with synced Shopify product cost. Does not modify
+                        Shopify.
                       </p>
                     </div>
                     <Button
@@ -1135,10 +1198,7 @@ function ShopifyPage() {
                           label="Missing inventory cost"
                           value={String(backfillResult.order_items_missing_inventory_cost)}
                         />
-                        <StatusItem
-                          label="Failed"
-                          value={String(backfillResult.failed_count)}
-                        />
+                        <StatusItem label="Failed" value={String(backfillResult.failed_count)} />
                         <StatusItem
                           label="Matched by variant ID"
                           value={String(backfillResult.matched_by_variant_id)}
@@ -1184,8 +1244,7 @@ function ShopifyPage() {
                     {backfillResult && backfillResult.unmatched_samples.length > 0 && (
                       <div className="space-y-2">
                         <h5 className="text-sm font-medium">
-                          Unmatched preview (first{" "}
-                          {backfillResult.unmatched_samples.length})
+                          Unmatched preview (first {backfillResult.unmatched_samples.length})
                         </h5>
                         <div className="overflow-x-auto rounded border">
                           <table className="w-full text-xs">
@@ -1203,13 +1262,9 @@ function ShopifyPage() {
                               {backfillResult.unmatched_samples.map((s, idx) => (
                                 <tr key={idx} className="border-t">
                                   <td className="px-2 py-1">{s.order_number ?? "—"}</td>
-                                  <td className="px-2 py-1">
-                                    {s.order_item_title ?? "—"}
-                                  </td>
+                                  <td className="px-2 py-1">{s.order_item_title ?? "—"}</td>
                                   <td className="px-2 py-1">{s.variant ?? "—"}</td>
-                                  <td className="px-2 py-1 font-mono">
-                                    {s.sku ?? "—"}
-                                  </td>
+                                  <td className="px-2 py-1 font-mono">{s.sku ?? "—"}</td>
                                   <td className="px-2 py-1 font-mono">
                                     {s.shopify_variant_id ?? "—"}
                                   </td>
@@ -1252,7 +1307,9 @@ function ShopifyPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => exportUnmatchedSkuReportCsv(backfillResult.unmatched_sku_report)}
+                              onClick={() =>
+                                exportUnmatchedSkuReportCsv(backfillResult.unmatched_sku_report)
+                              }
                             >
                               Export CSV
                             </Button>
@@ -1291,12 +1348,116 @@ function ShopifyPage() {
 
                   <div className="border-t pt-4 space-y-3">
                     <div>
+                      <h4 className="text-sm font-medium">
+                        Force Update Order Item Costs from Current Shopify Product Costs
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        Overwrites existing local order item unit costs with the latest synced
+                        Shopify InventoryItem costs. Does not modify Shopify or change selling
+                        price, shipping, packaging, statuses, notes, or customer data.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={forceUpdateOrderItemCosts}
+                      disabled={!canOps || forcingCostUpdate}
+                      variant="secondary"
+                    >
+                      <RefreshCw
+                        className={`mr-2 h-4 w-4 ${forcingCostUpdate ? "animate-spin" : ""}`}
+                      />
+                      Force Update Order Item Costs
+                    </Button>
+                    {!canOps && (
+                      <p className="text-sm text-muted-foreground">
+                        Admin or operations access is required.
+                      </p>
+                    )}
+                    {forceCostError && (
+                      <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                        {forceCostError}
+                      </div>
+                    )}
+                    {forceCostResult && (
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <StatusItem
+                          label="Items checked"
+                          value={String(forceCostResult.items_checked)}
+                        />
+                        <StatusItem
+                          label="Items updated"
+                          value={String(forceCostResult.items_updated)}
+                        />
+                        <StatusItem
+                          label="Items skipped"
+                          value={String(forceCostResult.items_skipped)}
+                        />
+                        <StatusItem
+                          label="Missing cost"
+                          value={String(forceCostResult.missing_cost)}
+                        />
+                        <StatusItem
+                          label="Missing match"
+                          value={String(forceCostResult.missing_match)}
+                        />
+                        <StatusItem
+                          label="Orders recalculated"
+                          value={String(forceCostResult.orders_recalculated)}
+                        />
+                        <StatusItem
+                          label="Total cost before"
+                          value={forceCostResult.total_cost_before.toFixed(2)}
+                        />
+                        <StatusItem
+                          label="Total cost after"
+                          value={forceCostResult.total_cost_after.toFixed(2)}
+                        />
+                        <StatusItem label="Failed" value={String(forceCostResult.failed_count)} />
+                      </div>
+                    )}
+                    {forceCostResult && Object.keys(forceCostResult.match_counts).length > 0 && (
+                      <div className="space-y-2">
+                        <h5 className="text-sm font-medium">Match summary</h5>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {Object.entries(forceCostResult.match_counts).map(([reason, count]) => (
+                            <div
+                              key={reason}
+                              className="flex items-center justify-between rounded border px-3 py-2 text-xs"
+                            >
+                              <span className="text-muted-foreground">{reason}</span>
+                              <span className="font-mono">{count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {forceCostResult &&
+                      Object.keys(forceCostResult.mismatch_reasons).length > 0 && (
+                        <div className="space-y-2">
+                          <h5 className="text-sm font-medium">Skipped reasons</h5>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {Object.entries(forceCostResult.mismatch_reasons).map(
+                              ([reason, count]) => (
+                                <div
+                                  key={reason}
+                                  className="flex items-center justify-between rounded border px-3 py-2 text-xs"
+                                >
+                                  <span className="text-muted-foreground">{reason}</span>
+                                  <span className="font-mono">{count}</span>
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      )}
+                  </div>
+
+                  <div className="border-t pt-4 space-y-3">
+                    <div>
                       <h4 className="text-sm font-medium">Recalculate Order Costs</h4>
                       <p className="text-xs text-muted-foreground">
-                        Recomputes each local order's items_cost from
-                        order_items (quantity × unit_cost). Profit and net
-                        profit refresh automatically. Does not modify Shopify
-                        or change order revenue.
+                        Recomputes each local order's items_cost from order_items (quantity ×
+                        unit_cost). Profit and net profit refresh automatically. Does not modify
+                        Shopify or change order revenue.
                       </p>
                     </div>
                     <Button
@@ -1321,18 +1482,38 @@ function ShopifyPage() {
                     )}
                     {recalcResult && (
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <StatusItem label="Orders checked" value={String(recalcResult.orders_checked)} />
-                        <StatusItem label="Orders updated" value={String(recalcResult.orders_updated)} />
-                        <StatusItem label="Items checked" value={String(recalcResult.order_items_checked)} />
-                        <StatusItem label="Items with cost" value={String(recalcResult.order_items_with_cost)} />
-                        <StatusItem label="Items missing cost" value={String(recalcResult.order_items_missing_cost)} />
-                        <StatusItem label="Total items_cost before" value={recalcResult.total_items_cost_before.toFixed(2)} />
-                        <StatusItem label="Total items_cost after" value={recalcResult.total_items_cost_after.toFixed(2)} />
+                        <StatusItem
+                          label="Orders checked"
+                          value={String(recalcResult.orders_checked)}
+                        />
+                        <StatusItem
+                          label="Orders updated"
+                          value={String(recalcResult.orders_updated)}
+                        />
+                        <StatusItem
+                          label="Items checked"
+                          value={String(recalcResult.order_items_checked)}
+                        />
+                        <StatusItem
+                          label="Items with cost"
+                          value={String(recalcResult.order_items_with_cost)}
+                        />
+                        <StatusItem
+                          label="Items missing cost"
+                          value={String(recalcResult.order_items_missing_cost)}
+                        />
+                        <StatusItem
+                          label="Total items_cost before"
+                          value={recalcResult.total_items_cost_before.toFixed(2)}
+                        />
+                        <StatusItem
+                          label="Total items_cost after"
+                          value={recalcResult.total_items_cost_after.toFixed(2)}
+                        />
                         <StatusItem label="Failed" value={String(recalcResult.failed_count)} />
                       </div>
                     )}
                   </div>
-
                 </CardContent>
               </Card>
 
@@ -1340,7 +1521,6 @@ function ShopifyPage() {
               <AutoRemapSection />
               <UnmatchedSkuReportSection />
             </div>
-
 
             <Card>
               <CardHeader>

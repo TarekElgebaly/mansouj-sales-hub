@@ -28,6 +28,7 @@ import { Route as ApiShopifySyncOrdersRouteImport } from './routes/api/shopify/s
 import { Route as ApiShopifySyncInventoryCostRouteImport } from './routes/api/shopify/sync-inventory-cost'
 import { Route as ApiShopifyResetAndSync2026OrdersRouteImport } from './routes/api/shopify/reset-and-sync-2026-orders'
 import { Route as ApiShopifyRecalculateOrderCostsRouteImport } from './routes/api/shopify/recalculate-order-costs'
+import { Route as ApiShopifyForceUpdateOrderItemCostsRouteImport } from './routes/api/shopify/force-update-order-item-costs'
 import { Route as ApiShopifyBackfillOrderItemCostsRouteImport } from './routes/api/shopify/backfill-order-item-costs'
 import { Route as ApiShopifyAutoRemapSuggestRouteImport } from './routes/api/shopify/auto-remap-suggest'
 import { Route as ApiOrdersUpdateCostsRouteImport } from './routes/api/orders/update-costs'
@@ -135,6 +136,12 @@ const ApiShopifyRecalculateOrderCostsRoute =
     path: '/api/shopify/recalculate-order-costs',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiShopifyForceUpdateOrderItemCostsRoute =
+  ApiShopifyForceUpdateOrderItemCostsRouteImport.update({
+    id: '/api/shopify/force-update-order-item-costs',
+    path: '/api/shopify/force-update-order-item-costs',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiShopifyBackfillOrderItemCostsRoute =
   ApiShopifyBackfillOrderItemCostsRouteImport.update({
     id: '/api/shopify/backfill-order-item-costs',
@@ -199,6 +206,7 @@ export interface FileRoutesByFullPath {
   '/api/orders/update-costs': typeof ApiOrdersUpdateCostsRoute
   '/api/shopify/auto-remap-suggest': typeof ApiShopifyAutoRemapSuggestRoute
   '/api/shopify/backfill-order-item-costs': typeof ApiShopifyBackfillOrderItemCostsRoute
+  '/api/shopify/force-update-order-item-costs': typeof ApiShopifyForceUpdateOrderItemCostsRoute
   '/api/shopify/recalculate-order-costs': typeof ApiShopifyRecalculateOrderCostsRoute
   '/api/shopify/reset-and-sync-2026-orders': typeof ApiShopifyResetAndSync2026OrdersRoute
   '/api/shopify/sync-inventory-cost': typeof ApiShopifySyncInventoryCostRoute
@@ -227,6 +235,7 @@ export interface FileRoutesByTo {
   '/api/orders/update-costs': typeof ApiOrdersUpdateCostsRoute
   '/api/shopify/auto-remap-suggest': typeof ApiShopifyAutoRemapSuggestRoute
   '/api/shopify/backfill-order-item-costs': typeof ApiShopifyBackfillOrderItemCostsRoute
+  '/api/shopify/force-update-order-item-costs': typeof ApiShopifyForceUpdateOrderItemCostsRoute
   '/api/shopify/recalculate-order-costs': typeof ApiShopifyRecalculateOrderCostsRoute
   '/api/shopify/reset-and-sync-2026-orders': typeof ApiShopifyResetAndSync2026OrdersRoute
   '/api/shopify/sync-inventory-cost': typeof ApiShopifySyncInventoryCostRoute
@@ -257,6 +266,7 @@ export interface FileRoutesById {
   '/api/orders/update-costs': typeof ApiOrdersUpdateCostsRoute
   '/api/shopify/auto-remap-suggest': typeof ApiShopifyAutoRemapSuggestRoute
   '/api/shopify/backfill-order-item-costs': typeof ApiShopifyBackfillOrderItemCostsRoute
+  '/api/shopify/force-update-order-item-costs': typeof ApiShopifyForceUpdateOrderItemCostsRoute
   '/api/shopify/recalculate-order-costs': typeof ApiShopifyRecalculateOrderCostsRoute
   '/api/shopify/reset-and-sync-2026-orders': typeof ApiShopifyResetAndSync2026OrdersRoute
   '/api/shopify/sync-inventory-cost': typeof ApiShopifySyncInventoryCostRoute
@@ -287,6 +297,7 @@ export interface FileRouteTypes {
     | '/api/orders/update-costs'
     | '/api/shopify/auto-remap-suggest'
     | '/api/shopify/backfill-order-item-costs'
+    | '/api/shopify/force-update-order-item-costs'
     | '/api/shopify/recalculate-order-costs'
     | '/api/shopify/reset-and-sync-2026-orders'
     | '/api/shopify/sync-inventory-cost'
@@ -315,6 +326,7 @@ export interface FileRouteTypes {
     | '/api/orders/update-costs'
     | '/api/shopify/auto-remap-suggest'
     | '/api/shopify/backfill-order-item-costs'
+    | '/api/shopify/force-update-order-item-costs'
     | '/api/shopify/recalculate-order-costs'
     | '/api/shopify/reset-and-sync-2026-orders'
     | '/api/shopify/sync-inventory-cost'
@@ -344,6 +356,7 @@ export interface FileRouteTypes {
     | '/api/orders/update-costs'
     | '/api/shopify/auto-remap-suggest'
     | '/api/shopify/backfill-order-item-costs'
+    | '/api/shopify/force-update-order-item-costs'
     | '/api/shopify/recalculate-order-costs'
     | '/api/shopify/reset-and-sync-2026-orders'
     | '/api/shopify/sync-inventory-cost'
@@ -365,6 +378,7 @@ export interface RootRouteChildren {
   ApiOrdersUpdateCostsRoute: typeof ApiOrdersUpdateCostsRoute
   ApiShopifyAutoRemapSuggestRoute: typeof ApiShopifyAutoRemapSuggestRoute
   ApiShopifyBackfillOrderItemCostsRoute: typeof ApiShopifyBackfillOrderItemCostsRoute
+  ApiShopifyForceUpdateOrderItemCostsRoute: typeof ApiShopifyForceUpdateOrderItemCostsRoute
   ApiShopifyRecalculateOrderCostsRoute: typeof ApiShopifyRecalculateOrderCostsRoute
   ApiShopifyResetAndSync2026OrdersRoute: typeof ApiShopifyResetAndSync2026OrdersRoute
   ApiShopifySyncInventoryCostRoute: typeof ApiShopifySyncInventoryCostRoute
@@ -511,6 +525,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiShopifyRecalculateOrderCostsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/shopify/force-update-order-item-costs': {
+      id: '/api/shopify/force-update-order-item-costs'
+      path: '/api/shopify/force-update-order-item-costs'
+      fullPath: '/api/shopify/force-update-order-item-costs'
+      preLoaderRoute: typeof ApiShopifyForceUpdateOrderItemCostsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/shopify/backfill-order-item-costs': {
       id: '/api/shopify/backfill-order-item-costs'
       path: '/api/shopify/backfill-order-item-costs'
@@ -607,6 +628,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOrdersUpdateCostsRoute: ApiOrdersUpdateCostsRoute,
   ApiShopifyAutoRemapSuggestRoute: ApiShopifyAutoRemapSuggestRoute,
   ApiShopifyBackfillOrderItemCostsRoute: ApiShopifyBackfillOrderItemCostsRoute,
+  ApiShopifyForceUpdateOrderItemCostsRoute:
+    ApiShopifyForceUpdateOrderItemCostsRoute,
   ApiShopifyRecalculateOrderCostsRoute: ApiShopifyRecalculateOrderCostsRoute,
   ApiShopifyResetAndSync2026OrdersRoute: ApiShopifyResetAndSync2026OrdersRoute,
   ApiShopifySyncInventoryCostRoute: ApiShopifySyncInventoryCostRoute,
