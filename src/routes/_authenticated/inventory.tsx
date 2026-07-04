@@ -78,6 +78,11 @@ function cleanOption(value: string | null | undefined) {
   return value;
 }
 
+function normalizeProductStatus(value: string | null | undefined) {
+  const status = String(value ?? "").trim().toLowerCase();
+  return status || null;
+}
+
 function stockStatus(quantity: number): InventoryReportRow["status"] {
   if (quantity <= 0) return "Out of Stock";
   if (quantity <= 5) return "Low Stock";
@@ -99,6 +104,7 @@ function InventoryPage() {
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"all" | "low">("all");
   const [status, setStatus] = useState<string>("all");
+  const [productStatus, setProductStatus] = useState<string>("active");
   const [productType, setProductType] = useState<string>("all");
   const [color, setColor] = useState<string>("all");
   const [size, setSize] = useState<string>("all");
@@ -171,7 +177,7 @@ function InventoryPage() {
           totalCost: onHand * cost,
           totalSale: onHand * salePrice,
           status: stockStatus(onHand),
-          shopifyStatus: product?.status ?? null,
+          shopifyStatus: normalizeProductStatus(product?.status),
         };
       });
     },
@@ -194,6 +200,7 @@ function InventoryPage() {
         return false;
       }
       if (status !== "all" && row.status !== status) return false;
+      if (productStatus !== "all" && row.shopifyStatus !== productStatus) return false;
       if (productType !== "all" && row.productType !== productType) return false;
       if (color !== "all" && row.color !== color) return false;
       if (size !== "all" && row.size !== size) return false;
@@ -201,10 +208,10 @@ function InventoryPage() {
       return true;
     });
     return sortRows(result, sort);
-  }, [rows, search, status, productType, color, size, view, sort]);
+  }, [rows, search, status, productStatus, productType, color, size, view, sort]);
 
   const summary = useMemo(() => {
-    return rows.reduce(
+    return filtered.reduce(
       (acc, row) => {
         acc.totalSkus += 1;
         acc.totalOnHand += row.onHand;
@@ -216,7 +223,7 @@ function InventoryPage() {
       },
       { totalSkus: 0, totalOnHand: 0, totalCost: 0, totalSale: 0, lowStock: 0, outOfStock: 0 },
     );
-  }, [rows]);
+  }, [filtered]);
 
   return (
     <AppShell title="Inventory" search={search} onSearch={setSearch}>
@@ -237,9 +244,21 @@ function InventoryPage() {
           </TabsList>
         </Tabs>
         <div>
-          <Label className="text-xs">Status</Label>
+          <Label className="text-xs">Product Status</Label>
+          <Select value={productStatus} onValueChange={setProductStatus}>
+            <SelectTrigger className="w-40 h-9"><SelectValue placeholder="Product status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="archived">Archived</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs">Stock Status</Label>
           <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger className="w-40 h-9"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger className="w-40 h-9"><SelectValue placeholder="Stock status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
               {["In Stock", "Low Stock", "Out of Stock"].map((status) => (
