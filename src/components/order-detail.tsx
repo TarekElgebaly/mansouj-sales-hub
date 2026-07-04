@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CONFIRMATION_STATUSES, ORDER_STATUSES, egp } from "@/lib/format";
 import { toast } from "sonner";
 import { saveOrderCosts } from "@/lib/order-costs";
+import { ProductThumb } from "@/components/product-thumb";
+import { useProductMedia } from "@/hooks/use-product-media";
 
 function Info({ label, value }: { label: string; value: any }) {
   return <div><div className="text-xs text-muted-foreground">{label}</div><div className="font-medium">{value}</div></div>;
@@ -22,6 +24,7 @@ export function OrderDetail({ order, items, onChanged }: { order: any; items: an
   const [shippingCost, setShippingCost] = useState(String(order.shipping_cost ?? 0));
   const [packagingCost, setPackagingCost] = useState(String(order.packaging_cost ?? 0));
   const cancelled = status === "Cancelled";
+  const productMedia = useProductMedia(items);
 
   const save = async () => {
     const shipping = Number(shippingCost || 0);
@@ -122,8 +125,8 @@ export function OrderDetail({ order, items, onChanged }: { order: any; items: an
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>SKU</TableHead>
                   <TableHead>Product</TableHead>
+                  <TableHead>SKU</TableHead>
                   <TableHead>Variant</TableHead>
                   <TableHead className="text-right">Qty</TableHead>
                   <TableHead className="text-right">Unit price</TableHead>
@@ -138,10 +141,21 @@ export function OrderDetail({ order, items, onChanged }: { order: any; items: an
                     ? (unitPrice == null ? null : unitPrice * qty)
                     : Number(it.total_selling_price);
                   const variantLabel = it.variant ?? [it.color, it.size].filter(Boolean).join(" · ");
+                  const media = productMedia.byItemId.get(it.id);
                   return (
                     <TableRow key={it.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <ProductThumb src={media?.imageUrl} alt={it.product_name} />
+                          <div>
+                            <div className="font-medium">{it.product_name ?? media?.productTitle ?? "—"}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {variantLabel || media?.variantTitle || "No variant"}
+                            </div>
+                          </div>
+                        </div>
+                      </TableCell>
                       <TableCell className="font-mono text-xs">{it.sku && String(it.sku).trim() ? it.sku : "—"}</TableCell>
-                      <TableCell>{it.product_name ?? "—"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{variantLabel || "—"}</TableCell>
                       <TableCell className="text-right">{qty}</TableCell>
                       <TableCell className="text-right">{money(unitPrice)}</TableCell>

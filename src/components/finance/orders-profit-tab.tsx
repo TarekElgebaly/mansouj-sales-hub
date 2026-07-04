@@ -18,6 +18,8 @@ import { OrderDetail } from "@/components/order-detail";
 import { usePeriod } from "./period-filter";
 import { useUser } from "@/hooks/use-user";
 import { saveOrderCosts } from "@/lib/order-costs";
+import { ProductThumb } from "@/components/product-thumb";
+import { useProductMedia } from "@/hooks/use-product-media";
 
 function CostInput({
   value,
@@ -224,6 +226,7 @@ function ExpandedItems({ orderId, cancelled }: { orderId: string; cancelled: boo
     queryFn: async () =>
       (await supabase.from("order_items").select("*").eq("order_id", orderId)).data ?? [],
   });
+  const productMedia = useProductMedia(data);
 
   if (isLoading) {
     return <div className="p-4 text-sm text-muted-foreground">Loading line items…</div>;
@@ -237,8 +240,8 @@ function ExpandedItems({ orderId, cancelled }: { orderId: string; cancelled: boo
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>SKU</TableHead>
             <TableHead>Product title</TableHead>
+            <TableHead>SKU</TableHead>
             <TableHead>Variant title</TableHead>
             <TableHead className="text-right">Qty</TableHead>
             <TableHead className="text-right">Unit price</TableHead>
@@ -258,10 +261,19 @@ function ExpandedItems({ orderId, cancelled }: { orderId: string; cancelled: boo
             const lineProfit = cancelled ? 0 : lineTotal === null ? null : lineTotal - (lineCost ?? 0);
             const productTitle = it.product_name ?? it.product_title;
             const variantTitle = it.variant ?? it.variant_title;
+            const media = productMedia.byItemId.get(it.id);
             return (
               <TableRow key={it.id}>
+                <TableCell>
+                  <div className="flex items-center gap-3">
+                    <ProductThumb src={media?.imageUrl} alt={productTitle} />
+                    <div>
+                      <div className="font-medium">{productTitle || media?.productTitle || dash}</div>
+                      <div className="text-xs text-muted-foreground">{variantTitle || media?.variantTitle || "No variant"}</div>
+                    </div>
+                  </div>
+                </TableCell>
                 <TableCell className="font-mono text-xs">{it.sku || dash}</TableCell>
-                <TableCell>{productTitle || dash}</TableCell>
                 <TableCell>{variantTitle || dash}</TableCell>
                 <TableCell className="text-right">{qty}</TableCell>
                 <TableCell className="text-right">{cell(unitPrice)}</TableCell>

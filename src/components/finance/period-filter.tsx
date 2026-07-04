@@ -1,17 +1,10 @@
 import { createContext, useContext, useMemo, useState, ReactNode } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
+import { DateScopeFilter } from "@/components/date-scope-filter";
+import { createDefaultDateScope, DateScopeState, getDateScopeRange } from "@/lib/date-scope";
 
 type Ctx = {
-  month: number; // 0-11
-  year: number;
-  setMonth: (m: number) => void;
-  setYear: (y: number) => void;
+  scope: DateScopeState;
+  setScope: (scope: DateScopeState) => void;
   from: string;
   to: string;
   label: string;
@@ -26,54 +19,15 @@ export function usePeriod() {
 }
 
 export function PeriodProvider({ children }: { children: ReactNode }) {
-  const now = new Date();
-  const [month, setMonth] = useState(now.getMonth());
-  const [year, setYear] = useState(now.getFullYear());
+  const [scope, setScope] = useState<DateScopeState>(() => createDefaultDateScope());
 
-  const { from, to } = useMemo(() => {
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const monthNumber = month + 1;
-    const lastDay = new Date(year, monthNumber, 0).getDate();
-    return {
-      from: `${year}-${pad(monthNumber)}-01`,
-      to: `${year}-${pad(monthNumber)}-${pad(lastDay)}`,
-    };
-  }, [month, year]);
+  const { from, to, label } = useMemo(() => getDateScopeRange(scope), [scope]);
 
-  const value: Ctx = { month, year, setMonth, setYear, from, to, label: `${MONTHS[month]} ${year}` };
+  const value: Ctx = { scope, setScope, from, to, label };
   return <PeriodContext.Provider value={value}>{children}</PeriodContext.Provider>;
 }
 
 export function PeriodFilter() {
-  const { month, year, setMonth, setYear } = usePeriod();
-  const currentYear = new Date().getFullYear();
-  const years: number[] = [];
-  for (let y = currentYear - 5; y <= currentYear + 1; y++) years.push(y);
-
-  return (
-    <div className="flex flex-wrap items-end gap-3">
-      <div>
-        <Label className="text-xs">Month</Label>
-        <Select value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
-          <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {MONTHS.map((m, i) => (
-              <SelectItem key={m} value={String(i)}>{m}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <Label className="text-xs">Year</Label>
-        <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
-          <SelectTrigger className="w-28 h-9"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {years.map((y) => (
-              <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
-  );
+  const { scope, setScope } = usePeriod();
+  return <DateScopeFilter value={scope} onChange={setScope} />;
 }

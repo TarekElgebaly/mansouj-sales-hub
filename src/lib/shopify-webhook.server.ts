@@ -482,7 +482,7 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
 
   const { data: existingOrder } = await supabaseAdmin
     .from("orders")
-    .select("id,shipping_cost,packaging_cost,order_status,delivered")
+    .select("id,shipping_cost,packaging_cost,order_status,delivered,confirmation_status,internal_notes")
     .eq("shopify_order_id", shopifyOrderId)
     .maybeSingle();
 
@@ -520,10 +520,10 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     area,
     full_address: address,
     payment_gateway: payload.gateway ?? payload.payment_gateway_names?.[0] ?? null,
-    confirmation_status: "Fresh Calls",
+    confirmation_status: existingOrder?.confirmation_status ?? "Fresh Calls",
     order_status: orderStatus,
     delivered: orderStatus === "Delivered",
-    internal_notes: payload.note ?? null,
+    internal_notes: existingOrder ? existingOrder.internal_notes : payload.note ?? null,
     total_selling_price: totalSelling,
     items_cost: 0,
     shipping_cost: shipCost,
