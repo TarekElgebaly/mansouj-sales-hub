@@ -95,7 +95,7 @@ const INVENTORY_ITEMS_QUERY = `
             amount
             currencyCode
           }
-          inventoryLevels(first: $inventoryLevelsFirst, includeInactive: true) {
+          inventoryLevels(first: $inventoryLevelsFirst) {
             edges {
               node {
                 id
