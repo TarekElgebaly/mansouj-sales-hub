@@ -22,6 +22,7 @@ import Papa from "papaparse";
 import { toast } from "sonner";
 import { OrderDetail } from "@/components/order-detail";
 import { saveOrderCosts } from "@/lib/order-costs";
+import { calculatePackagingCost } from "@/lib/packaging-cost";
 import { DateScopeFilter } from "@/components/date-scope-filter";
 import { createDefaultDateScope, dateInScope, getDateScopeRange } from "@/lib/date-scope";
 
@@ -455,6 +456,13 @@ function NewOrderDialog({ open, onOpenChange, onCreated }: { open: boolean; onOp
 
     setSaving(true);
     const totalSelling = unitPrice * qty;
+    const packagingCost = calculatePackagingCost([
+      {
+        productName: productName.trim(),
+        sku: sku.trim(),
+        quantity: qty,
+      },
+    ]);
 
     const { data: orderData, error: orderErr } = await supabase.from("orders").insert({
       order_number: orderNumber.trim(),
@@ -467,7 +475,7 @@ function NewOrderDialog({ open, onOpenChange, onCreated }: { open: boolean; onOp
       confirmation_status: "Fresh Calls",
       order_status: "New",
       shipping_cost: 200,
-      packaging_cost: 140,
+      packaging_cost: packagingCost,
     }).select("id").single();
 
     if (orderErr || !orderData) {

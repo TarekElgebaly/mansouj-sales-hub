@@ -1,12 +1,33 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireOpsUser, saveShopifySyncRun } from "@/lib/shopify-sync.server";
+import { calculatePackagingCost } from "@/lib/packaging-cost";
 
-type OrderRow = { id: string; items_cost: number | null };
+type OrderRow = {
+  id: string;
+  items_cost: number | null;
+  packaging_cost: number | null;
+};
 type ItemRow = {
   order_id: string;
+  sku: string | null;
+  product_name: string | null;
+  variant: string | null;
   quantity: number | null;
   unit_cost: number | null;
 };
+type ActivityRow = {
+  order_id: string | null;
+  details: unknown;
+};
+
+function activityTouchesPackagingCost(details: unknown) {
+  if (!details || typeof details !== "object" || Array.isArray(details)) return false;
+  return (
+    "packaging_cost" in details ||
+    "old_packaging_cost" in details ||
+    "new_packaging_cost" in details
+  );
+}
 
 export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
   server: {
@@ -26,6 +47,11 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
         let orderItemsMissingCost = 0;
         let totalItemsCostBefore = 0;
         let totalItemsCostAfter = 0;
+        let packagingCostsChecked = 0;
+        let packagingCostsUpdated = 0;
+        let packagingCostsPreservedManual = 0;
+        let totalPackagingCostBefore = 0;
+        let totalPackagingCostAfter = 0;
         let failedCount = 0;
         let lastError: string | null = null;
 
@@ -37,7 +63,7 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
           while (true) {
             const { data, error } = await supabaseAdmin
               .from("orders")
-              .select("id,items_cost")
+              .select("id,items_cost,packaging_cost")
               .range(from, from + pageSize - 1);
             if (error) throw new Error(`orders lookup failed: ${error.message}`);
             const rows = (data ?? []) as OrderRow[];
@@ -50,11 +76,12 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
 
           // Sum order_items by order_id.
           const sumByOrder = new Map<string, number>();
+          const itemsByOrder = new Map<string, ItemRow[]>();
           for (let i = 0; i < orderIds.length; i += 200) {
             const slice = orderIds.slice(i, i + 200);
             const { data, error } = await supabaseAdmin
               .from("order_items")
-              .select("order_id,quantity,unit_cost")
+              .select("order_id,sku,product_name,variant,quantity,unit_cost")
               .in("order_id", slice);
             if (error)
               throw new Error(`order_items lookup failed: ${error.message}`);
@@ -69,26 +96,66 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
                 it.order_id,
                 (sumByOrder.get(it.order_id) ?? 0) + line,
               );
+              const existing = itemsByOrder.get(it.order_id) ?? [];
+              existing.push(it);
+              itemsByOrder.set(it.order_id, existing);
             }
           }
 
-          // Update orders where items_cost differs. profit/net_profit are
-          // generated columns and refresh automatically.
+          const manualPackagingOrderIds = new Set<string>();
+          let activityFrom = 0;
+          while (true) {
+            const { data, error } = await supabaseAdmin
+              .from("order_activity")
+              .select("order_id,details")
+              .range(activityFrom, activityFrom + pageSize - 1);
+            if (error) throw new Error(`order_activity lookup failed: ${error.message}`);
+            const rows = (data ?? []) as ActivityRow[];
+            for (const row of rows) {
+              if (row.order_id && activityTouchesPackagingCost(row.details)) {
+                manualPackagingOrderIds.add(row.order_id);
+              }
+            }
+            if (rows.length < pageSize) break;
+            activityFrom += pageSize;
+          }
+
+          // Update orders where items_cost or non-manual packaging_cost differs.
+          // profit/net_profit are generated columns and refresh automatically.
           for (const o of orders) {
             const before = Number(o.items_cost ?? 0);
             const after = Number((sumByOrder.get(o.id) ?? 0).toFixed(2));
+            const packagingBefore = Number(o.packaging_cost ?? 0);
+            const packagingManual = manualPackagingOrderIds.has(o.id);
+            const calculatedPackaging = Number(
+              calculatePackagingCost(itemsByOrder.get(o.id) ?? []).toFixed(2),
+            );
+            const packagingAfter = packagingManual ? packagingBefore : calculatedPackaging;
             totalItemsCostBefore += before;
             totalItemsCostAfter += after;
-            if (Math.abs(before - after) < 0.005) continue;
+            totalPackagingCostBefore += packagingBefore;
+            totalPackagingCostAfter += packagingAfter;
+            packagingCostsChecked++;
+            if (packagingManual) packagingCostsPreservedManual++;
+
+            const itemsChanged = Math.abs(before - after) >= 0.005;
+            const packagingChanged =
+              !packagingManual && Math.abs(packagingBefore - packagingAfter) >= 0.005;
+            if (!itemsChanged && !packagingChanged) continue;
+
             const { error } = await supabaseAdmin
               .from("orders")
-              .update({ items_cost: after })
+              .update({
+                items_cost: after,
+                ...(packagingChanged ? { packaging_cost: packagingAfter } : {}),
+              })
               .eq("id", o.id);
             if (error) {
               failedCount++;
               lastError = error.message;
             } else {
               ordersUpdated++;
+              if (packagingChanged) packagingCostsUpdated++;
             }
           }
 
@@ -109,6 +176,12 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
               order_items_missing_cost: orderItemsMissingCost,
               total_items_cost_before: Number(totalItemsCostBefore.toFixed(2)),
               total_items_cost_after: Number(totalItemsCostAfter.toFixed(2)),
+              packaging_costs_checked: packagingCostsChecked,
+              packaging_costs_updated: packagingCostsUpdated,
+              packaging_costs_preserved_manual: packagingCostsPreservedManual,
+              total_packaging_cost_before: Number(totalPackagingCostBefore.toFixed(2)),
+              total_packaging_cost_after: Number(totalPackagingCostAfter.toFixed(2)),
+              packaging_cost_rule: "eligible item quantity * 140 EGP; pillows, pillowcases, and duvets excluded",
             },
           });
 
@@ -121,6 +194,11 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
             order_items_missing_cost: orderItemsMissingCost,
             total_items_cost_before: Number(totalItemsCostBefore.toFixed(2)),
             total_items_cost_after: Number(totalItemsCostAfter.toFixed(2)),
+            packaging_costs_checked: packagingCostsChecked,
+            packaging_costs_updated: packagingCostsUpdated,
+            packaging_costs_preserved_manual: packagingCostsPreservedManual,
+            total_packaging_cost_before: Number(totalPackagingCostBefore.toFixed(2)),
+            total_packaging_cost_after: Number(totalPackagingCostAfter.toFixed(2)),
             failed_count: failedCount,
             error: lastError,
           });
@@ -140,6 +218,9 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
               order_items_checked: orderItemsChecked,
               order_items_with_cost: orderItemsWithCost,
               order_items_missing_cost: orderItemsMissingCost,
+              packaging_costs_checked: packagingCostsChecked,
+              packaging_costs_updated: packagingCostsUpdated,
+              packaging_costs_preserved_manual: packagingCostsPreservedManual,
             },
           });
           return Response.json(

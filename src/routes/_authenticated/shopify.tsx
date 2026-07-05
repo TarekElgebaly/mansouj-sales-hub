@@ -257,6 +257,11 @@ function ShopifyPage() {
     order_items_missing_cost: number;
     total_items_cost_before: number;
     total_items_cost_after: number;
+    packaging_costs_checked: number;
+    packaging_costs_updated: number;
+    packaging_costs_preserved_manual: number;
+    total_packaging_cost_before: number;
+    total_packaging_cost_after: number;
     failed_count: number;
   } | null>(null);
   const [recalcError, setRecalcError] = useState<string | null>(null);
@@ -612,10 +617,15 @@ function ShopifyPage() {
         order_items_missing_cost: json.order_items_missing_cost ?? 0,
         total_items_cost_before: json.total_items_cost_before ?? 0,
         total_items_cost_after: json.total_items_cost_after ?? 0,
+        packaging_costs_checked: json.packaging_costs_checked ?? 0,
+        packaging_costs_updated: json.packaging_costs_updated ?? 0,
+        packaging_costs_preserved_manual: json.packaging_costs_preserved_manual ?? 0,
+        total_packaging_cost_before: json.total_packaging_cost_before ?? 0,
+        total_packaging_cost_after: json.total_packaging_cost_after ?? 0,
         failed_count: json.failed_count ?? 0,
       });
       toast.success(
-        `Recalculated costs for ${json.orders_updated ?? 0} of ${json.orders_checked ?? 0} orders.`,
+        `Recalculated order and packaging costs for ${json.orders_updated ?? 0} of ${json.orders_checked ?? 0} orders.`,
       );
       await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
     } catch (e) {
@@ -1471,11 +1481,12 @@ function ShopifyPage() {
 
                   <div className="border-t pt-4 space-y-3">
                     <div>
-                      <h4 className="text-sm font-medium">Recalculate Order Costs</h4>
+                      <h4 className="text-sm font-medium">Recalculate Order & Packaging Costs</h4>
                       <p className="text-xs text-muted-foreground">
                         Recomputes each local order's items_cost from order_items (quantity ×
-                        unit_cost). Profit and net profit refresh automatically. Does not modify
-                        Shopify or change order revenue.
+                        unit_cost), and updates Packaging Cost to 140 EGP per eligible item.
+                        Pillows, pillowcases, and duvets are excluded. Manual packaging edits are
+                        preserved. Does not modify Shopify or change order revenue.
                       </p>
                     </div>
                     <Button
@@ -1486,7 +1497,7 @@ function ShopifyPage() {
                       <RefreshCw
                         className={`mr-2 h-4 w-4 ${recalcingOrderCosts ? "animate-spin" : ""}`}
                       />
-                      Recalculate Order Costs
+                      Recalculate Order & Packaging Costs
                     </Button>
                     {!canOps && (
                       <p className="text-sm text-muted-foreground">
@@ -1527,6 +1538,26 @@ function ShopifyPage() {
                         <StatusItem
                           label="Total items_cost after"
                           value={recalcResult.total_items_cost_after.toFixed(2)}
+                        />
+                        <StatusItem
+                          label="Packaging checked"
+                          value={String(recalcResult.packaging_costs_checked)}
+                        />
+                        <StatusItem
+                          label="Packaging updated"
+                          value={String(recalcResult.packaging_costs_updated)}
+                        />
+                        <StatusItem
+                          label="Manual packaging preserved"
+                          value={String(recalcResult.packaging_costs_preserved_manual)}
+                        />
+                        <StatusItem
+                          label="Total packaging before"
+                          value={recalcResult.total_packaging_cost_before.toFixed(2)}
+                        />
+                        <StatusItem
+                          label="Total packaging after"
+                          value={recalcResult.total_packaging_cost_after.toFixed(2)}
                         />
                         <StatusItem label="Failed" value={String(recalcResult.failed_count)} />
                       </div>

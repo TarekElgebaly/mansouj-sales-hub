@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { calculatePackagingCost } from "@/lib/packaging-cost";
 
 export function verifyShopifyHmac(rawBody: string, hmacHeader: string | null): boolean {
   const secret = process.env.SHOPIFY_WEBHOOK_SECRET;
@@ -143,10 +144,6 @@ function defaultShippingCost(): number {
   return 200;
 }
 
-function defaultPackagingCost(): number {
-  return 140;
-}
-
 function normalizeStatus(value?: string | null): string {
   return String(value ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
 }
@@ -271,6 +268,28 @@ async function readExistingOrderItems(supabaseAdmin: any, orderId: string) {
     .eq("order_id", orderId);
   if (error) throw new Error(`order_items inspect failed: ${error.message}`);
   return (data ?? []) as ExistingOrderItem[];
+}
+
+function activityTouchesPackagingCost(details: unknown) {
+  if (!details || typeof details !== "object" || Array.isArray(details)) return false;
+  return (
+    "packaging_cost" in details ||
+    "old_packaging_cost" in details ||
+    "new_packaging_cost" in details
+  );
+}
+
+async function hasManualPackagingCostOverride(supabaseAdmin: any, orderId: string | null) {
+  if (!orderId) return false;
+  const { data, error } = await supabaseAdmin
+    .from("order_activity")
+    .select("details")
+    .eq("order_id", orderId)
+    .limit(200);
+  if (error) throw new Error(`order_activity inspect failed: ${error.message}`);
+  return (data ?? []).some((row: { details: unknown }) =>
+    activityTouchesPackagingCost(row.details),
+  );
 }
 
 async function safeReadTable<T>(
@@ -503,9 +522,15 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
   const shipCost = existingOrder
     ? toNumber(existingOrder.shipping_cost)
     : defaultShippingCost();
-  const packagingCost = existingOrder
-    ? toNumber(existingOrder.packaging_cost)
-    : defaultPackagingCost();
+  const packagingCostTouched = await hasManualPackagingCostOverride(
+    supabaseAdmin,
+    existingOrder?.id ?? null,
+  );
+  const calculatedPackagingCost = calculatePackagingCost(currentItems);
+  const packagingCost =
+    existingOrder && packagingCostTouched
+      ? toNumber(existingOrder.packaging_cost)
+      : calculatedPackagingCost;
 
   const orderRow = {
     shopify_order_id: shopifyOrderId,
