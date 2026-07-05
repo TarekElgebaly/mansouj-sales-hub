@@ -123,6 +123,9 @@ type InventoryCostSyncResult = {
   inventory_items_missing_cost: number;
   locations_processed: number;
   inventory_levels_processed: number;
+  variant_on_hand_quantities_processed: number;
+  variant_on_hand_quantities_updated: number;
+  variant_on_hand_quantity_fallbacks: number;
   failed_count: number;
   pages_fetched: number;
 };
@@ -459,12 +462,15 @@ function ShopifyPage() {
         inventory_items_missing_cost: json.inventory_items_missing_cost ?? 0,
         locations_processed: json.locations_processed ?? 0,
         inventory_levels_processed: json.inventory_levels_processed ?? 0,
+        variant_on_hand_quantities_processed: json.variant_on_hand_quantities_processed ?? 0,
+        variant_on_hand_quantities_updated: json.variant_on_hand_quantities_updated ?? 0,
+        variant_on_hand_quantity_fallbacks: json.variant_on_hand_quantity_fallbacks ?? 0,
         failed_count: json.failed_count ?? 0,
         pages_fetched: json.pages_fetched ?? 0,
       };
       setInventoryCostSyncResult(result);
       toast.success(
-        `Inventory & cost sync finished: ${result.inventory_items_processed} items, ${result.inventory_items_with_cost} with cost.`,
+        `Inventory & cost sync finished: ${result.inventory_items_processed} items, ${result.variant_on_hand_quantities_updated} on-hand quantities updated.`,
       );
       await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
     } catch (e) {
@@ -1141,6 +1147,18 @@ function ShopifyPage() {
                       <StatusItem
                         label="Inventory levels"
                         value={String(inventoryCostSyncResult.inventory_levels_processed)}
+                      />
+                      <StatusItem
+                        label="On hand checked"
+                        value={String(inventoryCostSyncResult.variant_on_hand_quantities_processed)}
+                      />
+                      <StatusItem
+                        label="On hand updated"
+                        value={String(inventoryCostSyncResult.variant_on_hand_quantities_updated)}
+                      />
+                      <StatusItem
+                        label="Available fallback"
+                        value={String(inventoryCostSyncResult.variant_on_hand_quantity_fallbacks)}
                       />
                       <StatusItem
                         label="Pages fetched"
