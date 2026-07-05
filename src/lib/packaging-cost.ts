@@ -28,6 +28,15 @@ const EXCLUDED_PACKAGING_TERMS = [
   /اكياس مخدات/,
 ];
 
+const ELIGIBLE_PACKAGING_TERMS = [
+  /(?:^|[^a-z0-9])fitted\s*sheets?(?:[^a-z0-9]|$)/,
+  /(?:^|[^a-z0-9])sheet\s*sets?(?:[^a-z0-9]|$)/,
+  /(?:^|[^a-z0-9])bedsheets?(?:[^a-z0-9]|$)/,
+  /(?:^|[^a-z0-9])bed\s*sheets?(?:[^a-z0-9]|$)/,
+  /(?:^|[^a-z0-9])coverlets?(?:[^a-z0-9]|$)/,
+  /(?:^|[^a-z0-9])mattress\s*protectors?(?:[^a-z0-9]|$)/,
+];
+
 function normalizePackagingText(value: unknown) {
   return String(value ?? "")
     .normalize("NFKD")
@@ -60,6 +69,9 @@ function lineSearchTexts(line: PackagingCostLine) {
 export function isPackagingExcludedProduct(line: PackagingCostLine) {
   const texts = lineSearchTexts(line);
   if (!texts.length) return false;
+  if (texts.some((text) => ELIGIBLE_PACKAGING_TERMS.some((term) => term.test(text)))) {
+    return false;
+  }
   return texts.some((text) => EXCLUDED_PACKAGING_TERMS.some((term) => term.test(text)));
 }
 

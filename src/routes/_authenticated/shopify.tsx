@@ -1485,8 +1485,9 @@ function ShopifyPage() {
                       <p className="text-xs text-muted-foreground">
                         Recomputes each local order's items_cost from order_items (quantity ×
                         unit_cost), and updates Packaging Cost to 140 EGP per eligible item.
-                        Pillows, pillowcases, and duvets are excluded. Manual packaging edits are
-                        preserved. Does not modify Shopify or change order revenue.
+                        Fitted sheet sets with pillowcases are included; standalone pillows,
+                        pillowcases, and duvets are excluded. Manual packaging edits are preserved.
+                        Does not modify Shopify or change order revenue.
                       </p>
                     </div>
                     <Button

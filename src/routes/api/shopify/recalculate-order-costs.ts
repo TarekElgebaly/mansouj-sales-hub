@@ -189,7 +189,8 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
               packaging_costs_preserved_manual: packagingCostsPreservedManual,
               total_packaging_cost_before: Number(totalPackagingCostBefore.toFixed(2)),
               total_packaging_cost_after: Number(totalPackagingCostAfter.toFixed(2)),
-              packaging_cost_rule: "eligible item quantity * 140 EGP; pillows, pillowcases, and duvets excluded",
+              packaging_cost_rule:
+                "eligible item quantity * 140 EGP; fitted sheet sets with pillowcases are included; standalone pillows, pillowcases, and duvets excluded",
             },
           });
 
