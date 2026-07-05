@@ -270,11 +270,16 @@ async function readExistingOrderItems(supabaseAdmin: any, orderId: string) {
   return (data ?? []) as ExistingOrderItem[];
 }
 
-function activityTouchesPackagingCost(details: unknown) {
+function activityTouchesPackagingCost(action: string | null | undefined, details: unknown) {
+  if (action !== "update_costs") return false;
   if (!details || typeof details !== "object" || Array.isArray(details)) return false;
+  if ("old_packaging_cost" in details && "new_packaging_cost" in details) {
+    const oldValue = toNumber((details as Record<string, unknown>).old_packaging_cost);
+    const newValue = toNumber((details as Record<string, unknown>).new_packaging_cost);
+    return Math.abs(oldValue - newValue) >= 0.005;
+  }
   return (
     "packaging_cost" in details ||
-    "old_packaging_cost" in details ||
     "new_packaging_cost" in details
   );
 }
@@ -283,12 +288,12 @@ async function hasManualPackagingCostOverride(supabaseAdmin: any, orderId: strin
   if (!orderId) return false;
   const { data, error } = await supabaseAdmin
     .from("order_activity")
-    .select("details")
+    .select("action,details")
     .eq("order_id", orderId)
     .limit(200);
   if (error) throw new Error(`order_activity inspect failed: ${error.message}`);
-  return (data ?? []).some((row: { details: unknown }) =>
-    activityTouchesPackagingCost(row.details),
+  return (data ?? []).some((row: { action: string | null; details: unknown }) =>
+    activityTouchesPackagingCost(row.action, row.details),
   );
 }
 

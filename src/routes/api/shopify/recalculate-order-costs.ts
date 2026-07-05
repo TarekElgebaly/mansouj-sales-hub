@@ -17,14 +17,22 @@ type ItemRow = {
 };
 type ActivityRow = {
   order_id: string | null;
+  action: string | null;
   details: unknown;
 };
 
-function activityTouchesPackagingCost(details: unknown) {
+function activityTouchesPackagingCost(action: string | null | undefined, details: unknown) {
+  if (action !== "update_costs") return false;
   if (!details || typeof details !== "object" || Array.isArray(details)) return false;
+  if ("old_packaging_cost" in details && "new_packaging_cost" in details) {
+    const oldValue = Number((details as Record<string, unknown>).old_packaging_cost ?? 0);
+    const newValue = Number((details as Record<string, unknown>).new_packaging_cost ?? 0);
+    if (Number.isFinite(oldValue) && Number.isFinite(newValue)) {
+      return Math.abs(oldValue - newValue) >= 0.005;
+    }
+  }
   return (
     "packaging_cost" in details ||
-    "old_packaging_cost" in details ||
     "new_packaging_cost" in details
   );
 }
@@ -107,12 +115,12 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
           while (true) {
             const { data, error } = await supabaseAdmin
               .from("order_activity")
-              .select("order_id,details")
+              .select("order_id,action,details")
               .range(activityFrom, activityFrom + pageSize - 1);
             if (error) throw new Error(`order_activity lookup failed: ${error.message}`);
             const rows = (data ?? []) as ActivityRow[];
             for (const row of rows) {
-              if (row.order_id && activityTouchesPackagingCost(row.details)) {
+              if (row.order_id && activityTouchesPackagingCost(row.action, row.details)) {
                 manualPackagingOrderIds.add(row.order_id);
               }
             }

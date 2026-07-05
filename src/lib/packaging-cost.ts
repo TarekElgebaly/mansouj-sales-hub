@@ -17,20 +17,15 @@ type PackagingCostLine = {
 };
 
 const EXCLUDED_PACKAGING_TERMS = [
-  "pillow",
-  "pillows",
-  "pillowcase",
-  "pillowcases",
-  "pillow case",
-  "pillow cases",
-  "duvet",
-  "duvets",
-  "لحاف",
-  "مخدة",
-  "مخدات",
-  "كيس مخدة",
-  "اكياس مخدات",
-  "أكياس مخدات",
+  /(?:^|[^a-z0-9])pillows?(?:[^a-z0-9]|$)/,
+  /(?:^|[^a-z0-9])pillow\s*cases?(?:[^a-z0-9]|$)/,
+  /(?:^|[^a-z0-9])pillowcases?(?:[^a-z0-9]|$)/,
+  /(?:^|[^a-z0-9])duvets?(?:[^a-z0-9]|$)/,
+  /لحاف/,
+  /مخده/,
+  /مخدات/,
+  /كيس مخده/,
+  /اكياس مخدات/,
 ];
 
 function normalizePackagingText(value: unknown) {
@@ -45,34 +40,27 @@ function normalizePackagingText(value: unknown) {
     .trim();
 }
 
-function lineSearchText(line: PackagingCostLine) {
+function lineSearchTexts(line: PackagingCostLine) {
   const tags = Array.isArray(line.tags) ? line.tags.join(" ") : line.tags;
-  return normalizePackagingText(
-    [
-      line.productName,
-      line.product_name,
-      line.title,
-      line.name,
-      line.variant,
-      line.variantName,
-      line.variant_title,
-      line.sku,
-      line.productType,
-      line.product_type,
-      line.category,
-      tags,
-    ]
-      .filter(Boolean)
-      .join(" "),
-  );
+  return [
+    line.productName,
+    line.product_name,
+    line.title,
+    line.name,
+    line.productType,
+    line.product_type,
+    line.category,
+    tags,
+    line.sku,
+  ]
+    .filter(Boolean)
+    .map(normalizePackagingText);
 }
 
 export function isPackagingExcludedProduct(line: PackagingCostLine) {
-  const text = lineSearchText(line);
-  if (!text) return false;
-  return EXCLUDED_PACKAGING_TERMS.some((term) =>
-    text.includes(normalizePackagingText(term)),
-  );
+  const texts = lineSearchTexts(line);
+  if (!texts.length) return false;
+  return texts.some((text) => EXCLUDED_PACKAGING_TERMS.some((term) => term.test(text)));
 }
 
 export function packagingEligibleQuantity(line: PackagingCostLine) {
