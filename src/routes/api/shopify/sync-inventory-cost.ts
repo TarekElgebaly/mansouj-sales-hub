@@ -211,6 +211,7 @@ function enrichInventoryLevelRow(
 
   return {
     ...row,
+    on_hand: graphQlQuantities.onHand,
     raw: {
       ...raw,
       graphql_available: graphQlQuantities.available,
@@ -506,6 +507,9 @@ export const Route = createFileRoute("/api/shopify/sync-inventory-cost")({
           api_version: apiVersion || null,
           shopify_write_calls: false,
           cost_source: "Shopify Admin GraphQL inventoryItems.unitCost",
+          on_hand_quantity_source:
+            inventoryLevelsWithOnHand > 0 ? "Shopify InventoryLevel quantities.on_hand" : "missing",
+          on_hand_fallback_used: false,
           ...extra,
         });
 
@@ -670,13 +674,6 @@ export const Route = createFileRoute("/api/shopify/sync-inventory-cost")({
             const onHandQuantity = inventoryItems.onHandByInventoryItemId.get(itemId);
             if (onHandQuantity != null) {
               quantityByInventoryItemId.set(itemId, onHandQuantity);
-              continue;
-            }
-
-            const availableQuantity = availableByInventoryItemId.get(itemId);
-            if (availableQuantity != null) {
-              quantityByInventoryItemId.set(itemId, availableQuantity);
-              variantOnHandQuantityFallbacks++;
             }
           }
           const variantInventoryUpdate = await updateVariantInventoryQuantities(
@@ -726,6 +723,11 @@ export const Route = createFileRoute("/api/shopify/sync-inventory-cost")({
             inventory_levels_processed: inventoryLevelsProcessed,
             inventory_levels_with_on_hand: inventoryLevelsWithOnHand,
             inventory_levels_missing_on_hand: inventoryLevelsMissingOnHand,
+            on_hand_quantity_source:
+              inventoryLevelsWithOnHand > 0
+                ? "Shopify InventoryLevel quantities.on_hand"
+                : "missing",
+            on_hand_fallback_used: false,
             variant_on_hand_quantities_processed: variantOnHandQuantitiesProcessed,
             variant_on_hand_quantities_updated: variantOnHandQuantitiesUpdated,
             variant_on_hand_quantity_fallbacks: variantOnHandQuantityFallbacks,

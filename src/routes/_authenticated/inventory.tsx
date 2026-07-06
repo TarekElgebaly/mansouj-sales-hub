@@ -47,6 +47,7 @@ type InventoryItem = {
 type InventoryLevel = {
   inventory_item_id: string;
   available: number | null;
+  on_hand: number | null;
 };
 
 type InventoryReportRow = {
@@ -60,6 +61,7 @@ type InventoryReportRow = {
   color: string | null;
   size: string | null;
   onHand: number;
+  onHandKnown: boolean;
   available: number | null;
   cost: number;
   salePrice: number;
@@ -125,7 +127,7 @@ function InventoryPage() {
           .select("inventory_item_id,unit_cost_amount,tracked"),
         (supabase as any)
           .from("shopify_inventory_levels")
-          .select("inventory_item_id,available"),
+          .select("inventory_item_id,available,on_hand"),
       ]);
 
       const variants = (variantsResult.data ?? []) as ShopifyVariant[];
@@ -136,11 +138,18 @@ function InventoryPage() {
         inventoryItems.map((item) => [item.inventory_item_id, Number(item.unit_cost_amount ?? 0)]),
       );
       const availableByInventoryItem = new Map<string, number>();
+      const onHandByInventoryItem = new Map<string, number>();
       for (const level of levels) {
         availableByInventoryItem.set(
           level.inventory_item_id,
           (availableByInventoryItem.get(level.inventory_item_id) ?? 0) + Number(level.available ?? 0),
         );
+        if (level.on_hand != null) {
+          onHandByInventoryItem.set(
+            level.inventory_item_id,
+            (onHandByInventoryItem.get(level.inventory_item_id) ?? 0) + Number(level.on_hand),
+          );
+        }
       }
 
       return variants.map((variant): InventoryReportRow => {
@@ -149,7 +158,12 @@ function InventoryPage() {
         const available = variant.inventory_item_id
           ? availableByInventoryItem.get(variant.inventory_item_id) ?? null
           : null;
-        const onHand = Number(variant.inventory_quantity ?? available ?? 0);
+        const onHandKnown = variant.inventory_item_id
+          ? onHandByInventoryItem.has(variant.inventory_item_id)
+          : false;
+        const onHand = variant.inventory_item_id
+          ? onHandByInventoryItem.get(variant.inventory_item_id) ?? 0
+          : 0;
         const cost = variant.inventory_item_id
           ? Number(costByInventoryItem.get(variant.inventory_item_id) ?? 0)
           : 0;
@@ -171,6 +185,7 @@ function InventoryPage() {
           color,
           size,
           onHand,
+          onHandKnown,
           available,
           cost,
           salePrice,
@@ -353,7 +368,7 @@ function InventoryPage() {
                       {[row.color, row.size].filter(Boolean).join(" · ") || "No size/color"}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right">{row.onHand}</TableCell>
+                  <TableCell className="text-right">{row.onHandKnown ? row.onHand : "—"}</TableCell>
                   <TableCell className="text-right">{row.available ?? "—"}</TableCell>
                   <TableCell className="text-right">{egp(row.cost)}</TableCell>
                   <TableCell className="text-right">{egp(row.salePrice)}</TableCell>

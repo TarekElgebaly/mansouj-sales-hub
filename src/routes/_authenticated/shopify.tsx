@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { fmtDateTime } from "@/lib/format";
+import { egp, fmtDateTime } from "@/lib/format";
 import {
   AlertCircle,
   CheckCircle2,
@@ -123,11 +123,62 @@ type InventoryCostSyncResult = {
   inventory_items_missing_cost: number;
   locations_processed: number;
   inventory_levels_processed: number;
+  inventory_levels_with_on_hand: number;
+  inventory_levels_missing_on_hand: number;
+  on_hand_quantity_source?: string | null;
+  on_hand_fallback_used?: boolean;
   variant_on_hand_quantities_processed: number;
   variant_on_hand_quantities_updated: number;
   variant_on_hand_quantity_fallbacks: number;
   failed_count: number;
   pages_fetched: number;
+};
+
+type InventorySourceRefreshResult = {
+  status: string;
+  variants_processed: number;
+  inventory_rows_created: number;
+  inventory_rows_updated: number;
+  stale_rows_marked: number;
+  missing_on_hand_count: number;
+  source: string;
+  sku_remaps_used: boolean;
+  shopify_write_calls: boolean;
+};
+
+type InventoryReconciliationRow = {
+  product_title: string;
+  variant_title: string | null;
+  sku: string;
+  shopify_variant_id: string;
+  inventory_item_id: string | null;
+  shopify_quantity: number;
+  mansouj_quantity: number | null;
+  difference: number;
+  shopify_cost: number;
+  mansouj_cost: number | null;
+  shopify_price: number;
+  mansouj_price: number | null;
+  product_status: string | null;
+  reason: string;
+};
+
+type InventoryReconciliationResult = {
+  product_status: string;
+  on_hand_missing_count: number;
+  shopify_total_skus: number;
+  mansouj_local_total_skus: number;
+  shopify_on_hand_quantity: number;
+  mansouj_on_hand_quantity: number;
+  difference_quantity: number;
+  shopify_inventory_cost_value: number;
+  mansouj_inventory_cost_value: number;
+  difference_cost_value: number;
+  shopify_retail_value: number;
+  mansouj_retail_value: number;
+  difference_retail_value: number;
+  mismatches_count: number;
+  mismatches: InventoryReconciliationRow[];
 };
 
 type UnmatchedSample = {
@@ -246,6 +297,8 @@ function ShopifyPage() {
   const [syncingBackfill, setSyncingBackfill] = useState(false);
   const [syncingProducts, setSyncingProducts] = useState(false);
   const [syncingInventoryCost, setSyncingInventoryCost] = useState(false);
+  const [refreshingInventorySource, setRefreshingInventorySource] = useState(false);
+  const [reconcilingInventory, setReconcilingInventory] = useState(false);
   const [resettingOrders, setResettingOrders] = useState(false);
   const [resetSyncing2026, setResetSyncing2026] = useState(false);
   const [resetResult, setResetResult] = useState<LocalOrdersResetResult | null>(null);
@@ -253,8 +306,14 @@ function ShopifyPage() {
   const [productSyncResult, setProductSyncResult] = useState<ProductSyncResult | null>(null);
   const [inventoryCostSyncResult, setInventoryCostSyncResult] =
     useState<InventoryCostSyncResult | null>(null);
+  const [inventorySourceRefreshResult, setInventorySourceRefreshResult] =
+    useState<InventorySourceRefreshResult | null>(null);
+  const [inventoryReconciliationResult, setInventoryReconciliationResult] =
+    useState<InventoryReconciliationResult | null>(null);
   const [productSyncError, setProductSyncError] = useState<string | null>(null);
   const [inventoryCostSyncError, setInventoryCostSyncError] = useState<string | null>(null);
+  const [inventorySourceRefreshError, setInventorySourceRefreshError] = useState<string | null>(null);
+  const [inventoryReconciliationError, setInventoryReconciliationError] = useState<string | null>(null);
   const [backfillingCosts, setBackfillingCosts] = useState(false);
   const [backfillResult, setBackfillResult] = useState<BackfillCostResult | null>(null);
   const [backfillError, setBackfillError] = useState<string | null>(null);
@@ -484,6 +543,10 @@ function ShopifyPage() {
         inventory_items_missing_cost: json.inventory_items_missing_cost ?? 0,
         locations_processed: json.locations_processed ?? 0,
         inventory_levels_processed: json.inventory_levels_processed ?? 0,
+        inventory_levels_with_on_hand: json.inventory_levels_with_on_hand ?? 0,
+        inventory_levels_missing_on_hand: json.inventory_levels_missing_on_hand ?? 0,
+        on_hand_quantity_source: json.on_hand_quantity_source ?? null,
+        on_hand_fallback_used: Boolean(json.on_hand_fallback_used),
         variant_on_hand_quantities_processed: json.variant_on_hand_quantities_processed ?? 0,
         variant_on_hand_quantities_updated: json.variant_on_hand_quantities_updated ?? 0,
         variant_on_hand_quantity_fallbacks: json.variant_on_hand_quantity_fallbacks ?? 0,
@@ -502,6 +565,102 @@ function ShopifyPage() {
       await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
     } finally {
       setSyncingInventoryCost(false);
+    }
+  };
+
+  const refreshInventorySourceOfTruth = async () => {
+    setRefreshingInventorySource(true);
+    setInventorySourceRefreshResult(null);
+    setInventorySourceRefreshError(null);
+    try {
+      const res = await fetch("/api/shopify/refresh-inventory-source-of-truth", {
+        method: "POST",
+        headers: {
+          ...(await authHeader()),
+          "Content-Type": "application/json",
+        },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error ?? "Inventory source-of-truth refresh failed.");
+      }
+
+      const result: InventorySourceRefreshResult = {
+        status: json.status ?? "success",
+        variants_processed: json.variants_processed ?? 0,
+        inventory_rows_created: json.inventory_rows_created ?? 0,
+        inventory_rows_updated: json.inventory_rows_updated ?? 0,
+        stale_rows_marked: json.stale_rows_marked ?? 0,
+        missing_on_hand_count: json.missing_on_hand_count ?? 0,
+        source: json.source ?? "synced_shopify_products_variants_inventory_levels",
+        sku_remaps_used: Boolean(json.sku_remaps_used),
+        shopify_write_calls: Boolean(json.shopify_write_calls),
+      };
+      setInventorySourceRefreshResult(result);
+      if (result.status === "partial") {
+        toast.warning(
+          `Inventory refreshed, but ${result.missing_on_hand_count} variants are missing Shopify on-hand quantity.`,
+        );
+      } else {
+        toast.success(`Inventory refreshed from Shopify source data: ${result.variants_processed} variants.`);
+      }
+      await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
+      await qc.invalidateQueries({ queryKey: ["shopify-inventory-report"] });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setInventorySourceRefreshError(message);
+      toast.error(message);
+      await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
+    } finally {
+      setRefreshingInventorySource(false);
+    }
+  };
+
+  const runInventoryReconciliation = async () => {
+    setReconcilingInventory(true);
+    setInventoryReconciliationResult(null);
+    setInventoryReconciliationError(null);
+    try {
+      const res = await fetch("/api/shopify/inventory-reconciliation", {
+        method: "POST",
+        headers: {
+          ...(await authHeader()),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ product_status: "active" }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) throw new Error(json.error ?? "Inventory reconciliation failed.");
+
+      const result: InventoryReconciliationResult = {
+        product_status: json.product_status ?? "active",
+        on_hand_missing_count: json.on_hand_missing_count ?? 0,
+        shopify_total_skus: json.shopify_total_skus ?? 0,
+        mansouj_local_total_skus: json.mansouj_local_total_skus ?? 0,
+        shopify_on_hand_quantity: json.shopify_on_hand_quantity ?? 0,
+        mansouj_on_hand_quantity: json.mansouj_on_hand_quantity ?? 0,
+        difference_quantity: json.difference_quantity ?? 0,
+        shopify_inventory_cost_value: json.shopify_inventory_cost_value ?? 0,
+        mansouj_inventory_cost_value: json.mansouj_inventory_cost_value ?? 0,
+        difference_cost_value: json.difference_cost_value ?? 0,
+        shopify_retail_value: json.shopify_retail_value ?? 0,
+        mansouj_retail_value: json.mansouj_retail_value ?? 0,
+        difference_retail_value: json.difference_retail_value ?? 0,
+        mismatches_count: json.mismatches_count ?? 0,
+        mismatches: Array.isArray(json.mismatches) ? json.mismatches : [],
+      };
+      setInventoryReconciliationResult(result);
+      if (result.mismatches_count > 0) {
+        toast.warning(`Inventory reconciliation found ${result.mismatches_count} mismatches.`);
+      } else {
+        toast.success("Inventory reconciliation matched Shopify for active products.");
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setInventoryReconciliationError(message);
+      toast.error(message);
+    } finally {
+      setReconcilingInventory(false);
     }
   };
 
@@ -1275,15 +1434,60 @@ function ShopifyPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Button
-                    onClick={syncInventoryCost}
-                    disabled={!canOps || syncingProducts || syncingInventoryCost}
-                  >
-                    <RefreshCw
-                      className={`mr-2 h-4 w-4 ${syncingInventoryCost ? "animate-spin" : ""}`}
-                    />
-                    Sync Inventory & Cost
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={syncInventoryCost}
+                      disabled={
+                        !canOps ||
+                        syncingProducts ||
+                        syncingInventoryCost ||
+                        refreshingInventorySource ||
+                        reconcilingInventory
+                      }
+                    >
+                      <RefreshCw
+                        className={`mr-2 h-4 w-4 ${syncingInventoryCost ? "animate-spin" : ""}`}
+                      />
+                      Sync Inventory & Cost
+                    </Button>
+                    <Button
+                      onClick={refreshInventorySourceOfTruth}
+                      disabled={
+                        !canOps ||
+                        syncingProducts ||
+                        syncingInventoryCost ||
+                        refreshingInventorySource ||
+                        reconcilingInventory
+                      }
+                      variant="secondary"
+                    >
+                      <RefreshCw
+                        className={`mr-2 h-4 w-4 ${refreshingInventorySource ? "animate-spin" : ""}`}
+                      />
+                      Refresh Inventory From Shopify Source of Truth
+                    </Button>
+                    <Button
+                      onClick={runInventoryReconciliation}
+                      disabled={
+                        !canOps ||
+                        syncingProducts ||
+                        syncingInventoryCost ||
+                        refreshingInventorySource ||
+                        reconcilingInventory
+                      }
+                      variant="outline"
+                    >
+                      <RefreshCw
+                        className={`mr-2 h-4 w-4 ${reconcilingInventory ? "animate-spin" : ""}`}
+                      />
+                      Inventory Reconciliation
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Flow: Sync Products → Sync Inventory & Cost → Refresh Inventory From Shopify
+                    Source of Truth → Inventory Reconciliation. The report uses Active products by
+                    default to match the Inventory page default filter.
+                  </p>
                   {!canOps && (
                     <p className="text-sm text-muted-foreground">
                       Admin or operations access is required to run this sync.
@@ -1292,6 +1496,16 @@ function ShopifyPage() {
                   {inventoryCostSyncError && (
                     <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                       {inventoryCostSyncError}
+                    </div>
+                  )}
+                  {inventorySourceRefreshError && (
+                    <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                      {inventorySourceRefreshError}
+                    </div>
+                  )}
+                  {inventoryReconciliationError && (
+                    <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                      {inventoryReconciliationError}
                     </div>
                   )}
                   {inventoryCostSyncResult && (
@@ -1317,6 +1531,18 @@ function ShopifyPage() {
                         value={String(inventoryCostSyncResult.inventory_levels_processed)}
                       />
                       <StatusItem
+                        label="Levels with on hand"
+                        value={String(inventoryCostSyncResult.inventory_levels_with_on_hand)}
+                      />
+                      <StatusItem
+                        label="Levels missing on hand"
+                        value={String(inventoryCostSyncResult.inventory_levels_missing_on_hand)}
+                      />
+                      <StatusItem
+                        label="On hand source"
+                        value={inventoryCostSyncResult.on_hand_quantity_source ?? "missing"}
+                      />
+                      <StatusItem
                         label="On hand checked"
                         value={String(inventoryCostSyncResult.variant_on_hand_quantities_processed)}
                       />
@@ -1325,8 +1551,8 @@ function ShopifyPage() {
                         value={String(inventoryCostSyncResult.variant_on_hand_quantities_updated)}
                       />
                       <StatusItem
-                        label="Available fallback"
-                        value={String(inventoryCostSyncResult.variant_on_hand_quantity_fallbacks)}
+                        label="Fallback used"
+                        value={inventoryCostSyncResult.on_hand_fallback_used ? "true" : "false"}
                       />
                       <StatusItem
                         label="Pages fetched"
@@ -1336,6 +1562,154 @@ function ShopifyPage() {
                         label="Failed"
                         value={String(inventoryCostSyncResult.failed_count)}
                       />
+                    </div>
+                  )}
+                  {inventorySourceRefreshResult && (
+                    <div className="space-y-3 rounded-md border bg-muted/30 p-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <StatusItem
+                          label="Variants processed"
+                          value={String(inventorySourceRefreshResult.variants_processed)}
+                        />
+                        <StatusItem
+                          label="Rows created"
+                          value={String(inventorySourceRefreshResult.inventory_rows_created)}
+                        />
+                        <StatusItem
+                          label="Rows updated"
+                          value={String(inventorySourceRefreshResult.inventory_rows_updated)}
+                        />
+                        <StatusItem
+                          label="Stale rows marked"
+                          value={String(inventorySourceRefreshResult.stale_rows_marked)}
+                        />
+                        <StatusItem
+                          label="Missing on hand"
+                          value={String(inventorySourceRefreshResult.missing_on_hand_count)}
+                        />
+                        <StatusItem
+                          label="SKU remaps used"
+                          value={inventorySourceRefreshResult.sku_remaps_used ? "true" : "false"}
+                        />
+                      </div>
+                      {inventorySourceRefreshResult.missing_on_hand_count > 0 && (
+                        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                          Shopify did not return on-hand quantity for some variants. Those rows are
+                          not filled from stale local inventory.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {inventoryReconciliationResult && (
+                    <div className="space-y-3 rounded-md border bg-muted/30 p-4">
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <StatusItem
+                          label="Product status"
+                          value={inventoryReconciliationResult.product_status}
+                        />
+                        <StatusItem
+                          label="Shopify total SKUs"
+                          value={String(inventoryReconciliationResult.shopify_total_skus)}
+                        />
+                        <StatusItem
+                          label="Mansouj local SKUs"
+                          value={String(inventoryReconciliationResult.mansouj_local_total_skus)}
+                        />
+                        <StatusItem
+                          label="Shopify on hand"
+                          value={String(inventoryReconciliationResult.shopify_on_hand_quantity)}
+                        />
+                        <StatusItem
+                          label="Mansouj on hand"
+                          value={String(inventoryReconciliationResult.mansouj_on_hand_quantity)}
+                        />
+                        <StatusItem
+                          label="Quantity difference"
+                          value={String(inventoryReconciliationResult.difference_quantity)}
+                        />
+                        <StatusItem
+                          label="Shopify inventory cost"
+                          value={egp(inventoryReconciliationResult.shopify_inventory_cost_value)}
+                        />
+                        <StatusItem
+                          label="Mansouj inventory cost"
+                          value={egp(inventoryReconciliationResult.mansouj_inventory_cost_value)}
+                        />
+                        <StatusItem
+                          label="Cost difference"
+                          value={egp(inventoryReconciliationResult.difference_cost_value)}
+                        />
+                        <StatusItem
+                          label="Shopify retail value"
+                          value={egp(inventoryReconciliationResult.shopify_retail_value)}
+                        />
+                        <StatusItem
+                          label="Mansouj retail value"
+                          value={egp(inventoryReconciliationResult.mansouj_retail_value)}
+                        />
+                        <StatusItem
+                          label="Retail difference"
+                          value={egp(inventoryReconciliationResult.difference_retail_value)}
+                        />
+                      </div>
+                      {inventoryReconciliationResult.on_hand_missing_count > 0 && (
+                        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                          Shopify did not return on-hand quantity for{" "}
+                          {inventoryReconciliationResult.on_hand_missing_count} active variants.
+                        </div>
+                      )}
+                      {inventoryReconciliationResult.mismatches.length > 0 && (
+                        <div className="overflow-x-auto rounded border max-h-96">
+                          <table className="w-full text-xs">
+                            <thead className="bg-muted/40 sticky top-0">
+                              <tr>
+                                <th className="px-2 py-1 text-left">Product</th>
+                                <th className="px-2 py-1 text-left">Variant</th>
+                                <th className="px-2 py-1 text-left">SKU</th>
+                                <th className="px-2 py-1 text-left">Variant ID</th>
+                                <th className="px-2 py-1 text-left">Inventory Item</th>
+                                <th className="px-2 py-1 text-right">Shopify Qty</th>
+                                <th className="px-2 py-1 text-right">Mansouj Qty</th>
+                                <th className="px-2 py-1 text-right">Diff</th>
+                                <th className="px-2 py-1 text-right">Shopify Cost</th>
+                                <th className="px-2 py-1 text-right">Mansouj Cost</th>
+                                <th className="px-2 py-1 text-right">Shopify Price</th>
+                                <th className="px-2 py-1 text-right">Mansouj Price</th>
+                                <th className="px-2 py-1 text-left">Status</th>
+                                <th className="px-2 py-1 text-left">Reason</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {inventoryReconciliationResult.mismatches.map((row, idx) => (
+                                <tr key={`${row.shopify_variant_id}-${idx}`} className="border-t">
+                                  <td className="px-2 py-1">{row.product_title}</td>
+                                  <td className="px-2 py-1">{row.variant_title ?? "—"}</td>
+                                  <td className="px-2 py-1 font-mono">{row.sku}</td>
+                                  <td className="px-2 py-1 font-mono">{row.shopify_variant_id}</td>
+                                  <td className="px-2 py-1 font-mono">
+                                    {row.inventory_item_id ?? "—"}
+                                  </td>
+                                  <td className="px-2 py-1 text-right">{row.shopify_quantity}</td>
+                                  <td className="px-2 py-1 text-right">
+                                    {row.mansouj_quantity ?? "—"}
+                                  </td>
+                                  <td className="px-2 py-1 text-right">{row.difference}</td>
+                                  <td className="px-2 py-1 text-right">{egp(row.shopify_cost)}</td>
+                                  <td className="px-2 py-1 text-right">
+                                    {row.mansouj_cost == null ? "—" : egp(row.mansouj_cost)}
+                                  </td>
+                                  <td className="px-2 py-1 text-right">{egp(row.shopify_price)}</td>
+                                  <td className="px-2 py-1 text-right">
+                                    {row.mansouj_price == null ? "—" : egp(row.mansouj_price)}
+                                  </td>
+                                  <td className="px-2 py-1">{row.product_status ?? "—"}</td>
+                                  <td className="px-2 py-1">{row.reason}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   )}
 
