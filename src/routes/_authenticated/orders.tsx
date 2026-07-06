@@ -156,6 +156,10 @@ function OrdersPage() {
   };
 
   const openOrder = orders?.find((o) => o.id === openId);
+  const openItemsSnapshot = useMemo(
+    () => (items ?? []).filter((item) => item.order_id === openId),
+    [items, openId],
+  );
   const { data: openItems, isLoading: openItemsLoading, error: openItemsError } = useQuery({
     queryKey: ["order-items", openId],
     enabled: !!openId,
@@ -174,6 +178,10 @@ function OrdersPage() {
       return Array.isArray(json.items) ? json.items : [];
     },
   });
+  const detailItems = openItems?.length ? openItems : openItemsSnapshot;
+  const detailItemsLoading = openItemsLoading && detailItems.length === 0;
+  const detailItemsError =
+    openItemsError instanceof Error && detailItems.length === 0 ? openItemsError.message : null;
 
   return (
     <AppShell title="Orders" search={search} onSearch={setSearch}
@@ -325,9 +333,9 @@ function OrdersPage() {
               </SheetHeader>
               <OrderDetail
                 order={openOrder}
-                items={openItems ?? []}
-                itemsLoading={openItemsLoading}
-                itemsError={openItemsError instanceof Error ? openItemsError.message : null}
+                items={detailItems}
+                itemsLoading={detailItemsLoading}
+                itemsError={detailItemsError}
                 onChanged={() => {
                 qc.invalidateQueries({ queryKey: ["orders"] });
                 qc.invalidateQueries({ queryKey: ["orders-finance"] });
