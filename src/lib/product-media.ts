@@ -1,8 +1,12 @@
 export type ProductMedia = {
   imageUrl: string | null;
+  shopifyVariantId?: string | null;
+  shopifyProductId?: string | null;
   productTitle?: string | null;
   variantTitle?: string | null;
   sku?: string | null;
+  barcode?: string | null;
+  productType?: string | null;
 };
 
 export type ShopifyProductLike = {
@@ -100,6 +104,8 @@ export function mediaFromVariant(row: ShopifyVariantLike): ProductMedia {
     : null;
 
   return {
+    shopifyVariantId: row.shopify_variant_id ?? null,
+    shopifyProductId: row.shopify_product_id ?? null,
     imageUrl:
       extractImageUrl(raw?.image) ??
       extractImageUrl(raw?.featured_image) ??
@@ -110,6 +116,8 @@ export function mediaFromVariant(row: ShopifyVariantLike): ProductMedia {
     productTitle: product?.title ?? null,
     variantTitle: row.title ?? [row.option1, row.option2, row.option3].filter(Boolean).join(" / "),
     sku: row.sku ?? null,
+    barcode: row.barcode ?? null,
+    productType: product?.product_type ?? null,
   };
 }
 
@@ -118,6 +126,7 @@ export function indexProductMedia(rows: ShopifyVariantLike[]) {
   const bySku = new Map<string, ProductMedia>();
   const bySkuNormalized = new Map<string, ProductMedia>();
   const byBarcode = new Map<string, ProductMedia>();
+  const byTitle = new Map<string, ProductMedia>();
 
   for (const row of rows) {
     const media = mediaFromVariant(row);
@@ -130,22 +139,40 @@ export function indexProductMedia(rows: ShopifyVariantLike[]) {
       byBarcode.set(row.barcode.trim(), media);
       bySkuNormalized.set(normalizeProductKey(row.barcode), media);
     }
+    const titleKey = productTitleKey(media.productTitle, media.variantTitle);
+    if (titleKey) byTitle.set(titleKey, media);
   }
 
-  return { byVariantId, bySku, bySkuNormalized, byBarcode };
+  return { byVariantId, bySku, bySkuNormalized, byBarcode, byTitle };
+}
+
+export function productTitleKey(
+  productTitle?: string | null,
+  variantTitle?: string | null,
+) {
+  const product = normalizeProductKey(productTitle);
+  const variant = normalizeProductKey(variantTitle);
+  return product || variant ? `${product}|${variant}` : "";
 }
 
 export function mediaForLineItem(
-  item: { sku?: string | null; product_name?: string | null; variant?: string | null },
+  item: {
+    sku?: string | null;
+    product_name?: string | null;
+    variant?: string | null;
+    shopify_variant_id?: string | null;
+  },
   index: ReturnType<typeof indexProductMedia>,
 ) {
   const sku = String(item.sku ?? "").trim();
   const variantId = variantIdFromSku(sku);
   return (
+    (item.shopify_variant_id ? index.byVariantId.get(String(item.shopify_variant_id)) : null) ??
     (variantId ? index.byVariantId.get(variantId) : null) ??
     index.bySku.get(sku) ??
     index.bySkuNormalized.get(normalizeProductKey(sku)) ??
     index.byBarcode.get(sku) ??
+    index.byTitle.get(productTitleKey(item.product_name, item.variant)) ??
     null
   );
 }

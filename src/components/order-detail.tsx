@@ -140,22 +140,27 @@ export function OrderDetail({ order, items, onChanged }: { order: any; items: an
                   const lineTotal = it.total_selling_price == null
                     ? (unitPrice == null ? null : unitPrice * qty)
                     : Number(it.total_selling_price);
-                  const variantLabel = it.variant ?? [it.color, it.size].filter(Boolean).join(" · ");
                   const media = productMedia.byItemId.get(it.id);
+                  const currentSku = media?.sku || it.sku;
+                  const currentProductName = media?.productTitle || it.product_name;
+                  const variantLabel =
+                    media?.variantTitle ||
+                    it.variant ||
+                    [it.color, it.size].filter(Boolean).join(" · ");
                   return (
                     <TableRow key={it.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <ProductThumb src={media?.imageUrl} alt={it.product_name} />
+                          <ProductThumb src={media?.imageUrl} alt={currentProductName} />
                           <div>
-                            <div className="font-medium">{it.product_name ?? media?.productTitle ?? "—"}</div>
+                            <div className="font-medium">{currentProductName ?? "—"}</div>
                             <div className="text-xs text-muted-foreground">
-                              {variantLabel || media?.variantTitle || "No variant"}
+                              {variantLabel || "No variant"}
                             </div>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{it.sku && String(it.sku).trim() ? it.sku : "—"}</TableCell>
+                      <TableCell className="font-mono text-xs">{currentSku && String(currentSku).trim() ? currentSku : "—"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{variantLabel || "—"}</TableCell>
                       <TableCell className="text-right">{qty}</TableCell>
                       <TableCell className="text-right">{money(unitPrice)}</TableCell>

@@ -272,11 +272,17 @@ export type Database = {
         Row: {
           color: string | null
           created_at: string
+          barcode: string | null
           id: string
           order_id: string
           product_name: string
+          product_type: string | null
           quantity: number
           size: string | null
+          shopify_admin_graphql_api_id: string | null
+          shopify_line_item_id: string | null
+          shopify_product_id: string | null
+          shopify_variant_id: string | null
           sku: string
           total_cost: number | null
           total_selling_price: number | null
@@ -287,11 +293,17 @@ export type Database = {
         Insert: {
           color?: string | null
           created_at?: string
+          barcode?: string | null
           id?: string
           order_id: string
           product_name: string
+          product_type?: string | null
           quantity?: number
           size?: string | null
+          shopify_admin_graphql_api_id?: string | null
+          shopify_line_item_id?: string | null
+          shopify_product_id?: string | null
+          shopify_variant_id?: string | null
           sku: string
           total_cost?: number | null
           total_selling_price?: number | null
@@ -302,11 +314,17 @@ export type Database = {
         Update: {
           color?: string | null
           created_at?: string
+          barcode?: string | null
           id?: string
           order_id?: string
           product_name?: string
+          product_type?: string | null
           quantity?: number
           size?: string | null
+          shopify_admin_graphql_api_id?: string | null
+          shopify_line_item_id?: string | null
+          shopify_product_id?: string | null
+          shopify_variant_id?: string | null
           sku?: string
           total_cost?: number | null
           total_selling_price?: number | null

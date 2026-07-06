@@ -185,12 +185,25 @@ type ForceUpdateCostResult = {
   mismatch_reasons: Record<string, number>;
 };
 
+type RefreshOrderItemProductDataResult = {
+  status: string;
+  items_checked: number;
+  items_updated: number;
+  items_skipped: number;
+  missing_match: number;
+  failed_count: number;
+  match_counts: Record<string, number>;
+  mismatch_reasons: Record<string, number>;
+};
+
 const RESET_CONFIRMATION_MESSAGE =
   "This will delete ALL orders from Mansouj Sales Hub only. It will NOT delete anything from Shopify. Continue?";
 const RESET_SYNC_2026_CONFIRMATION_MESSAGE =
   "This will delete ALL local orders from Mansouj Sales Hub and then import only Shopify orders created in 2026. It will NOT delete anything from Shopify. Continue?";
 const FORCE_UPDATE_COSTS_CONFIRMATION_MESSAGE =
   "This will overwrite existing local order item costs with the latest synced Shopify costs. It will NOT change Shopify, selling price, shipping cost, packaging cost, statuses, notes, or customer data. Continue?";
+const REFRESH_PRODUCT_DATA_CONFIRMATION_MESSAGE =
+  "This will refresh local order item SKU, product title, variant title, barcode, and product type from the latest synced Shopify product data. It will NOT change quantities, selling prices, costs, shipping, packaging, statuses, notes, or Shopify data. Continue?";
 
 function csvEscape(v: string | number | null | undefined): string {
   if (v === null || v === undefined) return "";
@@ -248,6 +261,10 @@ function ShopifyPage() {
   const [forcingCostUpdate, setForcingCostUpdate] = useState(false);
   const [forceCostResult, setForceCostResult] = useState<ForceUpdateCostResult | null>(null);
   const [forceCostError, setForceCostError] = useState<string | null>(null);
+  const [refreshingProductData, setRefreshingProductData] = useState(false);
+  const [refreshProductDataResult, setRefreshProductDataResult] =
+    useState<RefreshOrderItemProductDataResult | null>(null);
+  const [refreshProductDataError, setRefreshProductDataError] = useState<string | null>(null);
   const [recalcingOrderCosts, setRecalcingOrderCosts] = useState(false);
   const [recalcResult, setRecalcResult] = useState<{
     orders_checked: number;
@@ -592,6 +609,58 @@ function ShopifyPage() {
       toast.error(message);
     } finally {
       setForcingCostUpdate(false);
+    }
+  };
+
+  const refreshOrderItemProductData = async () => {
+    if (!window.confirm(REFRESH_PRODUCT_DATA_CONFIRMATION_MESSAGE)) return;
+
+    setRefreshingProductData(true);
+    setRefreshProductDataResult(null);
+    setRefreshProductDataError(null);
+    try {
+      const res = await fetch("/api/shopify/refresh-order-item-product-data", {
+        method: "POST",
+        headers: {
+          ...(await authHeader()),
+          "Content-Type": "application/json",
+        },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.status === "error") {
+        throw new Error(json.error ?? "Product data refresh failed.");
+      }
+
+      const result: RefreshOrderItemProductDataResult = {
+        status: json.status ?? "success",
+        items_checked: json.items_checked ?? 0,
+        items_updated: json.items_updated ?? 0,
+        items_skipped: json.items_skipped ?? 0,
+        missing_match: json.missing_match ?? 0,
+        failed_count: json.failed_count ?? 0,
+        match_counts: json.match_counts ?? {},
+        mismatch_reasons: json.mismatch_reasons ?? {},
+      };
+      setRefreshProductDataResult(result);
+      if (result.status === "partial") {
+        toast.warning(
+          `Product data refresh finished with ${result.failed_count} failures: ${result.items_updated} items updated.`,
+        );
+      } else {
+        toast.success(`Product data refresh finished: ${result.items_updated} items updated.`);
+      }
+      await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
+      await qc.invalidateQueries({ queryKey: ["orders"] });
+      await qc.invalidateQueries({ queryKey: ["orders-all"] });
+      await qc.invalidateQueries({ queryKey: ["orders-finance"] });
+      await qc.invalidateQueries({ queryKey: ["order-items"] });
+      await qc.invalidateQueries({ queryKey: ["product-media"] });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setRefreshProductDataError(message);
+      toast.error(message);
+    } finally {
+      setRefreshingProductData(false);
     }
   };
 
@@ -1103,6 +1172,95 @@ function ShopifyPage() {
                       </div>
                     </div>
                   )}
+
+                  <div className="border-t pt-4 space-y-3">
+                    <div>
+                      <h4 className="text-sm font-medium">Refresh Order Item Product Data</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Updates existing local order items to display the latest synced Shopify SKU,
+                        product title, variant title, barcode, and product type. Does not change
+                        quantities, selling prices, costs, shipping, packaging, statuses, notes, or
+                        Shopify data.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={refreshOrderItemProductData}
+                      disabled={!canOps || refreshingProductData || syncingProducts}
+                      variant="secondary"
+                    >
+                      <RefreshCw
+                        className={`mr-2 h-4 w-4 ${refreshingProductData ? "animate-spin" : ""}`}
+                      />
+                      Refresh Order Item Product Data
+                    </Button>
+                    {refreshProductDataError && (
+                      <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                        {refreshProductDataError}
+                      </div>
+                    )}
+                    {refreshProductDataResult && (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <StatusItem
+                          label="Items checked"
+                          value={String(refreshProductDataResult.items_checked)}
+                        />
+                        <StatusItem
+                          label="Items updated"
+                          value={String(refreshProductDataResult.items_updated)}
+                        />
+                        <StatusItem
+                          label="Items skipped"
+                          value={String(refreshProductDataResult.items_skipped)}
+                        />
+                        <StatusItem
+                          label="Missing match"
+                          value={String(refreshProductDataResult.missing_match)}
+                        />
+                        <StatusItem
+                          label="Failed"
+                          value={String(refreshProductDataResult.failed_count)}
+                        />
+                      </div>
+                    )}
+                    {refreshProductDataResult &&
+                      Object.keys(refreshProductDataResult.match_counts).length > 0 && (
+                        <div className="space-y-2">
+                          <h5 className="text-sm font-medium">Product data match summary</h5>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {Object.entries(refreshProductDataResult.match_counts).map(
+                              ([reason, count]) => (
+                                <div
+                                  key={reason}
+                                  className="flex items-center justify-between rounded border px-3 py-2 text-xs"
+                                >
+                                  <span className="text-muted-foreground">{reason}</span>
+                                  <span className="font-mono">{count}</span>
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    {refreshProductDataResult &&
+                      Object.keys(refreshProductDataResult.mismatch_reasons).length > 0 && (
+                        <div className="space-y-2">
+                          <h5 className="text-sm font-medium">Unmatched product data reasons</h5>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {Object.entries(refreshProductDataResult.mismatch_reasons).map(
+                              ([reason, count]) => (
+                                <div
+                                  key={reason}
+                                  className="flex items-center justify-between rounded border px-3 py-2 text-xs"
+                                >
+                                  <span className="text-muted-foreground">{reason}</span>
+                                  <span className="font-mono">{count}</span>
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      )}
+                  </div>
                 </CardContent>
               </Card>
 

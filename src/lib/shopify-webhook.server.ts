@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { calculatePackagingCost } from "@/lib/packaging-cost";
+import { mediaFromVariant, type ShopifyVariantLike } from "@/lib/product-media";
 
 export function verifyShopifyHmac(rawBody: string, hmacHeader: string | null): boolean {
   const secret = process.env.SHOPIFY_WEBHOOK_SECRET;
@@ -39,6 +40,7 @@ type ShopifyLineItem = {
   discounted_price?: string | null;
   total_discount?: string | null;
   variant_id?: number | string | null;
+  product_id?: number | string | null;
   properties?: Array<{ name: string; value: string }> | null;
 };
 
@@ -96,8 +98,13 @@ type PreparedLineItem = {
   variant: string | null;
   quantity: number;
   unitSellingPrice: number;
+  lineItemId: string | null;
+  adminGraphqlApiId: string | null;
   variantId: string | null;
+  productId: string | null;
   inventoryItemId: string | null;
+  barcode: string | null;
+  productType: string | null;
   color: string | null;
   size: string | null;
 };
@@ -251,8 +258,13 @@ function prepareLineItems(
       variant,
       quantity,
       unitSellingPrice: lineItemUnitSellingPrice(line, quantity),
+      lineItemId: line.id == null ? null : String(line.id),
+      adminGraphqlApiId: line.admin_graphql_api_id ?? null,
       variantId: line.variant_id == null ? null : String(line.variant_id),
+      productId: line.product_id == null ? null : String(line.product_id),
       inventoryItemId: null,
+      barcode: null,
+      productType: null,
       color,
       size,
     });
@@ -318,6 +330,60 @@ function addCost(map: Map<string, number>, key: string | null | undefined, value
   const cost = toNumber(value);
   if (!key || cost <= 0) return;
   map.set(key, cost);
+}
+
+function productFromVariantRelation(row: ShopifyVariantLike) {
+  const relation = row.shopify_products;
+  return Array.isArray(relation) ? relation[0] ?? null : relation ?? null;
+}
+
+function cleanVariantTitle(value: string | null | undefined) {
+  const title = String(value ?? "").trim();
+  if (!title || title.toLowerCase() === "default title") return null;
+  return title;
+}
+
+async function enrichLineItemsWithCurrentShopifyProductData(
+  supabaseAdmin: any,
+  currentItems: PreparedLineItem[],
+) {
+  const variantIds = Array.from(
+    new Set(currentItems.map((item) => item.variantId).filter(Boolean) as string[]),
+  );
+  if (!variantIds.length) return;
+
+  const variantRows = await safeReadTable<ShopifyVariantLike>(
+    supabaseAdmin
+      .from("shopify_variants")
+      .select(
+        "shopify_variant_id,shopify_product_id,sku,barcode,title,inventory_item_id,option1,option2,option3,raw,shopify_products(title,product_type,image,raw)",
+      )
+      .in("shopify_variant_id", variantIds),
+  );
+  const variantById = new Map(
+    variantRows.map((row) => [String(row.shopify_variant_id), row]),
+  );
+
+  for (const item of currentItems) {
+    const row = item.variantId ? variantById.get(item.variantId) : null;
+    if (!row) continue;
+
+    const media = mediaFromVariant(row);
+    const product = productFromVariantRelation(row);
+    const currentSku = row.sku?.trim();
+    const variantTitle = cleanVariantTitle(media.variantTitle);
+
+    item.sku = currentSku || item.sku;
+    item.productName = media.productTitle || item.productName;
+    item.variant = variantTitle ?? item.variant;
+    item.productId = row.shopify_product_id ? String(row.shopify_product_id) : item.productId;
+    item.inventoryItemId = row.inventory_item_id ? String(row.inventory_item_id) : item.inventoryItemId;
+    item.barcode = row.barcode ?? item.barcode;
+    item.productType = media.productType ?? product?.product_type ?? item.productType;
+    item.color = item.color ?? row.option1 ?? null;
+    item.size = item.size ?? row.option2 ?? row.option3 ?? null;
+    item.fallbackKey = fallbackItemKey(item.sku, item.variant, item.productName);
+  }
 }
 
 async function resolveLineItemCosts(
@@ -522,6 +588,7 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     orderNumber,
     isCancelled,
   );
+  await enrichLineItemsWithCurrentShopifyProductData(supabaseAdmin, currentItems);
 
   const totalSelling = isCancelled ? 0 : currentOrderTotal(payload, currentItems);
   const shipCost = existingOrder
@@ -607,9 +674,15 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     const rows = currentItems.map((item, index) => {
       return {
         order_id: orderId,
+        shopify_line_item_id: item.lineItemId,
+        shopify_admin_graphql_api_id: item.adminGraphqlApiId,
+        shopify_variant_id: item.variantId,
+        shopify_product_id: item.productId,
         sku: item.sku,
         product_name: item.productName,
         variant: item.variant,
+        barcode: item.barcode,
+        product_type: item.productType,
         color: item.color,
         size: item.size,
         quantity: item.quantity,

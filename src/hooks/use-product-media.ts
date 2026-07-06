@@ -10,9 +10,15 @@ import {
 } from "@/lib/product-media";
 
 const VARIANT_SELECT =
-  "shopify_variant_id,shopify_product_id,sku,barcode,title,option1,option2,option3,raw,shopify_products(title,image,raw)";
+  "shopify_variant_id,shopify_product_id,sku,barcode,title,option1,option2,option3,raw,shopify_products(title,product_type,image,raw)";
 
-export function useProductMedia<T extends { id?: string; sku?: string | null; product_name?: string | null; variant?: string | null }>(
+export function useProductMedia<T extends {
+  id?: string;
+  sku?: string | null;
+  product_name?: string | null;
+  variant?: string | null;
+  shopify_variant_id?: string | null;
+}>(
   items: T[] | null | undefined,
 ) {
   const keys = useMemo(() => {
@@ -26,7 +32,11 @@ export function useProductMedia<T extends { id?: string; sku?: string | null; pr
       ),
     );
     const variantIds = Array.from(
-      new Set(source.map((item) => variantIdFromSku(item.sku)).filter(Boolean) as string[]),
+      new Set(
+        source
+          .flatMap((item) => [item.shopify_variant_id, variantIdFromSku(item.sku)])
+          .filter(Boolean) as string[],
+      ),
     );
     return { skus, variantIds };
   }, [items]);
