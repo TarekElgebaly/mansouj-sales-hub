@@ -24,6 +24,8 @@ export function OrderDetail({
   itemsError = null,
   restoringLineItems = false,
   onRestoreLineItems,
+  refreshingLineItems = false,
+  onRefreshLineItems,
   onChanged,
 }: {
   order: any;
@@ -32,6 +34,8 @@ export function OrderDetail({
   itemsError?: string | null;
   restoringLineItems?: boolean;
   onRestoreLineItems?: () => void;
+  refreshingLineItems?: boolean;
+  onRefreshLineItems?: () => void;
   onChanged?: () => void;
 }) {
   const [confirm, setConfirm] = useState(order.confirmation_status);
@@ -131,7 +135,20 @@ export function OrderDetail({
       </div>
 
       <div>
-        <Label className="mb-1 block">Items</Label>
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <Label>Items</Label>
+          {onRefreshLineItems && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onRefreshLineItems}
+              disabled={refreshingLineItems || restoringLineItems}
+            >
+              {refreshingLineItems ? "Refreshing..." : "Refresh Line Item Details from Shopify Order"}
+            </Button>
+          )}
+        </div>
         {itemsLoading ? (
           <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground text-center">
             Loading line items...

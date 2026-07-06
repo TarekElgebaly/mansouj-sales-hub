@@ -4,12 +4,16 @@ import {
   fetchShopifyWithRetry,
   getShopifyAdminConfig,
   shopifyHeaders,
+  toNullableDate,
+  toNullableNumber,
+  upsertRows,
 } from "@/lib/shopify-sync.server";
 
 type RestoreBody = {
   order_id?: string;
   order_number?: string;
   shopify_order_id?: string | number;
+  refresh_details?: boolean;
 };
 
 type ShopifyOrderLineItem = {
@@ -26,6 +30,38 @@ type ShopifyOrderLineItem = {
   price?: number | string | null;
 };
 
+type ShopifyVariant = {
+  id: number | string;
+  product_id: number | string;
+  title?: string | null;
+  sku?: string | null;
+  barcode?: string | null;
+  price?: string | number | null;
+  compare_at_price?: string | number | null;
+  inventory_item_id?: number | string | null;
+  inventory_quantity?: number | null;
+  option1?: string | null;
+  option2?: string | null;
+  option3?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type ShopifyProduct = {
+  id: number | string;
+  title?: string | null;
+  handle?: string | null;
+  vendor?: string | null;
+  product_type?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  image?: unknown;
+  images?: unknown[];
+  options?: unknown[];
+  variants?: ShopifyVariant[];
+};
+
 type ShopifyOrderResponse = {
   order?: {
     id?: number | string | null;
@@ -33,6 +69,10 @@ type ShopifyOrderResponse = {
     order_number?: number | string | null;
     line_items?: ShopifyOrderLineItem[] | null;
   } | null;
+};
+
+type ShopifyProductResponse = {
+  product?: ShopifyProduct | null;
 };
 
 function stringValue(value: unknown) {
@@ -67,13 +107,12 @@ function buildFallbackSku(line: ShopifyOrderLineItem) {
   return lineId ? `shopify-line-${lineId}` : "shopify-line-item";
 }
 
-function baseOrderItemRow(orderId: string, line: ShopifyOrderLineItem) {
+function orderItemPayload(line: ShopifyOrderLineItem) {
   const quantity = lineQuantity(line);
   const unitPrice = numberValue(line.price);
   const variantTitle = stringValue(line.variant_title);
 
   return {
-    order_id: orderId,
     sku: buildFallbackSku(line),
     product_name: stringValue(line.title) || stringValue(line.name) || "Shopify line item",
     variant: variantTitle || null,
@@ -81,7 +120,14 @@ function baseOrderItemRow(orderId: string, line: ShopifyOrderLineItem) {
     size: variantTitle || null,
     quantity,
     unit_selling_price: unitPrice,
-    unit_cost: 0,
+  };
+}
+
+function baseOrderItemRow(orderId: string, line: ShopifyOrderLineItem, unitCost = 0) {
+  return {
+    order_id: orderId,
+    ...orderItemPayload(line),
+    unit_cost: unitCost,
   };
 }
 
@@ -127,6 +173,35 @@ async function insertOrderItems(supabaseAdmin: any, rows: Record<string, unknown
   }
 }
 
+async function updateOrderItem(
+  supabaseAdmin: any,
+  itemId: string,
+  line: ShopifyOrderLineItem,
+) {
+  const patch = {
+    ...orderItemPayload(line),
+    shopify_line_item_id: stringValue(line.id) || null,
+    shopify_admin_graphql_api_id: stringValue(line.admin_graphql_api_id) || null,
+    shopify_variant_id: stringValue(line.variant_id) || null,
+    shopify_product_id: stringValue(line.product_id) || null,
+  };
+
+  const { error } = await supabaseAdmin.from("order_items").update(patch as never).eq("id", itemId);
+  if (!error) return;
+
+  if (!isSchemaError(error)) {
+    throw new Error(`Could not update order line item details: ${error.message}`);
+  }
+
+  const fallback = await supabaseAdmin
+    .from("order_items")
+    .update(orderItemPayload(line) as never)
+    .eq("id", itemId);
+  if (fallback.error) {
+    throw new Error(`Could not update order line item details: ${fallback.error.message}`);
+  }
+}
+
 async function copySiblingItems(supabaseAdmin: any, targetOrderId: string, siblingOrderIds: string[]) {
   if (!siblingOrderIds.length) return { copied: 0, source_order_id: null as string | null };
 
@@ -157,6 +232,48 @@ async function copySiblingItems(supabaseAdmin: any, targetOrderId: string, sibli
   return { copied: rows.length, source_order_id: sourceOrderId };
 }
 
+function productRow(product: ShopifyProduct) {
+  return {
+    shopify_product_id: String(product.id),
+    title: product.title || "Untitled product",
+    handle: product.handle ?? null,
+    vendor: product.vendor ?? null,
+    product_type: product.product_type ?? null,
+    status: product.status ?? null,
+    shopify_created_at: toNullableDate(product.created_at),
+    shopify_updated_at: toNullableDate(product.updated_at),
+    image: product.image ?? product.images?.[0] ?? null,
+    raw: product,
+  };
+}
+
+function variantRow(product: ShopifyProduct, variant: ShopifyVariant) {
+  return {
+    shopify_variant_id: String(variant.id),
+    shopify_product_id: String(product.id),
+    title: variant.title ?? null,
+    sku: variant.sku || null,
+    barcode: variant.barcode || null,
+    price: toNullableNumber(variant.price),
+    compare_at_price: toNullableNumber(variant.compare_at_price),
+    inventory_item_id:
+      variant.inventory_item_id == null ? null : String(variant.inventory_item_id),
+    inventory_quantity: variant.inventory_quantity ?? null,
+    option1: variant.option1 ?? null,
+    option2: variant.option2 ?? null,
+    option3: variant.option3 ?? null,
+    options: {
+      option1: variant.option1 ?? null,
+      option2: variant.option2 ?? null,
+      option3: variant.option3 ?? null,
+      product_options: product.options ?? [],
+    },
+    shopify_created_at: toNullableDate(variant.created_at),
+    shopify_updated_at: toNullableDate(variant.updated_at),
+    raw: variant,
+  };
+}
+
 async function fetchShopifyOrder(shopifyOrderId: string) {
   const config = getShopifyAdminConfig();
   if (!config.ok) throw new Error(config.error);
@@ -179,6 +296,138 @@ async function fetchShopifyOrder(shopifyOrderId: string) {
   return json.order ?? null;
 }
 
+async function fetchShopifyProduct(
+  config: Extract<ReturnType<typeof getShopifyAdminConfig>, { ok: true }>,
+  productId: string,
+) {
+  const url = `https://${config.domain}/admin/api/${config.apiVersion}/products/${encodeURIComponent(productId)}.json`;
+  const res = await fetchShopifyWithRetry(url, shopifyHeaders(config.accessToken));
+  if (!res.ok) return null;
+  const json = (await res.json()) as ShopifyProductResponse;
+  return json.product ?? null;
+}
+
+async function syncProductSnapshotsForLineItems(
+  supabaseAdmin: any,
+  lineItems: ShopifyOrderLineItem[],
+) {
+  const config = getShopifyAdminConfig();
+  if (!config.ok) return { products_synced: 0, variants_synced: 0 };
+
+  const productIds = Array.from(
+    new Set(lineItems.map((line) => stringValue(line.product_id)).filter(Boolean)),
+  );
+  const products: ShopifyProduct[] = [];
+
+  for (const productId of productIds) {
+    const product = await fetchShopifyProduct(config, productId);
+    if (product) products.push(product);
+  }
+
+  if (!products.length) return { products_synced: 0, variants_synced: 0 };
+
+  const productRows = products.map(productRow);
+  const variantRows = products.flatMap((product) =>
+    (product.variants ?? []).map((variant) => variantRow(product, variant)),
+  );
+
+  await upsertRows(supabaseAdmin, "shopify_products", productRows, "shopify_product_id");
+  await upsertRows(supabaseAdmin, "shopify_variants", variantRows, "shopify_variant_id");
+
+  return { products_synced: productRows.length, variants_synced: variantRows.length };
+}
+
+type ExistingOrderItem = {
+  id: string;
+  sku: string | null;
+  product_name: string | null;
+  variant: string | null;
+  unit_cost: number | null;
+  shopify_line_item_id?: string | null;
+  shopify_variant_id?: string | null;
+  shopify_product_id?: string | null;
+};
+
+function firstUniqueMatch(
+  line: ShopifyOrderLineItem,
+  items: ExistingOrderItem[],
+  usedItemIds: Set<string>,
+  column: keyof ExistingOrderItem,
+  value: string,
+) {
+  if (!value) return null;
+  const matches = items.filter((item) => !usedItemIds.has(item.id) && stringValue(item[column]) === value);
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function matchExistingItem(
+  line: ShopifyOrderLineItem,
+  items: ExistingOrderItem[],
+  usedItemIds: Set<string>,
+) {
+  return (
+    firstUniqueMatch(line, items, usedItemIds, "shopify_line_item_id", stringValue(line.id)) ??
+    firstUniqueMatch(line, items, usedItemIds, "shopify_variant_id", stringValue(line.variant_id)) ??
+    firstUniqueMatch(line, items, usedItemIds, "shopify_product_id", stringValue(line.product_id)) ??
+    firstUniqueMatch(line, items, usedItemIds, "sku", stringValue(line.sku))
+  );
+}
+
+async function refreshOrderItemsFromShopifyOrder(
+  supabaseAdmin: any,
+  orderId: string,
+  lineItems: ShopifyOrderLineItem[],
+) {
+  const { data, error } = await supabaseAdmin
+    .from("order_items")
+    .select(
+      "id,sku,product_name,variant,unit_cost,shopify_line_item_id,shopify_variant_id,shopify_product_id",
+    )
+    .eq("order_id", orderId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw new Error(`Could not load local order line items: ${error.message}`);
+
+  const existingItems = (data ?? []) as ExistingOrderItem[];
+  const usedItemIds = new Set<string>();
+  let updated = 0;
+  let inserted = 0;
+
+  for (const line of lineItems) {
+    const match = matchExistingItem(line, existingItems, usedItemIds);
+    if (match) {
+      usedItemIds.add(match.id);
+      await updateOrderItem(supabaseAdmin, match.id, line);
+      updated++;
+    } else {
+      await insertOrderItems(supabaseAdmin, [
+        enhancedOrderItemRow(orderId, line),
+      ]);
+      inserted++;
+    }
+  }
+
+  const staleIds = existingItems
+    .filter((item) => !usedItemIds.has(item.id))
+    .map((item) => item.id);
+
+  if (staleIds.length) {
+    const { error: deleteError } = await supabaseAdmin
+      .from("order_items")
+      .delete()
+      .in("id", staleIds);
+    if (deleteError) throw new Error(`Could not remove stale local line items: ${deleteError.message}`);
+  }
+
+  return {
+    updated,
+    inserted,
+    stale_removed: staleIds.length,
+    checked: existingItems.length,
+    shopify_line_items: lineItems.length,
+  };
+}
+
 export const Route = createFileRoute("/api/orders/restore-line-items")({
   server: {
     handlers: {
@@ -196,6 +445,7 @@ export const Route = createFileRoute("/api/orders/restore-line-items")({
         const requestedOrderId = stringValue(body.order_id);
         const requestedShopifyOrderId = stringValue(body.shopify_order_id);
         const requestedOrderNumber = normalizeOrderNumber(body.order_number);
+        const refreshDetails = body.refresh_details === true;
 
         if (!requestedOrderId && !requestedShopifyOrderId && !requestedOrderNumber) {
           return Response.json(
@@ -282,7 +532,7 @@ export const Route = createFileRoute("/api/orders/restore-line-items")({
           duplicateItemCounts[siblingId] = count ?? 0;
         }
 
-        if ((existingItemsCount ?? 0) > 0) {
+        if ((existingItemsCount ?? 0) > 0 && !refreshDetails) {
           return Response.json({
             ok: true,
             restored: false,
@@ -301,34 +551,45 @@ export const Route = createFileRoute("/api/orders/restore-line-items")({
           });
         }
 
-        const copied = await copySiblingItems(auth.supabaseAdmin, targetOrder.id, Array.from(siblingIds));
-        if (copied.copied > 0) {
-          return Response.json({
-            ok: true,
-            restored: true,
-            restored_from: "sibling_order_items",
-            restored_items_count: copied.copied,
-            source_order_id: copied.source_order_id,
-            order_id: targetOrder.id,
-            order_number: targetOrder.order_number,
-            shopify_order_id: targetOrder.shopify_order_id,
-            duplicate_orders_count: siblingIds.size,
-            duplicate_item_counts: duplicateItemCounts,
-            changed_order_totals: false,
-            changed_shipping_cost: false,
-            changed_packaging_cost: false,
-            changed_status: false,
-            changed_customer: false,
-          });
-        }
-
         const shopifyOrderId = stringValue(targetOrder.shopify_order_id || requestedShopifyOrderId);
-        if (!shopifyOrderId) {
+        if (!shopifyOrderId && !refreshDetails) {
+          const copied = await copySiblingItems(auth.supabaseAdmin, targetOrder.id, Array.from(siblingIds));
+          if (copied.copied > 0) {
+            return Response.json({
+              ok: true,
+              restored: true,
+              restored_from: "sibling_order_items",
+              restored_items_count: copied.copied,
+              source_order_id: copied.source_order_id,
+              order_id: targetOrder.id,
+              order_number: targetOrder.order_number,
+              shopify_order_id: targetOrder.shopify_order_id,
+              duplicate_orders_count: siblingIds.size,
+              duplicate_item_counts: duplicateItemCounts,
+              changed_order_totals: false,
+              changed_shipping_cost: false,
+              changed_packaging_cost: false,
+              changed_status: false,
+              changed_customer: false,
+            });
+          }
+
           return Response.json(
             {
               ok: false,
               error:
                 "This local order has no Shopify order ID, and no sibling line items were found.",
+              order_id: targetOrder.id,
+              order_number: targetOrder.order_number,
+            },
+            { status: 400 },
+          );
+        }
+        if (!shopifyOrderId) {
+          return Response.json(
+            {
+              ok: false,
+              error: "This local order has no Shopify order ID, so line items cannot be refreshed from Shopify.",
               order_id: targetOrder.id,
               order_number: targetOrder.order_number,
             },
@@ -351,14 +612,34 @@ export const Route = createFileRoute("/api/orders/restore-line-items")({
           );
         }
 
-        const rows = lineItems.map((line) => enhancedOrderItemRow(targetOrder.id, line));
-        await insertOrderItems(auth.supabaseAdmin, rows);
+        let productSnapshot = { products_synced: 0, variants_synced: 0 };
+        try {
+          productSnapshot = await syncProductSnapshotsForLineItems(auth.supabaseAdmin, lineItems);
+        } catch (error) {
+          console.warn("[orders] Could not refresh Shopify product snapshots for order line items", {
+            order_id: targetOrder.id,
+            order_number: targetOrder.order_number,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+
+        const refreshResult = await refreshOrderItemsFromShopifyOrder(
+          auth.supabaseAdmin,
+          targetOrder.id,
+          lineItems,
+        );
 
         return Response.json({
           ok: true,
           restored: true,
-          restored_from: "shopify_order_line_items",
-          restored_items_count: rows.length,
+          restored_from: refreshDetails ? "shopify_order_line_items_refresh" : "shopify_order_line_items",
+          restored_items_count: refreshResult.inserted,
+          refreshed_items_count: refreshResult.updated,
+          stale_items_removed: refreshResult.stale_removed,
+          shopify_line_items_count: refreshResult.shopify_line_items,
+          local_items_checked: refreshResult.checked,
+          products_synced: productSnapshot.products_synced,
+          variants_synced: productSnapshot.variants_synced,
           order_id: targetOrder.id,
           order_number: targetOrder.order_number,
           shopify_order_id: shopifyOrderId,
