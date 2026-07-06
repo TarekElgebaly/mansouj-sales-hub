@@ -35,6 +35,7 @@ import { Route as ApiShopifyForceUpdateOrderItemCostsRouteImport } from './route
 import { Route as ApiShopifyBackfillOrderItemCostsRouteImport } from './routes/api/shopify/backfill-order-item-costs'
 import { Route as ApiShopifyAutoRemapSuggestRouteImport } from './routes/api/shopify/auto-remap-suggest'
 import { Route as ApiOrdersUpdateCostsRouteImport } from './routes/api/orders/update-costs'
+import { Route as ApiOrdersRestoreLineItemsRouteImport } from './routes/api/orders/restore-line-items'
 import { Route as ApiOrdersResetAllRouteImport } from './routes/api/orders/reset-all'
 import { Route as ApiOrdersItemsRouteImport } from './routes/api/orders/items'
 import { Route as ApiFinanceUnlockRouteImport } from './routes/api/finance/unlock'
@@ -181,6 +182,12 @@ const ApiOrdersUpdateCostsRoute = ApiOrdersUpdateCostsRouteImport.update({
   path: '/api/orders/update-costs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOrdersRestoreLineItemsRoute =
+  ApiOrdersRestoreLineItemsRouteImport.update({
+    id: '/api/orders/restore-line-items',
+    path: '/api/orders/restore-line-items',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOrdersResetAllRoute = ApiOrdersResetAllRouteImport.update({
   id: '/api/orders/reset-all',
   path: '/api/orders/reset-all',
@@ -231,6 +238,7 @@ export interface FileRoutesByFullPath {
   '/api/finance/unlock': typeof ApiFinanceUnlockRoute
   '/api/orders/items': typeof ApiOrdersItemsRoute
   '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
+  '/api/orders/restore-line-items': typeof ApiOrdersRestoreLineItemsRoute
   '/api/orders/update-costs': typeof ApiOrdersUpdateCostsRoute
   '/api/shopify/auto-remap-suggest': typeof ApiShopifyAutoRemapSuggestRoute
   '/api/shopify/backfill-order-item-costs': typeof ApiShopifyBackfillOrderItemCostsRoute
@@ -264,6 +272,7 @@ export interface FileRoutesByTo {
   '/api/finance/unlock': typeof ApiFinanceUnlockRoute
   '/api/orders/items': typeof ApiOrdersItemsRoute
   '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
+  '/api/orders/restore-line-items': typeof ApiOrdersRestoreLineItemsRoute
   '/api/orders/update-costs': typeof ApiOrdersUpdateCostsRoute
   '/api/shopify/auto-remap-suggest': typeof ApiShopifyAutoRemapSuggestRoute
   '/api/shopify/backfill-order-item-costs': typeof ApiShopifyBackfillOrderItemCostsRoute
@@ -299,6 +308,7 @@ export interface FileRoutesById {
   '/api/finance/unlock': typeof ApiFinanceUnlockRoute
   '/api/orders/items': typeof ApiOrdersItemsRoute
   '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
+  '/api/orders/restore-line-items': typeof ApiOrdersRestoreLineItemsRoute
   '/api/orders/update-costs': typeof ApiOrdersUpdateCostsRoute
   '/api/shopify/auto-remap-suggest': typeof ApiShopifyAutoRemapSuggestRoute
   '/api/shopify/backfill-order-item-costs': typeof ApiShopifyBackfillOrderItemCostsRoute
@@ -334,6 +344,7 @@ export interface FileRouteTypes {
     | '/api/finance/unlock'
     | '/api/orders/items'
     | '/api/orders/reset-all'
+    | '/api/orders/restore-line-items'
     | '/api/orders/update-costs'
     | '/api/shopify/auto-remap-suggest'
     | '/api/shopify/backfill-order-item-costs'
@@ -367,6 +378,7 @@ export interface FileRouteTypes {
     | '/api/finance/unlock'
     | '/api/orders/items'
     | '/api/orders/reset-all'
+    | '/api/orders/restore-line-items'
     | '/api/orders/update-costs'
     | '/api/shopify/auto-remap-suggest'
     | '/api/shopify/backfill-order-item-costs'
@@ -401,6 +413,7 @@ export interface FileRouteTypes {
     | '/api/finance/unlock'
     | '/api/orders/items'
     | '/api/orders/reset-all'
+    | '/api/orders/restore-line-items'
     | '/api/orders/update-costs'
     | '/api/shopify/auto-remap-suggest'
     | '/api/shopify/backfill-order-item-costs'
@@ -427,6 +440,7 @@ export interface RootRouteChildren {
   ApiFinanceUnlockRoute: typeof ApiFinanceUnlockRoute
   ApiOrdersItemsRoute: typeof ApiOrdersItemsRoute
   ApiOrdersResetAllRoute: typeof ApiOrdersResetAllRoute
+  ApiOrdersRestoreLineItemsRoute: typeof ApiOrdersRestoreLineItemsRoute
   ApiOrdersUpdateCostsRoute: typeof ApiOrdersUpdateCostsRoute
   ApiShopifyAutoRemapSuggestRoute: typeof ApiShopifyAutoRemapSuggestRoute
   ApiShopifyBackfillOrderItemCostsRoute: typeof ApiShopifyBackfillOrderItemCostsRoute
@@ -629,6 +643,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOrdersUpdateCostsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/orders/restore-line-items': {
+      id: '/api/orders/restore-line-items'
+      path: '/api/orders/restore-line-items'
+      fullPath: '/api/orders/restore-line-items'
+      preLoaderRoute: typeof ApiOrdersRestoreLineItemsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/orders/reset-all': {
       id: '/api/orders/reset-all'
       path: '/api/orders/reset-all'
@@ -709,6 +730,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFinanceUnlockRoute: ApiFinanceUnlockRoute,
   ApiOrdersItemsRoute: ApiOrdersItemsRoute,
   ApiOrdersResetAllRoute: ApiOrdersResetAllRoute,
+  ApiOrdersRestoreLineItemsRoute: ApiOrdersRestoreLineItemsRoute,
   ApiOrdersUpdateCostsRoute: ApiOrdersUpdateCostsRoute,
   ApiShopifyAutoRemapSuggestRoute: ApiShopifyAutoRemapSuggestRoute,
   ApiShopifyBackfillOrderItemCostsRoute: ApiShopifyBackfillOrderItemCostsRoute,

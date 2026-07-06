@@ -22,12 +22,16 @@ export function OrderDetail({
   items,
   itemsLoading = false,
   itemsError = null,
+  restoringLineItems = false,
+  onRestoreLineItems,
   onChanged,
 }: {
   order: any;
   items: any[];
   itemsLoading?: boolean;
   itemsError?: string | null;
+  restoringLineItems?: boolean;
+  onRestoreLineItems?: () => void;
   onChanged?: () => void;
 }) {
   const [confirm, setConfirm] = useState(order.confirmation_status);
@@ -137,8 +141,19 @@ export function OrderDetail({
             {itemsError}
           </div>
         ) : items.length === 0 ? (
-          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground text-center">
-            No line items found for this order.
+          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground text-center space-y-3">
+            <div>No line items found for this order.</div>
+            {onRestoreLineItems && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onRestoreLineItems}
+                disabled={restoringLineItems}
+              >
+                {restoringLineItems ? "Restoring..." : "Restore Line Items for Order"}
+              </Button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">

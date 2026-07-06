@@ -45,6 +45,7 @@ function OrdersPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [openNew, setOpenNew] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [restoringLineItems, setRestoringLineItems] = useState(false);
   const [syncResult, setSyncResult] = useState<{
     created: number;
     updated: number;
@@ -94,6 +95,48 @@ function OrdersPage() {
       toast.error((e as Error).message);
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const restoreOpenOrderLineItems = async () => {
+    if (!openOrder) return;
+
+    setRestoringLineItems(true);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) {
+        toast.error("Please sign in again.");
+        return;
+      }
+
+      const res = await fetch("/api/orders/restore-line-items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          order_id: openOrder.id,
+          order_number: openOrder.order_number,
+          shopify_order_id: openOrder.shopify_order_id,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error ?? "Could not restore line items.");
+      }
+
+      if (json.restored) {
+        toast.success(`Restored ${json.restored_items_count ?? 0} line items for ${openOrder.order_number}`);
+      } else {
+        toast.info("This order already has local line items.");
+      }
+
+      qc.invalidateQueries({ queryKey: ["order-items"] });
+      qc.invalidateQueries({ queryKey: ["order-items", openOrder.id] });
+    } catch (error: any) {
+      toast.error(error?.message || "Could not restore line items.");
+    } finally {
+      setRestoringLineItems(false);
     }
   };
 
@@ -336,6 +379,8 @@ function OrdersPage() {
                 items={detailItems}
                 itemsLoading={detailItemsLoading}
                 itemsError={detailItemsError}
+                restoringLineItems={restoringLineItems}
+                onRestoreLineItems={canOps ? restoreOpenOrderLineItems : undefined}
                 onChanged={() => {
                 qc.invalidateQueries({ queryKey: ["orders"] });
                 qc.invalidateQueries({ queryKey: ["orders-finance"] });
