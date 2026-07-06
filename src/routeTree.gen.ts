@@ -36,6 +36,7 @@ import { Route as ApiShopifyBackfillOrderItemCostsRouteImport } from './routes/a
 import { Route as ApiShopifyAutoRemapSuggestRouteImport } from './routes/api/shopify/auto-remap-suggest'
 import { Route as ApiOrdersUpdateCostsRouteImport } from './routes/api/orders/update-costs'
 import { Route as ApiOrdersResetAllRouteImport } from './routes/api/orders/reset-all'
+import { Route as ApiOrdersItemsRouteImport } from './routes/api/orders/items'
 import { Route as ApiFinanceUnlockRouteImport } from './routes/api/finance/unlock'
 import { Route as ApiAuthEnsureSignupProfileRouteImport } from './routes/api/auth/ensure-signup-profile'
 import { Route as ApiPublicShopifyWebhooksOrdersUpdatedRouteImport } from './routes/api/public/shopify/webhooks/orders-updated'
@@ -185,6 +186,11 @@ const ApiOrdersResetAllRoute = ApiOrdersResetAllRouteImport.update({
   path: '/api/orders/reset-all',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOrdersItemsRoute = ApiOrdersItemsRouteImport.update({
+  id: '/api/orders/items',
+  path: '/api/orders/items',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiFinanceUnlockRoute = ApiFinanceUnlockRouteImport.update({
   id: '/api/finance/unlock',
   path: '/api/finance/unlock',
@@ -223,6 +229,7 @@ export interface FileRoutesByFullPath {
   '/shopify': typeof AuthenticatedShopifyRoute
   '/api/auth/ensure-signup-profile': typeof ApiAuthEnsureSignupProfileRoute
   '/api/finance/unlock': typeof ApiFinanceUnlockRoute
+  '/api/orders/items': typeof ApiOrdersItemsRoute
   '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
   '/api/orders/update-costs': typeof ApiOrdersUpdateCostsRoute
   '/api/shopify/auto-remap-suggest': typeof ApiShopifyAutoRemapSuggestRoute
@@ -255,6 +262,7 @@ export interface FileRoutesByTo {
   '/shopify': typeof AuthenticatedShopifyRoute
   '/api/auth/ensure-signup-profile': typeof ApiAuthEnsureSignupProfileRoute
   '/api/finance/unlock': typeof ApiFinanceUnlockRoute
+  '/api/orders/items': typeof ApiOrdersItemsRoute
   '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
   '/api/orders/update-costs': typeof ApiOrdersUpdateCostsRoute
   '/api/shopify/auto-remap-suggest': typeof ApiShopifyAutoRemapSuggestRoute
@@ -289,6 +297,7 @@ export interface FileRoutesById {
   '/_authenticated/shopify': typeof AuthenticatedShopifyRoute
   '/api/auth/ensure-signup-profile': typeof ApiAuthEnsureSignupProfileRoute
   '/api/finance/unlock': typeof ApiFinanceUnlockRoute
+  '/api/orders/items': typeof ApiOrdersItemsRoute
   '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
   '/api/orders/update-costs': typeof ApiOrdersUpdateCostsRoute
   '/api/shopify/auto-remap-suggest': typeof ApiShopifyAutoRemapSuggestRoute
@@ -323,6 +332,7 @@ export interface FileRouteTypes {
     | '/shopify'
     | '/api/auth/ensure-signup-profile'
     | '/api/finance/unlock'
+    | '/api/orders/items'
     | '/api/orders/reset-all'
     | '/api/orders/update-costs'
     | '/api/shopify/auto-remap-suggest'
@@ -355,6 +365,7 @@ export interface FileRouteTypes {
     | '/shopify'
     | '/api/auth/ensure-signup-profile'
     | '/api/finance/unlock'
+    | '/api/orders/items'
     | '/api/orders/reset-all'
     | '/api/orders/update-costs'
     | '/api/shopify/auto-remap-suggest'
@@ -388,6 +399,7 @@ export interface FileRouteTypes {
     | '/_authenticated/shopify'
     | '/api/auth/ensure-signup-profile'
     | '/api/finance/unlock'
+    | '/api/orders/items'
     | '/api/orders/reset-all'
     | '/api/orders/update-costs'
     | '/api/shopify/auto-remap-suggest'
@@ -413,6 +425,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ApiAuthEnsureSignupProfileRoute: typeof ApiAuthEnsureSignupProfileRoute
   ApiFinanceUnlockRoute: typeof ApiFinanceUnlockRoute
+  ApiOrdersItemsRoute: typeof ApiOrdersItemsRoute
   ApiOrdersResetAllRoute: typeof ApiOrdersResetAllRoute
   ApiOrdersUpdateCostsRoute: typeof ApiOrdersUpdateCostsRoute
   ApiShopifyAutoRemapSuggestRoute: typeof ApiShopifyAutoRemapSuggestRoute
@@ -623,6 +636,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOrdersResetAllRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/orders/items': {
+      id: '/api/orders/items'
+      path: '/api/orders/items'
+      fullPath: '/api/orders/items'
+      preLoaderRoute: typeof ApiOrdersItemsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/finance/unlock': {
       id: '/api/finance/unlock'
       path: '/api/finance/unlock'
@@ -687,6 +707,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ApiAuthEnsureSignupProfileRoute: ApiAuthEnsureSignupProfileRoute,
   ApiFinanceUnlockRoute: ApiFinanceUnlockRoute,
+  ApiOrdersItemsRoute: ApiOrdersItemsRoute,
   ApiOrdersResetAllRoute: ApiOrdersResetAllRoute,
   ApiOrdersUpdateCostsRoute: ApiOrdersUpdateCostsRoute,
   ApiShopifyAutoRemapSuggestRoute: ApiShopifyAutoRemapSuggestRoute,

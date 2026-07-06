@@ -156,10 +156,23 @@ function OrdersPage() {
   };
 
   const openOrder = orders?.find((o) => o.id === openId);
-  const { data: openItems } = useQuery({
+  const { data: openItems, isLoading: openItemsLoading, error: openItemsError } = useQuery({
     queryKey: ["order-items", openId],
     enabled: !!openId,
-    queryFn: async () => (await supabase.from("order_items").select("*").eq("order_id", openId!)).data ?? [],
+    queryFn: async () => {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) throw new Error("Please sign in again before opening order items.");
+      const params = new URLSearchParams({ order_id: openId! });
+      const res = await fetch(`/api/orders/items?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error ?? "Could not load order line items.");
+      }
+      return Array.isArray(json.items) ? json.items : [];
+    },
   });
 
   return (
@@ -310,7 +323,12 @@ function OrdersPage() {
                 <SheetTitle>{openOrder.order_number}</SheetTitle>
                 <SheetDescription>{openOrder.customer_full_name} · {fmtDate(openOrder.order_date)}</SheetDescription>
               </SheetHeader>
-              <OrderDetail order={openOrder} items={openItems ?? []} onChanged={() => {
+              <OrderDetail
+                order={openOrder}
+                items={openItems ?? []}
+                itemsLoading={openItemsLoading}
+                itemsError={openItemsError instanceof Error ? openItemsError.message : null}
+                onChanged={() => {
                 qc.invalidateQueries({ queryKey: ["orders"] });
                 qc.invalidateQueries({ queryKey: ["orders-finance"] });
                 qc.invalidateQueries({ queryKey: ["order-items", openId] });

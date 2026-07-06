@@ -17,7 +17,19 @@ function Info({ label, value }: { label: string; value: any }) {
   return <div><div className="text-xs text-muted-foreground">{label}</div><div className="font-medium">{value}</div></div>;
 }
 
-export function OrderDetail({ order, items, onChanged }: { order: any; items: any[]; onChanged?: () => void }) {
+export function OrderDetail({
+  order,
+  items,
+  itemsLoading = false,
+  itemsError = null,
+  onChanged,
+}: {
+  order: any;
+  items: any[];
+  itemsLoading?: boolean;
+  itemsError?: string | null;
+  onChanged?: () => void;
+}) {
   const [confirm, setConfirm] = useState(order.confirmation_status);
   const [status, setStatus] = useState(order.order_status);
   const [note, setNote] = useState(order.internal_notes ?? "");
@@ -116,7 +128,15 @@ export function OrderDetail({ order, items, onChanged }: { order: any; items: an
 
       <div>
         <Label className="mb-1 block">Items</Label>
-        {items.length === 0 ? (
+        {itemsLoading ? (
+          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground text-center">
+            Loading line items...
+          </div>
+        ) : itemsError ? (
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive text-center">
+            {itemsError}
+          </div>
+        ) : items.length === 0 ? (
           <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground text-center">
             No line items found for this order.
           </div>

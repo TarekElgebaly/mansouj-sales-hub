@@ -47,7 +47,7 @@ type InventoryItem = {
 type InventoryLevel = {
   inventory_item_id: string;
   available: number | null;
-  on_hand: number | null;
+  on_hand?: number | null;
 };
 
 type InventoryReportRow = {
@@ -102,6 +102,14 @@ function sortRows(rows: InventoryReportRow[], sort: string) {
   return sorted;
 }
 
+function missingColumn(error: unknown, column: string) {
+  const message =
+    typeof error === "object" && error && "message" in error
+      ? String((error as { message?: unknown }).message ?? "")
+      : String(error ?? "");
+  return message.toLowerCase().includes("column") && message.includes(column);
+}
+
 function InventoryPage() {
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"all" | "low">("all");
@@ -115,7 +123,7 @@ function InventoryPage() {
   const { data } = useQuery({
     queryKey: ["shopify-inventory-report"],
     queryFn: async () => {
-      const [variantsResult, inventoryResult, levelsResult] = await Promise.all([
+      const [variantsResult, inventoryResult] = await Promise.all([
         (supabase as any)
           .from("shopify_variants")
           .select(
@@ -125,10 +133,15 @@ function InventoryPage() {
         (supabase as any)
           .from("shopify_inventory_items")
           .select("inventory_item_id,unit_cost_amount,tracked"),
-        (supabase as any)
-          .from("shopify_inventory_levels")
-          .select("inventory_item_id,available,on_hand"),
       ]);
+      let levelsResult = await (supabase as any)
+        .from("shopify_inventory_levels")
+        .select("inventory_item_id,available,on_hand");
+      if (levelsResult.error && missingColumn(levelsResult.error, "on_hand")) {
+        levelsResult = await (supabase as any)
+          .from("shopify_inventory_levels")
+          .select("inventory_item_id,available");
+      }
 
       const variants = (variantsResult.data ?? []) as ShopifyVariant[];
       const inventoryItems = (inventoryResult.data ?? []) as InventoryItem[];
@@ -162,7 +175,7 @@ function InventoryPage() {
           ? onHandByInventoryItem.has(variant.inventory_item_id)
           : false;
         const onHand = variant.inventory_item_id
-          ? onHandByInventoryItem.get(variant.inventory_item_id) ?? 0
+          ? onHandByInventoryItem.get(variant.inventory_item_id) ?? available ?? 0
           : 0;
         const cost = variant.inventory_item_id
           ? Number(costByInventoryItem.get(variant.inventory_item_id) ?? 0)
@@ -368,7 +381,7 @@ function InventoryPage() {
                       {[row.color, row.size].filter(Boolean).join(" · ") || "No size/color"}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right">{row.onHandKnown ? row.onHand : "—"}</TableCell>
+                  <TableCell className="text-right">{row.onHand}</TableCell>
                   <TableCell className="text-right">{row.available ?? "—"}</TableCell>
                   <TableCell className="text-right">{egp(row.cost)}</TableCell>
                   <TableCell className="text-right">{egp(row.salePrice)}</TableCell>

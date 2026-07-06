@@ -32,7 +32,7 @@ type InventoryItem = {
 type InventoryLevel = {
   inventory_item_id: string;
   available: number | null;
-  on_hand: number | null;
+  on_hand?: number | null;
 };
 
 type LocalInventoryRow = {
@@ -40,10 +40,10 @@ type LocalInventoryRow = {
   sku: string;
   product_name: string;
   variant_name: string | null;
-  shopify_variant_id: string | null;
-  shopify_product_id: string | null;
-  inventory_item_id: string | null;
-  shopify_product_status: string | null;
+  shopify_variant_id?: string | null;
+  shopify_product_id?: string | null;
+  inventory_item_id?: string | null;
+  shopify_product_status?: string | null;
   current_inventory: number | null;
   on_hand_quantity: number | null;
   cost_price: number | string | null;
@@ -114,6 +114,51 @@ function buildLocalIndexes(rows: LocalInventoryRow[]) {
   return { byInventoryItemId, byVariantId, bySku };
 }
 
+function isMissingColumnError(error: unknown, column?: string) {
+  const message =
+    typeof error === "object" && error && "message" in error
+      ? String((error as { message?: unknown }).message ?? "")
+      : String(error ?? "");
+  const lower = message.toLowerCase();
+  return lower.includes("column") && (!column || message.includes(column));
+}
+
+async function loadInventoryLevels(supabaseAdmin: any) {
+  const withOnHand = await supabaseAdmin
+    .from("shopify_inventory_levels")
+    .select("inventory_item_id,available,on_hand");
+  if (!withOnHand.error) {
+    return { data: (withOnHand.data ?? []) as InventoryLevel[], hasOnHandColumn: true };
+  }
+  if (!isMissingColumnError(withOnHand.error, "on_hand")) {
+    throw new Error(`Could not load shopify_inventory_levels: ${withOnHand.error.message}`);
+  }
+  const availableOnly = await supabaseAdmin
+    .from("shopify_inventory_levels")
+    .select("inventory_item_id,available");
+  if (availableOnly.error) {
+    throw new Error(`Could not load shopify_inventory_levels: ${availableOnly.error.message}`);
+  }
+  return { data: (availableOnly.data ?? []) as InventoryLevel[], hasOnHandColumn: false };
+}
+
+async function loadLocalInventory(supabaseAdmin: any) {
+  const full = await supabaseAdmin
+    .from("inventory")
+    .select(
+      "id,sku,product_name,variant_name,shopify_variant_id,shopify_product_id,inventory_item_id,shopify_product_status,current_inventory,on_hand_quantity,cost_price,sale_price,is_shopify_stale",
+    );
+  if (!full.error) return { data: (full.data ?? []) as LocalInventoryRow[], hasSourceColumns: true };
+  if (!isMissingColumnError(full.error)) {
+    throw new Error(`Could not load local inventory: ${full.error.message}`);
+  }
+  const legacy = await supabaseAdmin
+    .from("inventory")
+    .select("id,sku,product_name,variant_name,current_inventory,cost_price,sale_price");
+  if (legacy.error) throw new Error(`Could not load local inventory: ${legacy.error.message}`);
+  return { data: (legacy.data ?? []) as LocalInventoryRow[], hasSourceColumns: false };
+}
+
 export const Route = createFileRoute("/api/shopify/inventory-reconciliation")({
   server: {
     handlers: {
@@ -138,14 +183,8 @@ export const Route = createFileRoute("/api/shopify/inventory-reconciliation")({
           supabaseAdmin
             .from("shopify_inventory_items")
             .select("inventory_item_id,unit_cost_amount"),
-          supabaseAdmin
-            .from("shopify_inventory_levels")
-            .select("inventory_item_id,available,on_hand"),
-          supabaseAdmin
-            .from("inventory")
-            .select(
-              "id,sku,product_name,variant_name,shopify_variant_id,shopify_product_id,inventory_item_id,shopify_product_status,current_inventory,on_hand_quantity,cost_price,sale_price,is_shopify_stale",
-            ),
+          loadInventoryLevels(supabaseAdmin),
+          loadLocalInventory(supabaseAdmin),
         ]);
 
         if (variantsResult.error) {
@@ -160,23 +199,10 @@ export const Route = createFileRoute("/api/shopify/inventory-reconciliation")({
             { status: 500 },
           );
         }
-        if (levelsResult.error) {
-          return Response.json(
-            { ok: false, error: `Could not load shopify_inventory_levels: ${levelsResult.error.message}` },
-            { status: 500 },
-          );
-        }
-        if (localResult.error) {
-          return Response.json(
-            { ok: false, error: `Could not load local inventory: ${localResult.error.message}` },
-            { status: 500 },
-          );
-        }
-
         const variants = (variantsResult.data ?? []) as ShopifyVariant[];
         const items = (itemsResult.data ?? []) as InventoryItem[];
-        const levels = (levelsResult.data ?? []) as InventoryLevel[];
-        const localRows = ((localResult.data ?? []) as LocalInventoryRow[]).filter(
+        const levels = levelsResult.data;
+        const localRows = localResult.data.filter(
           (row) => !row.is_shopify_stale && localMatchesStatus(row, productStatus),
         );
 
@@ -185,7 +211,11 @@ export const Route = createFileRoute("/api/shopify/inventory-reconciliation")({
         );
         const onHandByItemId = new Map<string, number>();
         for (const level of levels) {
-          addQuantity(onHandByItemId, level.inventory_item_id, level.on_hand);
+          addQuantity(
+            onHandByItemId,
+            level.inventory_item_id,
+            levelsResult.hasOnHandColumn ? level.on_hand ?? null : level.available,
+          );
         }
 
         const localIndexes = buildLocalIndexes(localRows);
@@ -275,7 +305,7 @@ export const Route = createFileRoute("/api/shopify/inventory-reconciliation")({
             variant_title: local.variant_name,
             sku: local.sku,
             shopify_variant_id: local.shopify_variant_id ?? "—",
-            inventory_item_id: local.inventory_item_id,
+            inventory_item_id: local.inventory_item_id ?? null,
             shopify_quantity: 0,
             mansouj_quantity: localQuantity,
             difference: -localQuantity,
@@ -292,7 +322,11 @@ export const Route = createFileRoute("/api/shopify/inventory-reconciliation")({
           ok: true,
           product_status: productStatus,
           sku_remaps_used: false,
-          on_hand_quantity_source: "shopify_inventory_levels.on_hand",
+          on_hand_quantity_source: levelsResult.hasOnHandColumn
+            ? "shopify_inventory_levels.on_hand"
+            : "shopify_inventory_levels.available",
+          on_hand_column_present: levelsResult.hasOnHandColumn,
+          inventory_source_columns_present: localResult.hasSourceColumns,
           on_hand_missing_count: onHandMissingCount,
           shopify_total_skus: shopifyTotalSkus,
           mansouj_local_total_skus: localRows.length,

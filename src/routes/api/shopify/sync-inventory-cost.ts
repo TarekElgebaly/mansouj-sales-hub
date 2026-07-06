@@ -249,6 +249,42 @@ async function existingLevelKeys(supabaseAdmin: any, itemIds: string[]) {
   );
 }
 
+function isMissingColumnError(error: unknown, column: string) {
+  const message =
+    typeof error === "object" && error && "message" in error
+      ? String((error as { message?: unknown }).message ?? "")
+      : String(error ?? "");
+  return message.toLowerCase().includes(`column`) && message.includes(column);
+}
+
+function stripOnHand(rows: Record<string, unknown>[]) {
+  return rows.map(({ on_hand: _onHand, ...row }) => row);
+}
+
+async function upsertInventoryLevelRows(
+  supabaseAdmin: any,
+  rows: Record<string, unknown>[],
+) {
+  try {
+    await upsertRows(
+      supabaseAdmin,
+      "shopify_inventory_levels",
+      rows,
+      "inventory_item_id,shopify_location_id",
+    );
+    return true;
+  } catch (error) {
+    if (!isMissingColumnError(error, "on_hand")) throw error;
+    await upsertRows(
+      supabaseAdmin,
+      "shopify_inventory_levels",
+      stripOnHand(rows),
+      "inventory_item_id,shopify_location_id",
+    );
+    return false;
+  }
+}
+
 async function updateVariantInventoryQuantities(
   supabaseAdmin: any,
   quantityByInventoryItemId: Map<string, number>,
@@ -474,6 +510,7 @@ export const Route = createFileRoute("/api/shopify/sync-inventory-cost")({
         let inventoryLevelsUpdated = 0;
         let inventoryLevelsWithOnHand = 0;
         let inventoryLevelsMissingOnHand = 0;
+        let inventoryLevelsOnHandColumnPresent = true;
         let inventoryLevelPagesTruncated = 0;
         let variantOnHandQuantitiesProcessed = 0;
         let variantOnHandQuantitiesUpdated = 0;
@@ -496,6 +533,7 @@ export const Route = createFileRoute("/api/shopify/sync-inventory-cost")({
           inventory_levels_updated: inventoryLevelsUpdated,
           inventory_levels_with_on_hand: inventoryLevelsWithOnHand,
           inventory_levels_missing_on_hand: inventoryLevelsMissingOnHand,
+          inventory_levels_on_hand_column_present: inventoryLevelsOnHandColumnPresent,
           inventory_level_pages_truncated: inventoryLevelPagesTruncated,
           variant_on_hand_quantities_processed: variantOnHandQuantitiesProcessed,
           variant_on_hand_quantities_updated: variantOnHandQuantitiesUpdated,
@@ -508,8 +546,10 @@ export const Route = createFileRoute("/api/shopify/sync-inventory-cost")({
           shopify_write_calls: false,
           cost_source: "Shopify Admin GraphQL inventoryItems.unitCost",
           on_hand_quantity_source:
-            inventoryLevelsWithOnHand > 0 ? "Shopify InventoryLevel quantities.on_hand" : "missing",
-          on_hand_fallback_used: false,
+            inventoryLevelsOnHandColumnPresent && inventoryLevelsWithOnHand > 0
+              ? "Shopify InventoryLevel quantities.on_hand"
+              : "Shopify inventory_levels.available",
+          on_hand_fallback_used: !inventoryLevelsOnHandColumnPresent,
           ...extra,
         });
 
@@ -650,12 +690,8 @@ export const Route = createFileRoute("/api/shopify/sync-inventory-cost")({
                   new Set(levelRows.map((row) => String(row.inventory_item_id)).filter(Boolean)),
                 ),
               );
-              await upsertRows(
-                supabaseAdmin,
-                "shopify_inventory_levels",
-                levelRows,
-                "inventory_item_id,shopify_location_id",
-              );
+              const hasOnHandColumn = await upsertInventoryLevelRows(supabaseAdmin, levelRows);
+              if (!hasOnHandColumn) inventoryLevelsOnHandColumnPresent = false;
 
               inventoryLevelsProcessed += levelRows.length;
               inventoryLevelsCreated += levelRows.filter(
@@ -723,11 +759,12 @@ export const Route = createFileRoute("/api/shopify/sync-inventory-cost")({
             inventory_levels_processed: inventoryLevelsProcessed,
             inventory_levels_with_on_hand: inventoryLevelsWithOnHand,
             inventory_levels_missing_on_hand: inventoryLevelsMissingOnHand,
+            inventory_levels_on_hand_column_present: inventoryLevelsOnHandColumnPresent,
             on_hand_quantity_source:
-              inventoryLevelsWithOnHand > 0
+              inventoryLevelsOnHandColumnPresent && inventoryLevelsWithOnHand > 0
                 ? "Shopify InventoryLevel quantities.on_hand"
-                : "missing",
-            on_hand_fallback_used: false,
+                : "Shopify inventory_levels.available",
+            on_hand_fallback_used: !inventoryLevelsOnHandColumnPresent,
             variant_on_hand_quantities_processed: variantOnHandQuantitiesProcessed,
             variant_on_hand_quantities_updated: variantOnHandQuantitiesUpdated,
             variant_on_hand_quantity_fallbacks: variantOnHandQuantityFallbacks,
