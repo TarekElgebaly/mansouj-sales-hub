@@ -93,6 +93,17 @@ type ResetSync2026Result = {
   last_order_number_imported: string | null;
 };
 
+type RepairMissingLineItemsResult = {
+  orders_checked: number;
+  missing_orders_found: number;
+  repaired_orders: number;
+  line_items_inserted: number;
+  schema_fallbacks_used: number;
+  failed_count: number;
+  repaired: Array<{ order_number: string | null; line_items_inserted: number }>;
+  errors: string[];
+};
+
 type ProductSyncResult = {
   status?: string;
   message?: string | null;
@@ -301,8 +312,11 @@ function ShopifyPage() {
   const [reconcilingInventory, setReconcilingInventory] = useState(false);
   const [resettingOrders, setResettingOrders] = useState(false);
   const [resetSyncing2026, setResetSyncing2026] = useState(false);
+  const [repairingMissingLineItems, setRepairingMissingLineItems] = useState(false);
   const [resetResult, setResetResult] = useState<LocalOrdersResetResult | null>(null);
   const [resetSync2026Result, setResetSync2026Result] = useState<ResetSync2026Result | null>(null);
+  const [repairMissingLineItemsResult, setRepairMissingLineItemsResult] =
+    useState<RepairMissingLineItemsResult | null>(null);
   const [productSyncResult, setProductSyncResult] = useState<ProductSyncResult | null>(null);
   const [inventoryCostSyncResult, setInventoryCostSyncResult] =
     useState<InventoryCostSyncResult | null>(null);
@@ -466,6 +480,51 @@ function ShopifyPage() {
       await refreshStatus();
     } finally {
       setBusy(false);
+    }
+  };
+
+  const repairMissingOrderLineItems = async () => {
+    setRepairingMissingLineItems(true);
+    setRepairMissingLineItemsResult(null);
+    try {
+      const res = await fetch("/api/shopify/repair-missing-order-line-items", {
+        method: "POST",
+        headers: {
+          ...(await authHeader()),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ limit: 500 }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error ?? json.errors?.[0] ?? "Could not repair missing order line items.");
+      }
+
+      const result: RepairMissingLineItemsResult = {
+        orders_checked: json.orders_checked ?? 0,
+        missing_orders_found: json.missing_orders_found ?? 0,
+        repaired_orders: json.repaired_orders ?? 0,
+        line_items_inserted: json.line_items_inserted ?? 0,
+        schema_fallbacks_used: json.schema_fallbacks_used ?? 0,
+        failed_count: json.failed_count ?? 0,
+        repaired: json.repaired ?? [],
+        errors: json.errors ?? [],
+      };
+      setRepairMissingLineItemsResult(result);
+
+      if (result.repaired_orders > 0) {
+        toast.success(`Repaired ${result.repaired_orders} orders and inserted ${result.line_items_inserted} line items.`);
+      } else {
+        toast.info("No missing order line items found in the checked orders.");
+      }
+
+      qc.invalidateQueries({ queryKey: ["orders"] });
+      qc.invalidateQueries({ queryKey: ["order-items"] });
+      await refreshStatus();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRepairingMissingLineItems(false);
     }
   };
 
@@ -1035,7 +1094,11 @@ function ShopifyPage() {
                   <Button
                     onClick={() => syncOrders("incremental")}
                     disabled={
-                      syncingRecent || syncingBackfill || resettingOrders || resetSyncing2026
+                      syncingRecent ||
+                      syncingBackfill ||
+                      resettingOrders ||
+                      resetSyncing2026 ||
+                      repairingMissingLineItems
                     }
                   >
                     <RefreshCw className={`mr-2 h-4 w-4 ${syncingRecent ? "animate-spin" : ""}`} />
@@ -1045,7 +1108,11 @@ function ShopifyPage() {
                     variant="outline"
                     onClick={() => syncOrders("full_backfill")}
                     disabled={
-                      syncingRecent || syncingBackfill || resettingOrders || resetSyncing2026
+                      syncingRecent ||
+                      syncingBackfill ||
+                      resettingOrders ||
+                      resetSyncing2026 ||
+                      repairingMissingLineItems
                     }
                   >
                     <RefreshCw
@@ -1053,13 +1120,33 @@ function ShopifyPage() {
                     />
                     Full Backfill Orders
                   </Button>
+                  <Button
+                    variant="outline"
+                    onClick={repairMissingOrderLineItems}
+                    disabled={
+                      syncingRecent ||
+                      syncingBackfill ||
+                      resettingOrders ||
+                      resetSyncing2026 ||
+                      repairingMissingLineItems
+                    }
+                  >
+                    <RefreshCw
+                      className={`mr-2 h-4 w-4 ${repairingMissingLineItems ? "animate-spin" : ""}`}
+                    />
+                    Repair Missing Order Line Items
+                  </Button>
                   {canAdmin && (
                     <>
                       <Button
                         variant="destructive"
                         onClick={resetAndSync2026Orders}
                         disabled={
-                          syncingRecent || syncingBackfill || resettingOrders || resetSyncing2026
+                          syncingRecent ||
+                          syncingBackfill ||
+                          resettingOrders ||
+                          resetSyncing2026 ||
+                          repairingMissingLineItems
                         }
                       >
                         <RefreshCw
@@ -1071,7 +1158,11 @@ function ShopifyPage() {
                         variant="destructive"
                         onClick={resetAllLocalOrders}
                         disabled={
-                          syncingRecent || syncingBackfill || resettingOrders || resetSyncing2026
+                          syncingRecent ||
+                          syncingBackfill ||
+                          resettingOrders ||
+                          resetSyncing2026 ||
+                          repairingMissingLineItems
                         }
                       >
                         <Trash2
@@ -1142,6 +1233,50 @@ function ShopifyPage() {
                         value={ordersSyncResult.total_items_cost_after_recalc.toLocaleString()}
                       />
                     </div>
+                  </div>
+                )}
+                {repairMissingLineItemsResult && (
+                  <div className="space-y-3 rounded-md border bg-muted/30 p-4">
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <StatusItem
+                        label="Orders checked"
+                        value={String(repairMissingLineItemsResult.orders_checked)}
+                      />
+                      <StatusItem
+                        label="Missing item orders"
+                        value={String(repairMissingLineItemsResult.missing_orders_found)}
+                      />
+                      <StatusItem
+                        label="Orders repaired"
+                        value={String(repairMissingLineItemsResult.repaired_orders)}
+                      />
+                      <StatusItem
+                        label="Line items inserted"
+                        value={String(repairMissingLineItemsResult.line_items_inserted)}
+                      />
+                      <StatusItem
+                        label="Schema fallbacks"
+                        value={String(repairMissingLineItemsResult.schema_fallbacks_used)}
+                      />
+                      <StatusItem
+                        label="Failed"
+                        value={String(repairMissingLineItemsResult.failed_count)}
+                      />
+                    </div>
+                    {repairMissingLineItemsResult.repaired.length > 0 && (
+                      <div className="text-sm text-muted-foreground">
+                        Repaired:{" "}
+                        {repairMissingLineItemsResult.repaired
+                          .slice(0, 8)
+                          .map((row) => `${row.order_number ?? "order"} (${row.line_items_inserted})`)
+                          .join(", ")}
+                      </div>
+                    )}
+                    {repairMissingLineItemsResult.errors.length > 0 && (
+                      <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                        {repairMissingLineItemsResult.errors.slice(0, 3).join(" | ")}
+                      </div>
+                    )}
                   </div>
                 )}
                 {canAdmin && (

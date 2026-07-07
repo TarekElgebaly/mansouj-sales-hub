@@ -1,6 +1,11 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { calculatePackagingCost } from "@/lib/packaging-cost";
 import { mediaFromVariant, type ShopifyVariantLike } from "@/lib/product-media";
+import {
+  fetchShopifyWithRetry,
+  getShopifyAdminConfig,
+  shopifyHeaders,
+} from "@/lib/shopify-sync.server";
 
 export function verifyShopifyHmac(rawBody: string, hmacHeader: string | null): boolean {
   const secret = process.env.SHOPIFY_WEBHOOK_SECRET;
@@ -80,6 +85,10 @@ export type ShopifyOrderPayload = {
   line_items?: ShopifyLineItem[] | null;
 };
 
+type ShopifyOrderLookupResponse = {
+  order?: ShopifyOrderPayload | null;
+};
+
 type ExistingOrderItem = {
   id: string;
   sku: string;
@@ -139,6 +148,15 @@ function toNumber(value: unknown): number {
   if (value == null || value === "") return 0;
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+function isSchemaError(error: { message?: string; code?: string } | null | undefined) {
+  const message = error?.message ?? "";
+  return (
+    error?.code === "PGRST204" ||
+    error?.code === "PGRST205" ||
+    /column|schema cache|could not find/i.test(message)
+  );
 }
 
 function shippingCost(p: ShopifyOrderPayload): number {
@@ -513,8 +531,94 @@ function currentOrderTotal(payload: ShopifyOrderPayload, currentItems: PreparedL
   );
 }
 
+async function fetchFullShopifyOrderPayload(shopifyOrderId: string) {
+  const config = getShopifyAdminConfig();
+  if (!config.ok) throw new Error(config.error);
+
+  const url = `https://${config.domain}/admin/api/${config.apiVersion}/orders/${encodeURIComponent(shopifyOrderId)}.json`;
+  const res = await fetchShopifyWithRetry(url, shopifyHeaders(config.accessToken));
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`Shopify order line item lookup failed (${res.status}): ${text.slice(0, 240)}`);
+  }
+
+  let json: ShopifyOrderLookupResponse;
+  try {
+    json = JSON.parse(text) as ShopifyOrderLookupResponse;
+  } catch {
+    throw new Error("Shopify order line item lookup returned invalid JSON.");
+  }
+
+  return json.order ?? null;
+}
+
+async function ensureShopifyOrderLineItems(payload: ShopifyOrderPayload) {
+  if (Array.isArray(payload.line_items) && payload.line_items.length > 0) return payload;
+
+  const fullOrder = await fetchFullShopifyOrderPayload(String(payload.id));
+  if (!fullOrder?.line_items?.length) return payload;
+
+  return {
+    ...payload,
+    ...fullOrder,
+    line_items: fullOrder.line_items,
+  };
+}
+
+function fullOrderItemRow(
+  orderId: string,
+  item: PreparedLineItem,
+  unitCost: number,
+) {
+  return {
+    order_id: orderId,
+    shopify_line_item_id: item.lineItemId,
+    shopify_admin_graphql_api_id: item.adminGraphqlApiId,
+    shopify_variant_id: item.variantId,
+    shopify_product_id: item.productId,
+    sku: item.sku,
+    product_name: item.productName,
+    variant: item.variant,
+    barcode: item.barcode,
+    product_type: item.productType,
+    color: item.color,
+    size: item.size,
+    quantity: item.quantity,
+    unit_selling_price: item.unitSellingPrice,
+    unit_cost: unitCost,
+  };
+}
+
+function baseOrderItemRow(row: Record<string, unknown>) {
+  return {
+    order_id: row.order_id,
+    sku: row.sku,
+    product_name: row.product_name,
+    variant: row.variant,
+    color: row.color,
+    size: row.size,
+    quantity: row.quantity,
+    unit_selling_price: row.unit_selling_price,
+    unit_cost: row.unit_cost,
+  };
+}
+
+async function insertOrderItemRows(supabaseAdmin: any, rows: Record<string, unknown>[]) {
+  if (!rows.length) return { schemaFallbackUsed: false };
+
+  const { error } = await supabaseAdmin.from("order_items").insert(rows as never);
+  if (!error) return { schemaFallbackUsed: false };
+  if (!isSchemaError(error)) throw new Error(`order_items insert failed: ${error.message}`);
+
+  const fallbackRows = rows.map(baseOrderItemRow);
+  const fallback = await supabaseAdmin.from("order_items").insert(fallbackRows as never);
+  if (fallback.error) throw new Error(`order_items insert failed: ${fallback.error.message}`);
+  return { schemaFallbackUsed: true };
+}
+
 export async function processShopifyOrder(payload: ShopifyOrderPayload) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  payload = await ensureShopifyOrderLineItems(payload);
 
   const shopifyOrderId = String(payload.id);
   const orderNumber =
@@ -589,6 +693,12 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     isCancelled,
   );
   await enrichLineItemsWithCurrentShopifyProductData(supabaseAdmin, currentItems);
+
+  if (currentItems.length === 0 && currentOrderTotal(payload, currentItems) > 0) {
+    throw new Error(
+      `Shopify order ${orderNumber} has no line_items in the Admin API response; refusing to save it without products.`,
+    );
+  }
 
   const totalSelling = isCancelled ? 0 : currentOrderTotal(payload, currentItems);
   const shipCost = existingOrder
@@ -671,27 +781,10 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
   if (deleteErr) throw new Error(`order_items replace delete failed: ${deleteErr.message}`);
 
   if (currentItems.length) {
-    const rows = currentItems.map((item, index) => {
-      return {
-        order_id: orderId,
-        shopify_line_item_id: item.lineItemId,
-        shopify_admin_graphql_api_id: item.adminGraphqlApiId,
-        shopify_variant_id: item.variantId,
-        shopify_product_id: item.productId,
-        sku: item.sku,
-        product_name: item.productName,
-        variant: item.variant,
-        barcode: item.barcode,
-        product_type: item.productType,
-        color: item.color,
-        size: item.size,
-        quantity: item.quantity,
-        unit_selling_price: item.unitSellingPrice,
-        unit_cost: isCancelled ? 0 : costs[index] ?? 0,
-      };
-    });
-    const { error: itemsErr } = await supabaseAdmin.from("order_items").insert(rows as never);
-    if (itemsErr) throw new Error(`order_items insert failed: ${itemsErr.message}`);
+    const rows = currentItems.map((item, index) =>
+      fullOrderItemRow(orderId, item, isCancelled ? 0 : costs[index] ?? 0),
+    );
+    await insertOrderItemRows(supabaseAdmin, rows);
   }
 
   const { error: costUpdateErr } = await supabaseAdmin
