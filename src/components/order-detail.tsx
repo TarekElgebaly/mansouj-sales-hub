@@ -24,8 +24,6 @@ export function OrderDetail({
   itemsError = null,
   restoringLineItems = false,
   onRestoreLineItems,
-  refreshingLineItems = false,
-  onRefreshLineItems,
   onChanged,
 }: {
   order: any;
@@ -34,8 +32,6 @@ export function OrderDetail({
   itemsError?: string | null;
   restoringLineItems?: boolean;
   onRestoreLineItems?: () => void;
-  refreshingLineItems?: boolean;
-  onRefreshLineItems?: () => void;
   onChanged?: () => void;
 }) {
   const [confirm, setConfirm] = useState(order.confirmation_status);
@@ -135,20 +131,7 @@ export function OrderDetail({
       </div>
 
       <div>
-        <div className="mb-1 flex items-center justify-between gap-2">
-          <Label>Items</Label>
-          {onRefreshLineItems && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={onRefreshLineItems}
-              disabled={refreshingLineItems || restoringLineItems}
-            >
-              {refreshingLineItems ? "Refreshing..." : "Refresh Line Item Details from Shopify Order"}
-            </Button>
-          )}
-        </div>
+        <Label className="mb-1 block">Items</Label>
         {itemsLoading ? (
           <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground text-center">
             Loading line items...
@@ -193,12 +176,12 @@ export function OrderDetail({
                     ? (unitPrice == null ? null : unitPrice * qty)
                     : Number(it.total_selling_price);
                   const media = productMedia.byItemId.get(it.id);
-                  const currentSku = media?.sku || it.sku;
-                  const currentProductName = media?.productTitle || it.product_name;
+                  const localVariant = it.variant || [it.color, it.size].filter(Boolean).join(" · ");
+                  const currentSku = it.sku || media?.sku;
+                  const currentProductName = it.product_name || media?.productTitle;
                   const variantLabel =
-                    media?.variantTitle ||
-                    it.variant ||
-                    [it.color, it.size].filter(Boolean).join(" · ");
+                    localVariant ||
+                    media?.variantTitle;
                   return (
                     <TableRow key={it.id}>
                       <TableCell>

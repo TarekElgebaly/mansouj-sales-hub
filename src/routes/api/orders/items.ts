@@ -28,6 +28,13 @@ function isColumnError(error: { message?: string } | null | undefined) {
   return Boolean(error?.message && /column|schema cache/i.test(error.message));
 }
 
+function orderNumberVariants(value: string | null | undefined) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return [];
+  const withoutHash = raw.replace(/^#/, "");
+  return Array.from(new Set([raw, withoutHash, `#${withoutHash}`].filter(Boolean)));
+}
+
 async function loadOrderItems(supabaseAdmin: any, orderIds: string[]) {
   if (!orderIds.length) return { data: [], error: null };
 
@@ -94,11 +101,12 @@ export const Route = createFileRoute("/api/orders/items")({
             }
           }
 
-          if (orderRow?.order_number) {
+          const numberVariants = orderNumberVariants(orderRow?.order_number);
+          if (numberVariants.length) {
             const { data: numberMatches } = await auth.supabaseAdmin
               .from("orders")
               .select("id")
-              .eq("order_number", orderRow.order_number);
+              .in("order_number", numberVariants);
             for (const row of numberMatches ?? []) {
               if (row.id && row.id !== orderId) siblingIds.add(row.id);
             }

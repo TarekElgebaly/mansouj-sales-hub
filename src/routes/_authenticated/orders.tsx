@@ -46,7 +46,6 @@ function OrdersPage() {
   const [openNew, setOpenNew] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [restoringLineItems, setRestoringLineItems] = useState(false);
-  const [refreshingLineItems, setRefreshingLineItems] = useState(false);
   const [syncResult, setSyncResult] = useState<{
     created: number;
     updated: number;
@@ -99,11 +98,10 @@ function OrdersPage() {
     }
   };
 
-  const restoreOpenOrderLineItems = async (refreshDetails = false) => {
+  const restoreOpenOrderLineItems = async () => {
     if (!openOrder) return;
 
-    if (refreshDetails) setRefreshingLineItems(true);
-    else setRestoringLineItems(true);
+    setRestoringLineItems(true);
     try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
@@ -119,7 +117,6 @@ function OrdersPage() {
           order_id: openOrder.id,
           order_number: openOrder.order_number,
           shopify_order_id: openOrder.shopify_order_id,
-          refresh_details: refreshDetails,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -128,11 +125,7 @@ function OrdersPage() {
         throw new Error(json.error ?? "Could not restore line items.");
       }
 
-      if (refreshDetails) {
-        toast.success(
-          `Refreshed ${json.refreshed_items_count ?? 0} and restored ${json.restored_items_count ?? 0} line items for ${openOrder.order_number}`,
-        );
-      } else if (json.restored) {
+      if (json.restored) {
         toast.success(`Restored ${json.restored_items_count ?? 0} line items for ${openOrder.order_number}`);
       } else {
         toast.info("This order already has local line items.");
@@ -140,12 +133,10 @@ function OrdersPage() {
 
       qc.invalidateQueries({ queryKey: ["order-items"] });
       qc.invalidateQueries({ queryKey: ["order-items", openOrder.id] });
-      qc.invalidateQueries({ queryKey: ["product-media"] });
     } catch (error: any) {
       toast.error(error?.message || "Could not restore line items.");
     } finally {
-      if (refreshDetails) setRefreshingLineItems(false);
-      else setRestoringLineItems(false);
+      setRestoringLineItems(false);
     }
   };
 
@@ -389,9 +380,7 @@ function OrdersPage() {
                 itemsLoading={detailItemsLoading}
                 itemsError={detailItemsError}
                 restoringLineItems={restoringLineItems}
-                onRestoreLineItems={canOps ? () => restoreOpenOrderLineItems(false) : undefined}
-                refreshingLineItems={refreshingLineItems}
-                onRefreshLineItems={canOps ? () => restoreOpenOrderLineItems(true) : undefined}
+                onRestoreLineItems={canOps ? restoreOpenOrderLineItems : undefined}
                 onChanged={() => {
                 qc.invalidateQueries({ queryKey: ["orders"] });
                 qc.invalidateQueries({ queryKey: ["orders-finance"] });
