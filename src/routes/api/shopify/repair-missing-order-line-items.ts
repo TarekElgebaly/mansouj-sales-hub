@@ -20,6 +20,8 @@ type ShopifyLineItem = {
   price?: number | string | null;
   discounted_price?: number | string | null;
   total_discount?: number | string | null;
+  image_url?: string | null;
+  image?: { src?: string | null; url?: string | null } | string | null;
 };
 
 type ShopifyOrderResponse = {
@@ -67,6 +69,19 @@ function lineUnitPrice(line: ShopifyLineItem, quantity: number) {
   return price;
 }
 
+function normalizeKey(value: string | null | undefined) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+}
+
+function lineImageUrl(line: ShopifyLineItem) {
+  if (line.image_url) return line.image_url;
+  if (typeof line.image === "string") return line.image;
+  return line.image?.src ?? line.image?.url ?? null;
+}
+
 function isSchemaError(error: { message?: string; code?: string } | null | undefined) {
   const message = error?.message ?? "";
   return (
@@ -76,11 +91,129 @@ function isSchemaError(error: { message?: string; code?: string } | null | undef
   );
 }
 
-function fullOrderItemRow(orderId: string, line: ShopifyLineItem) {
+function numberCost(value: unknown) {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+async function safeReadTable<T>(
+  query: PromiseLike<{ data: T[] | null; error: { message?: string; code?: string } | null }>,
+) {
+  const { data, error } = await query;
+  if (!error) return data ?? [];
+  if (isSchemaError(error)) return [];
+  throw new Error(error.message ?? "database read failed");
+}
+
+async function resolveRepairLineCosts(supabaseAdmin: any, lineItems: ShopifyLineItem[]) {
+  const variantIds = Array.from(
+    new Set(lineItems.map((line) => stringValue(line.variant_id)).filter(Boolean)),
+  );
+  const skus = Array.from(new Set(lineItems.map((line) => stringValue(line.sku)).filter(Boolean)));
+
+  type VariantRow = {
+    shopify_variant_id: string;
+    sku: string | null;
+    inventory_item_id: string | null;
+  };
+  const variantRows: VariantRow[] = [];
+  if (variantIds.length) {
+    variantRows.push(
+      ...(await safeReadTable<VariantRow>(
+        supabaseAdmin
+          .from("shopify_variants")
+          .select("shopify_variant_id,sku,inventory_item_id")
+          .in("shopify_variant_id", variantIds),
+      )),
+    );
+  }
+  if (skus.length) {
+    variantRows.push(
+      ...(await safeReadTable<VariantRow>(
+        supabaseAdmin
+          .from("shopify_variants")
+          .select("shopify_variant_id,sku,inventory_item_id")
+          .in("sku", skus),
+      )),
+    );
+  }
+
+  const variantById = new Map(variantRows.map((row) => [String(row.shopify_variant_id), row]));
+  const variantBySku = new Map<string, VariantRow>();
+  for (const row of variantRows) {
+    if (row.sku) {
+      variantBySku.set(row.sku, row);
+      variantBySku.set(normalizeKey(row.sku), row);
+    }
+  }
+
+  const inventoryIds = Array.from(
+    new Set(variantRows.map((row) => row.inventory_item_id).filter(Boolean) as string[]),
+  );
+  type InventoryRow = {
+    inventory_item_id: string;
+    sku: string | null;
+    unit_cost_amount: number | string | null;
+  };
+  const inventoryRows: InventoryRow[] = [];
+  if (inventoryIds.length) {
+    inventoryRows.push(
+      ...(await safeReadTable<InventoryRow>(
+        supabaseAdmin
+          .from("shopify_inventory_items")
+          .select("inventory_item_id,sku,unit_cost_amount")
+          .in("inventory_item_id", inventoryIds),
+      )),
+    );
+  }
+  if (skus.length) {
+    inventoryRows.push(
+      ...(await safeReadTable<InventoryRow>(
+        supabaseAdmin
+          .from("shopify_inventory_items")
+          .select("inventory_item_id,sku,unit_cost_amount")
+          .in("sku", skus),
+      )),
+    );
+  }
+
+  const costByInventoryId = new Map<string, number>();
+  const costBySku = new Map<string, number>();
+  for (const row of inventoryRows) {
+    const cost = numberCost(row.unit_cost_amount);
+    if (cost <= 0) continue;
+    costByInventoryId.set(String(row.inventory_item_id), cost);
+    if (row.sku) {
+      costBySku.set(row.sku, cost);
+      costBySku.set(normalizeKey(row.sku), cost);
+    }
+  }
+
+  return lineItems.map((line) => {
+    const variant =
+      variantById.get(stringValue(line.variant_id)) ??
+      variantBySku.get(stringValue(line.sku)) ??
+      variantBySku.get(normalizeKey(stringValue(line.sku)));
+    return (
+      (variant?.inventory_item_id && costByInventoryId.get(variant.inventory_item_id)) ||
+      costBySku.get(stringValue(line.sku)) ||
+      costBySku.get(normalizeKey(stringValue(line.sku))) ||
+      0
+    );
+  });
+}
+
+function fullOrderItemRow(
+  orderId: string,
+  shopifyOrderId: string,
+  line: ShopifyLineItem,
+  unitCost: number,
+) {
   const quantity = lineQuantity(line);
   const variantTitle = stringValue(line.variant_title);
   return {
     order_id: orderId,
+    shopify_order_id: shopifyOrderId,
     shopify_line_item_id: stringValue(line.id) || null,
     shopify_admin_graphql_api_id: stringValue(line.admin_graphql_api_id) || null,
     shopify_variant_id: stringValue(line.variant_id) || null,
@@ -90,11 +223,12 @@ function fullOrderItemRow(orderId: string, line: ShopifyLineItem) {
     variant: variantTitle || null,
     barcode: null,
     product_type: null,
+    image_url: lineImageUrl(line),
     color: null,
     size: variantTitle || null,
     quantity,
     unit_selling_price: lineUnitPrice(line, quantity),
-    unit_cost: 0,
+    unit_cost: unitCost,
   };
 }
 
@@ -198,6 +332,8 @@ export const Route = createFileRoute("/api/shopify/repair-missing-order-line-ite
 
           let repairedOrders = 0;
           let lineItemsInserted = 0;
+          let lineItemsWithCost = 0;
+          let lineItemsMissingCost = 0;
           let schemaFallbacks = 0;
           let failedCount = 0;
           const errors: string[] = [];
@@ -216,9 +352,23 @@ export const Route = createFileRoute("/api/shopify/repair-missing-order-line-ite
                 throw new Error("Shopify returned no line_items for this order.");
               }
 
-              const rows = lineItems.map((line) => fullOrderItemRow(order.id, line));
+              const costs = await resolveRepairLineCosts(supabaseAdmin, lineItems);
+              const rows = lineItems.map((line, index) =>
+                fullOrderItemRow(order.id, shopifyOrderId, line, costs[index] ?? 0),
+              );
+              lineItemsWithCost += rows.filter((row) => numberValue(row.unit_cost) > 0).length;
+              lineItemsMissingCost += rows.filter((row) => numberValue(row.unit_cost) <= 0).length;
               const insertResult = await insertOrderItems(supabaseAdmin, rows);
               if (insertResult.schemaFallbackUsed) schemaFallbacks++;
+
+              const nextItemsCost = rows.reduce(
+                (sum, row) => sum + numberValue(row.quantity) * numberValue(row.unit_cost),
+                0,
+              );
+              await supabaseAdmin
+                .from("orders")
+                .update({ items_cost: Number(nextItemsCost.toFixed(2)) } as never)
+                .eq("id", order.id);
 
               repairedOrders++;
               lineItemsInserted += rows.length;
@@ -242,6 +392,8 @@ export const Route = createFileRoute("/api/shopify/repair-missing-order-line-ite
             missing_orders_found: missingOrders.length,
             repaired_orders: repairedOrders,
             line_items_inserted: lineItemsInserted,
+            line_items_with_cost: lineItemsWithCost,
+            line_items_missing_cost: lineItemsMissingCost,
             schema_fallbacks_used: schemaFallbacks,
             failed_count: failedCount,
             repaired,

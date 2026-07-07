@@ -46,6 +46,8 @@ type ShopifyLineItem = {
   total_discount?: string | null;
   variant_id?: number | string | null;
   product_id?: number | string | null;
+  image_url?: string | null;
+  image?: { src?: string | null; url?: string | null } | string | null;
   properties?: Array<{ name: string; value: string }> | null;
 };
 
@@ -114,6 +116,7 @@ type PreparedLineItem = {
   inventoryItemId: string | null;
   barcode: string | null;
   productType: string | null;
+  imageUrl: string | null;
   color: string | null;
   size: string | null;
 };
@@ -235,6 +238,12 @@ function lineItemUnitSellingPrice(line: ShopifyLineItem, quantity: number): numb
   return price;
 }
 
+function lineItemImageUrl(line: ShopifyLineItem) {
+  if (line.image_url) return line.image_url;
+  if (typeof line.image === "string") return line.image;
+  return line.image?.src ?? line.image?.url ?? null;
+}
+
 function prepareLineItems(
   payload: ShopifyOrderPayload,
   orderNumber: string,
@@ -283,6 +292,7 @@ function prepareLineItems(
       inventoryItemId: null,
       barcode: null,
       productType: null,
+      imageUrl: lineItemImageUrl(line),
       color,
       size,
     });
@@ -398,6 +408,7 @@ async function enrichLineItemsWithCurrentShopifyProductData(
     item.inventoryItemId = row.inventory_item_id ? String(row.inventory_item_id) : item.inventoryItemId;
     item.barcode = row.barcode ?? item.barcode;
     item.productType = media.productType ?? product?.product_type ?? item.productType;
+    item.imageUrl = media.imageUrl ?? item.imageUrl;
     item.color = item.color ?? row.option1 ?? null;
     item.size = item.size ?? row.option2 ?? row.option3 ?? null;
     item.fallbackKey = fallbackItemKey(item.sku, item.variant, item.productName);
@@ -567,11 +578,13 @@ async function ensureShopifyOrderLineItems(payload: ShopifyOrderPayload) {
 
 function fullOrderItemRow(
   orderId: string,
+  shopifyOrderId: string,
   item: PreparedLineItem,
   unitCost: number,
 ) {
   return {
     order_id: orderId,
+    shopify_order_id: shopifyOrderId,
     shopify_line_item_id: item.lineItemId,
     shopify_admin_graphql_api_id: item.adminGraphqlApiId,
     shopify_variant_id: item.variantId,
@@ -581,6 +594,7 @@ function fullOrderItemRow(
     variant: item.variant,
     barcode: item.barcode,
     product_type: item.productType,
+    image_url: item.imageUrl,
     color: item.color,
     size: item.size,
     quantity: item.quantity,
@@ -782,7 +796,7 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
 
   if (currentItems.length) {
     const rows = currentItems.map((item, index) =>
-      fullOrderItemRow(orderId, item, isCancelled ? 0 : costs[index] ?? 0),
+      fullOrderItemRow(orderId, shopifyOrderId, item, isCancelled ? 0 : costs[index] ?? 0),
     );
     await insertOrderItemRows(supabaseAdmin, rows);
   }

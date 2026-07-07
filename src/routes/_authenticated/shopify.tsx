@@ -98,6 +98,8 @@ type RepairMissingLineItemsResult = {
   missing_orders_found: number;
   repaired_orders: number;
   line_items_inserted: number;
+  line_items_with_cost: number;
+  line_items_missing_cost: number;
   schema_fallbacks_used: number;
   failed_count: number;
   repaired: Array<{ order_number: string | null; line_items_inserted: number }>;
@@ -345,6 +347,7 @@ function ShopifyPage() {
     order_items_checked: number;
     order_items_with_cost: number;
     order_items_missing_cost: number;
+    orders_with_missing_costs: number;
     total_items_cost_before: number;
     total_items_cost_after: number;
     packaging_costs_checked: number;
@@ -505,6 +508,8 @@ function ShopifyPage() {
         missing_orders_found: json.missing_orders_found ?? 0,
         repaired_orders: json.repaired_orders ?? 0,
         line_items_inserted: json.line_items_inserted ?? 0,
+        line_items_with_cost: json.line_items_with_cost ?? 0,
+        line_items_missing_cost: json.line_items_missing_cost ?? 0,
         schema_fallbacks_used: json.schema_fallbacks_used ?? 0,
         failed_count: json.failed_count ?? 0,
         repaired: json.repaired ?? [],
@@ -902,6 +907,7 @@ function ShopifyPage() {
         order_items_checked: json.order_items_checked ?? 0,
         order_items_with_cost: json.order_items_with_cost ?? 0,
         order_items_missing_cost: json.order_items_missing_cost ?? 0,
+        orders_with_missing_costs: json.orders_with_missing_costs ?? 0,
         total_items_cost_before: json.total_items_cost_before ?? 0,
         total_items_cost_after: json.total_items_cost_after ?? 0,
         packaging_costs_checked: json.packaging_costs_checked ?? 0,
@@ -1253,6 +1259,14 @@ function ShopifyPage() {
                       <StatusItem
                         label="Line items inserted"
                         value={String(repairMissingLineItemsResult.line_items_inserted)}
+                      />
+                      <StatusItem
+                        label="Items with cost"
+                        value={String(repairMissingLineItemsResult.line_items_with_cost)}
+                      />
+                      <StatusItem
+                        label="Items missing cost"
+                        value={String(repairMissingLineItemsResult.line_items_missing_cost)}
                       />
                       <StatusItem
                         label="Schema fallbacks"
@@ -2198,6 +2212,10 @@ function ShopifyPage() {
                         <StatusItem
                           label="Items missing cost"
                           value={String(recalcResult.order_items_missing_cost)}
+                        />
+                        <StatusItem
+                          label="Orders missing cost"
+                          value={String(recalcResult.orders_with_missing_costs)}
                         />
                         <StatusItem
                           label="Total items_cost before"

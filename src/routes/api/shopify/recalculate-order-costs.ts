@@ -53,6 +53,7 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
         let orderItemsChecked = 0;
         let orderItemsWithCost = 0;
         let orderItemsMissingCost = 0;
+        let ordersWithMissingCosts = 0;
         let totalItemsCostBefore = 0;
         let totalItemsCostAfter = 0;
         let packagingCostsChecked = 0;
@@ -62,6 +63,12 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
         let totalPackagingCostAfter = 0;
         let failedCount = 0;
         let lastError: string | null = null;
+        const missingCostSamples: Array<{
+          order_id: string;
+          sku: string | null;
+          product_name: string | null;
+          variant: string | null;
+        }> = [];
 
         try {
           // Load all orders.
@@ -98,7 +105,17 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
               const qty = Number(it.quantity ?? 0);
               const cost = Number(it.unit_cost ?? 0);
               if (cost > 0) orderItemsWithCost++;
-              else orderItemsMissingCost++;
+              else {
+                orderItemsMissingCost++;
+                if (missingCostSamples.length < 20) {
+                  missingCostSamples.push({
+                    order_id: it.order_id,
+                    sku: it.sku,
+                    product_name: it.product_name,
+                    variant: it.variant,
+                  });
+                }
+              }
               const line = qty * cost;
               sumByOrder.set(
                 it.order_id,
@@ -135,6 +152,10 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
             const after = Number((sumByOrder.get(o.id) ?? 0).toFixed(2));
             const packagingBefore = Number(o.packaging_cost ?? 0);
             const packagingManual = manualPackagingOrderIds.has(o.id);
+            const orderHasMissingCost = (itemsByOrder.get(o.id) ?? []).some(
+              (item) => Number(item.unit_cost ?? 0) <= 0,
+            );
+            if (orderHasMissingCost) ordersWithMissingCosts++;
             const calculatedPackaging = Number(
               calculatePackagingCost(itemsByOrder.get(o.id) ?? []).toFixed(2),
             );
@@ -182,6 +203,8 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
               order_items_checked: orderItemsChecked,
               order_items_with_cost: orderItemsWithCost,
               order_items_missing_cost: orderItemsMissingCost,
+              orders_with_missing_costs: ordersWithMissingCosts,
+              missing_cost_samples: missingCostSamples,
               total_items_cost_before: Number(totalItemsCostBefore.toFixed(2)),
               total_items_cost_after: Number(totalItemsCostAfter.toFixed(2)),
               packaging_costs_checked: packagingCostsChecked,
@@ -201,6 +224,8 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
             order_items_checked: orderItemsChecked,
             order_items_with_cost: orderItemsWithCost,
             order_items_missing_cost: orderItemsMissingCost,
+            orders_with_missing_costs: ordersWithMissingCosts,
+            missing_cost_samples: missingCostSamples,
             total_items_cost_before: Number(totalItemsCostBefore.toFixed(2)),
             total_items_cost_after: Number(totalItemsCostAfter.toFixed(2)),
             packaging_costs_checked: packagingCostsChecked,
@@ -227,6 +252,8 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
               order_items_checked: orderItemsChecked,
               order_items_with_cost: orderItemsWithCost,
               order_items_missing_cost: orderItemsMissingCost,
+              orders_with_missing_costs: ordersWithMissingCosts,
+              missing_cost_samples: missingCostSamples,
               packaging_costs_checked: packagingCostsChecked,
               packaging_costs_updated: packagingCostsUpdated,
               packaging_costs_preserved_manual: packagingCostsPreservedManual,

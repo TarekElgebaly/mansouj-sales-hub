@@ -13,6 +13,8 @@ type OrderItemRow = {
   sku: string | null;
   product_name: string | null;
   variant: string | null;
+  shopify_variant_id?: string | null;
+  shopify_product_id?: string | null;
   quantity: number | null;
   unit_cost: number | null;
 };
@@ -74,6 +76,15 @@ function normalizeKey(value: string | null | undefined) {
 
 function money(value: number) {
   return Number(value.toFixed(2));
+}
+
+function isSchemaError(error: { message?: string; code?: string } | null | undefined) {
+  const message = error?.message ?? "";
+  return (
+    error?.code === "PGRST204" ||
+    error?.code === "PGRST205" ||
+    /column|schema cache|could not find/i.test(message)
+  );
 }
 
 function addToIndex(
@@ -180,10 +191,20 @@ export const Route = createFileRoute("/api/shopify/force-update-order-item-costs
             const slice = orderIds.slice(i, i + 200);
             const { data, error } = await supabaseAdmin
               .from("order_items")
+              .select("id,order_id,sku,product_name,variant,shopify_variant_id,shopify_product_id,quantity,unit_cost")
+              .in("order_id", slice);
+            if (!error) {
+              items.push(...((data ?? []) as OrderItemRow[]));
+              continue;
+            }
+            if (!isSchemaError(error)) throw new Error(`order_items lookup failed: ${error.message}`);
+
+            const fallback = await supabaseAdmin
+              .from("order_items")
               .select("id,order_id,sku,product_name,variant,quantity,unit_cost")
               .in("order_id", slice);
-            if (error) throw new Error(`order_items lookup failed: ${error.message}`);
-            items.push(...((data ?? []) as OrderItemRow[]));
+            if (fallback.error) throw new Error(`order_items lookup failed: ${fallback.error.message}`);
+            items.push(...((fallback.data ?? []) as OrderItemRow[]));
           }
           itemsChecked = items.length;
 
@@ -293,6 +314,13 @@ export const Route = createFileRoute("/api/shopify/force-update-order-item-costs
           const resolveVariant = (
             item: OrderItemRow,
           ): { variant: VariantRow | null; reason: MatchReason } => {
+            if (item.shopify_variant_id) {
+              const variant = variantsByVariantId.get(String(item.shopify_variant_id));
+              return variant
+                ? { variant, reason: "matched_by_variant_id" }
+                : { variant: null, reason: "shopify_variant_id_not_found" };
+            }
+
             const variantId = variantIdFromSku(item.sku);
             if (variantId) {
               const variant = variantsByVariantId.get(variantId);

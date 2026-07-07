@@ -50,6 +50,9 @@ type Row = {
   order_status: string | null;
   selling: number | null;
   cost: number | null;
+  knownCost: number;
+  hasMissingItemCost: boolean;
+  missingCostItems: string[];
   gross: number | null;
   shipping: number | null;
   packaging: number | null;
@@ -168,7 +171,18 @@ function EditableCostRow({
         </Badge>
       </TableCell>
       <TableCell className="text-right">{cell(selling)}</TableCell>
-      <TableCell className="text-right">{cell(cost)}</TableCell>
+      <TableCell className="text-right">
+        {r.hasMissingItemCost ? (
+          <div className="space-y-1">
+            <Badge variant="destructive">Missing item cost</Badge>
+            {r.knownCost > 0 && (
+              <div className="text-xs text-muted-foreground">Known: {egp(r.knownCost)}</div>
+            )}
+          </div>
+        ) : (
+          cell(cost)
+        )}
+      </TableCell>
       <TableCell className={cn(
         "text-right font-medium",
         gross === null ? "" : gross >= 0 ? "text-emerald-600" : "text-red-600",
@@ -214,11 +228,17 @@ function EditableCostRow({
 const num = (v: unknown): number | null => {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
-  if (!Number.isFinite(n) || n === 0) return null;
+  if (!Number.isFinite(n)) return null;
   return n;
 };
 const cell = (v: number | null) => (v === null ? <span className="text-muted-foreground">—</span> : egp(v));
 const dash = <span className="text-muted-foreground">—</span>;
+
+function itemLabel(item: any) {
+  return [item.product_name ?? item.product_title, item.variant ?? item.variant_title, item.sku]
+    .filter(Boolean)
+    .join(" · ") || "Unknown item";
+}
 
 function ExpandedItems({ orderId, cancelled }: { orderId: string; cancelled: boolean }) {
   const { data, isLoading } = useQuery({
@@ -255,10 +275,12 @@ function ExpandedItems({ orderId, cancelled }: { orderId: string; cancelled: boo
           {data.map((it: any) => {
             const qty = Number(it.quantity) || 0;
             const unitPrice = num(it.unit_selling_price ?? it.unit_price);
-            const unitCost = cancelled ? 0 : num(it.unit_cost);
+            const rawUnitCost = num(it.unit_cost);
+            const missingUnitCost = !cancelled && (rawUnitCost === null || rawUnitCost <= 0);
+            const unitCost = cancelled ? 0 : missingUnitCost ? null : rawUnitCost;
             const lineTotal = num(it.total_selling_price) ?? (unitPrice === null ? null : unitPrice * qty);
             const lineCost = cancelled ? 0 : unitCost === null ? null : unitCost * qty;
-            const lineProfit = cancelled ? 0 : lineTotal === null ? null : lineTotal - (lineCost ?? 0);
+            const lineProfit = cancelled ? 0 : lineTotal === null || lineCost === null ? null : lineTotal - lineCost;
             const productTitle = it.product_name ?? it.product_title;
             const variantTitle = it.variant ?? it.variant_title;
             const media = productMedia.byItemId.get(it.id);
@@ -278,8 +300,12 @@ function ExpandedItems({ orderId, cancelled }: { orderId: string; cancelled: boo
                 <TableCell className="text-right">{qty}</TableCell>
                 <TableCell className="text-right">{cell(unitPrice)}</TableCell>
                 <TableCell className="text-right">{cell(lineTotal)}</TableCell>
-                <TableCell className="text-right">{cell(unitCost)}</TableCell>
-                <TableCell className="text-right">{cell(lineCost)}</TableCell>
+                <TableCell className="text-right">
+                  {missingUnitCost ? <Badge variant="destructive">Missing</Badge> : cell(unitCost)}
+                </TableCell>
+                <TableCell className="text-right">
+                  {missingUnitCost ? <span className="text-muted-foreground">Missing item cost</span> : cell(lineCost)}
+                </TableCell>
                 <TableCell className={cn(
                   "text-right font-medium",
                   lineProfit === null ? "" : lineProfit >= 0 ? "text-emerald-600" : "text-red-600",
@@ -314,6 +340,26 @@ export function OrdersProfitTab() {
       .order("created_at", { ascending: false })).data ?? [],
   });
 
+  const orderIds = useMemo(() => (orders ?? []).map((o) => o.id), [orders]);
+
+  const { data: financeItems } = useQuery({
+    queryKey: ["finance-order-items", orderIds],
+    enabled: orderIds.length > 0,
+    queryFn: async () => {
+      const rows: any[] = [];
+      for (let i = 0; i < orderIds.length; i += 200) {
+        const slice = orderIds.slice(i, i + 200);
+        const { data, error } = await supabase
+          .from("order_items")
+          .select("id,order_id,sku,product_name,variant,quantity,unit_cost")
+          .in("order_id", slice);
+        if (error) throw new Error(error.message);
+        rows.push(...(data ?? []));
+      }
+      return rows;
+    },
+  });
+
   const openOrder = orders?.find((o) => o.id === openId);
   const { data: openItems } = useQuery({
     queryKey: ["order-items", openId],
@@ -328,19 +374,55 @@ export function OrdersProfitTab() {
   );
 
   const rows = useMemo(() => {
+    const itemsByOrder = new Map<string, any[]>();
+    for (const item of financeItems ?? []) {
+      const existing = itemsByOrder.get(item.order_id) ?? [];
+      existing.push(item);
+      itemsByOrder.set(item.order_id, existing);
+    }
+
     return (orders ?? [])
       .filter((o) => orderStatus === "all" || o.order_status === orderStatus)
       .filter((o) => city === "all" || o.city === city)
       .map((o) => {
+        const cancelled = isCancelledOrder(o);
+        const orderItems = itemsByOrder.get(o.id) ?? [];
+        let knownCost = 0;
+        const missingCostItems: string[] = [];
+        for (const item of orderItems) {
+          const qty = Number(item.quantity ?? 0);
+          const unitCost = Number(item.unit_cost ?? 0);
+          const safeQty = Number.isFinite(qty) ? qty : 0;
+          if (!cancelled && (!Number.isFinite(unitCost) || unitCost <= 0)) {
+            missingCostItems.push(itemLabel(item));
+            continue;
+          }
+          knownCost += safeQty * (Number.isFinite(unitCost) ? unitCost : 0);
+        }
+        const hasMissingItemCost = !cancelled && missingCostItems.length > 0;
         const selling = financeNullable(o, "total_selling_price");
-        const cost = financeNullable(o, "items_cost");
+        const storedCost = financeNullable(o, "items_cost");
+        const cost = cancelled ? 0 : hasMissingItemCost ? null : orderItems.length ? knownCost : storedCost;
         const shipping = financeNullable(o, "shipping_cost");
         const packaging = financeNullable(o, "packaging_cost");
-        const gross = selling === null ? null : selling - (cost ?? 0);
+        const gross = selling === null || cost === null ? null : selling - cost;
         const net = gross === null ? null : gross - (shipping ?? 0) - (packaging ?? 0);
-        return { id: o.id, order_number: o.order_number, order_status: o.order_status, selling, cost, gross, shipping, packaging, net };
+        return {
+          id: o.id,
+          order_number: o.order_number,
+          order_status: o.order_status,
+          selling,
+          cost,
+          knownCost,
+          hasMissingItemCost,
+          missingCostItems,
+          gross,
+          shipping,
+          packaging,
+          net,
+        };
       });
-  }, [orders, orderStatus, city]);
+  }, [orders, financeItems, orderStatus, city]);
 
   const totals = useMemo(() => {
     const t = { selling: 0, cost: 0, gross: 0, shipping: 0, packaging: 0, net: 0 };
@@ -354,6 +436,11 @@ export function OrdersProfitTab() {
     });
     return t;
   }, [rows]);
+
+  const missingCostRows = useMemo(
+    () => rows.filter((row) => row.hasMissingItemCost),
+    [rows],
+  );
 
   const toggle = (id: string) => setExpanded((m) => ({ ...m, [id]: !m[id] }));
 
@@ -388,6 +475,11 @@ export function OrdersProfitTab() {
 
       <Card className="mt-4">
         <CardContent className="p-0">
+          {missingCostRows.length > 0 && (
+            <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {missingCostRows.length} orders have missing item costs. Gross Profit and Net Profit are hidden for those rows until costs are fixed.
+            </div>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
@@ -431,6 +523,11 @@ export function OrdersProfitTab() {
                             <Summary label="Shipping Cost" value={r.shipping} />
                             <Summary label="Packaging Cost" value={r.packaging} />
                             <Summary label="Net Profit" value={r.net} accent />
+                            {r.hasMissingItemCost && (
+                              <div className="sm:col-span-3 lg:col-span-6 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
+                                Missing item cost: {r.missingCostItems.slice(0, 5).join(", ")}
+                              </div>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
