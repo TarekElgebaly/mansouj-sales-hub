@@ -126,6 +126,15 @@ const INVENTORY_ITEMS_QUERY = `
 
 const INVENTORY_ITEM_PAGE_SIZE = 50;
 const INVENTORY_LEVELS_PER_ITEM = 10;
+type InventoryQuantityName = "available" | "on_hand" | "committed" | "unavailable" | "incoming";
+type InventoryLevelQuantities = {
+  available: number | null;
+  onHand: number | null;
+  committed: number | null;
+  unavailable: number | null;
+  incoming: number | null;
+  graphqlUpdatedAt: string | null;
+};
 
 function inventoryItemId(node: InventoryItemNode) {
   if (node.legacyResourceId != null) return String(node.legacyResourceId);
@@ -143,7 +152,7 @@ function inventoryLevelLocationId(level: InventoryLevelGraphqlNode) {
   return legacyIdFromGid(level.location?.id, "Location");
 }
 
-function inventoryQuantity(level: InventoryLevelGraphqlNode, name: "available" | "on_hand") {
+function inventoryQuantity(level: InventoryLevelGraphqlNode, name: InventoryQuantityName) {
   const quantity = level.quantities?.find((item) => item.name === name)?.quantity;
   return typeof quantity === "number" && Number.isFinite(quantity) ? quantity : null;
 }
@@ -195,10 +204,7 @@ function inventoryLevelRow(level: ShopifyInventoryLevel) {
 
 function enrichInventoryLevelRow(
   row: Record<string, unknown>,
-  graphQlQuantitiesByLevelKey: Map<
-    string,
-    { available: number | null; onHand: number | null; graphqlUpdatedAt: string | null }
-  >,
+  graphQlQuantitiesByLevelKey: Map<string, InventoryLevelQuantities>,
 ) {
   const key = `${row.inventory_item_id}:${row.shopify_location_id}`;
   const graphQlQuantities = graphQlQuantitiesByLevelKey.get(key);
@@ -211,11 +217,20 @@ function enrichInventoryLevelRow(
 
   return {
     ...row,
+    available: graphQlQuantities.available ?? row.available,
+    available_quantity: graphQlQuantities.available ?? row.available ?? null,
     on_hand: graphQlQuantities.onHand,
+    on_hand_quantity: graphQlQuantities.onHand,
+    committed_quantity: graphQlQuantities.committed,
+    unavailable_quantity: graphQlQuantities.unavailable,
+    incoming_quantity: graphQlQuantities.incoming,
     raw: {
       ...raw,
       graphql_available: graphQlQuantities.available,
       graphql_on_hand: graphQlQuantities.onHand,
+      graphql_committed: graphQlQuantities.committed,
+      graphql_unavailable: graphQlQuantities.unavailable,
+      graphql_incoming: graphQlQuantities.incoming,
       graphql_updated_at: graphQlQuantities.graphqlUpdatedAt,
     },
   };
@@ -249,16 +264,26 @@ async function existingLevelKeys(supabaseAdmin: any, itemIds: string[]) {
   );
 }
 
-function isMissingColumnError(error: unknown, column: string) {
+function isMissingColumnError(error: unknown, column?: string) {
   const message =
     typeof error === "object" && error && "message" in error
       ? String((error as { message?: unknown }).message ?? "")
       : String(error ?? "");
-  return message.toLowerCase().includes(`column`) && message.includes(column);
+  return message.toLowerCase().includes("column") && (!column || message.includes(column));
 }
 
-function stripOnHand(rows: Record<string, unknown>[]) {
-  return rows.map(({ on_hand: _onHand, ...row }) => row);
+function stripQuantityBreakout(rows: Record<string, unknown>[]) {
+  return rows.map(
+    ({
+      available_quantity: _availableQuantity,
+      on_hand: _onHand,
+      on_hand_quantity: _onHandQuantity,
+      committed_quantity: _committedQuantity,
+      unavailable_quantity: _unavailableQuantity,
+      incoming_quantity: _incomingQuantity,
+      ...row
+    }) => row,
+  );
 }
 
 async function upsertInventoryLevelRows(
@@ -274,11 +299,11 @@ async function upsertInventoryLevelRows(
     );
     return true;
   } catch (error) {
-    if (!isMissingColumnError(error, "on_hand")) throw error;
+    if (!isMissingColumnError(error)) throw error;
     await upsertRows(
       supabaseAdmin,
       "shopify_inventory_levels",
-      stripOnHand(rows),
+      stripQuantityBreakout(rows),
       "inventory_item_id,shopify_location_id",
     );
     return false;
@@ -340,10 +365,7 @@ async function fetchInventoryItemsGraphql(
   const headers = shopifyHeaders(accessToken);
   const endpoint = `https://${domain}/admin/api/${apiVersion}/graphql.json`;
   const rows: Record<string, unknown>[] = [];
-  const graphQlQuantitiesByLevelKey = new Map<
-    string,
-    { available: number | null; onHand: number | null; graphqlUpdatedAt: string | null }
-  >();
+  const graphQlQuantitiesByLevelKey = new Map<string, InventoryLevelQuantities>();
   const onHandByInventoryItemId = new Map<string, number>();
   let pagesFetched = 0;
   let inventoryLevelsWithOnHand = 0;
@@ -361,7 +383,7 @@ async function fetchInventoryItemsGraphql(
           first: INVENTORY_ITEM_PAGE_SIZE,
           after,
           inventoryLevelsFirst: INVENTORY_LEVELS_PER_ITEM,
-          quantityNames: ["available", "on_hand"],
+          quantityNames: ["available", "on_hand", "committed", "unavailable", "incoming"],
         },
       }),
     });
@@ -407,9 +429,15 @@ async function fetchInventoryItemsGraphql(
 
         const available = inventoryQuantity(level, "available");
         const onHand = inventoryQuantity(level, "on_hand");
+        const committed = inventoryQuantity(level, "committed");
+        const unavailable = inventoryQuantity(level, "unavailable");
+        const incoming = inventoryQuantity(level, "incoming");
         graphQlQuantitiesByLevelKey.set(`${itemId}:${locationId}`, {
           available,
           onHand,
+          committed,
+          unavailable,
+          incoming,
           graphqlUpdatedAt: level.updatedAt ?? null,
         });
 
@@ -548,7 +576,7 @@ export const Route = createFileRoute("/api/shopify/sync-inventory-cost")({
           on_hand_quantity_source:
             inventoryLevelsOnHandColumnPresent && inventoryLevelsWithOnHand > 0
               ? "Shopify InventoryLevel quantities.on_hand"
-              : "Shopify inventory_levels.available",
+              : "missing_from_shopify_inventory_level_quantities",
           on_hand_fallback_used: !inventoryLevelsOnHandColumnPresent,
           ...extra,
         });
@@ -763,7 +791,7 @@ export const Route = createFileRoute("/api/shopify/sync-inventory-cost")({
             on_hand_quantity_source:
               inventoryLevelsOnHandColumnPresent && inventoryLevelsWithOnHand > 0
                 ? "Shopify InventoryLevel quantities.on_hand"
-                : "Shopify inventory_levels.available",
+                : "missing_from_shopify_inventory_level_quantities",
             on_hand_fallback_used: !inventoryLevelsOnHandColumnPresent,
             variant_on_hand_quantities_processed: variantOnHandQuantitiesProcessed,
             variant_on_hand_quantities_updated: variantOnHandQuantitiesUpdated,

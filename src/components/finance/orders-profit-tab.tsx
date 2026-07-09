@@ -20,6 +20,7 @@ import { useUser } from "@/hooks/use-user";
 import { saveOrderCosts } from "@/lib/order-costs";
 import { ProductThumb } from "@/components/product-thumb";
 import { useProductMedia } from "@/hooks/use-product-media";
+import { calculateKashierFees } from "@/lib/kashier-fees";
 
 function CostInput({
   value,
@@ -56,6 +57,7 @@ type Row = {
   gross: number | null;
   shipping: number | null;
   packaging: number | null;
+  kashierFees: number;
   net: number | null;
 };
 
@@ -141,7 +143,7 @@ function EditableCostRow({
   const gross = r.gross;
   const shipNum = parse(ship) ?? 0;
   const packNum = parse(pack) ?? 0;
-  const liveNet = gross === null ? null : gross - shipNum - packNum;
+  const liveNet = gross === null ? null : gross - shipNum - packNum - r.kashierFees;
 
   return (
     <TableRow className="hover:bg-muted/50">
@@ -203,6 +205,7 @@ function EditableCostRow({
           cell(r.packaging)
         )}
       </TableCell>
+      <TableCell className="text-right">{cell(r.kashierFees)}</TableCell>
       <TableCell className={cn(
         "text-right font-medium",
         liveNet === null ? "" : liveNet >= 0 ? "text-emerald-600" : "text-red-600",
@@ -405,8 +408,9 @@ export function OrdersProfitTab() {
         const cost = cancelled ? 0 : hasMissingItemCost ? null : orderItems.length ? knownCost : storedCost;
         const shipping = financeNullable(o, "shipping_cost");
         const packaging = financeNullable(o, "packaging_cost");
+        const kashierFees = calculateKashierFees(o, selling ?? 0);
         const gross = selling === null || cost === null ? null : selling - cost;
-        const net = gross === null ? null : gross - (shipping ?? 0) - (packaging ?? 0);
+        const net = gross === null ? null : gross - (shipping ?? 0) - (packaging ?? 0) - kashierFees;
         return {
           id: o.id,
           order_number: o.order_number,
@@ -419,19 +423,21 @@ export function OrdersProfitTab() {
           gross,
           shipping,
           packaging,
+          kashierFees,
           net,
         };
       });
   }, [orders, financeItems, orderStatus, city]);
 
   const totals = useMemo(() => {
-    const t = { selling: 0, cost: 0, gross: 0, shipping: 0, packaging: 0, net: 0 };
+    const t = { selling: 0, cost: 0, gross: 0, shipping: 0, packaging: 0, kashierFees: 0, net: 0 };
     rows.forEach((r) => {
       t.selling += r.selling ?? 0;
       t.cost += r.cost ?? 0;
       t.gross += r.gross ?? 0;
       t.shipping += r.shipping ?? 0;
       t.packaging += r.packaging ?? 0;
+      t.kashierFees += r.kashierFees;
       t.net += r.net ?? 0;
     });
     return t;
@@ -491,6 +497,7 @@ export function OrdersProfitTab() {
                 <TableHead className="text-right">Gross Profit</TableHead>
                 <TableHead className="text-right">Shipping Cost</TableHead>
                 <TableHead className="text-right">Packaging Cost</TableHead>
+                <TableHead className="text-right">Kashier Fees</TableHead>
                 <TableHead className="text-right">Net Profit</TableHead>
                 {canEditCosts && <TableHead className="text-right w-24">Save</TableHead>}
               </TableRow>
@@ -498,7 +505,7 @@ export function OrdersProfitTab() {
             <TableBody>
               {rows.map((r) => {
                 const isOpen = !!expanded[r.id];
-                const colCount = canEditCosts ? 10 : 9;
+                const colCount = canEditCosts ? 11 : 10;
                 return (
                   <Fragment key={r.id}>
                     <EditableCostRow
@@ -522,6 +529,7 @@ export function OrdersProfitTab() {
                             <Summary label="Gross Profit" value={r.gross} accent />
                             <Summary label="Shipping Cost" value={r.shipping} />
                             <Summary label="Packaging Cost" value={r.packaging} />
+                            <Summary label="Kashier Fees" value={r.kashierFees} />
                             <Summary label="Net Profit" value={r.net} accent />
                             {r.hasMissingItemCost && (
                               <div className="sm:col-span-3 lg:col-span-6 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
@@ -536,7 +544,7 @@ export function OrdersProfitTab() {
                 );
               })}
               {rows.length === 0 && (
-                <TableRow><TableCell colSpan={canEditCosts ? 10 : 9} className="text-center text-muted-foreground py-8">No orders match.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={canEditCosts ? 11 : 10} className="text-center text-muted-foreground py-8">No orders match.</TableCell></TableRow>
               )}
             </TableBody>
             {rows.length > 0 && (
@@ -555,6 +563,7 @@ export function OrdersProfitTab() {
                   </TableCell>
                   <TableCell className="text-right font-semibold">{egp(totals.shipping)}</TableCell>
                   <TableCell className="text-right font-semibold">{egp(totals.packaging)}</TableCell>
+                  <TableCell className="text-right font-semibold">{egp(totals.kashierFees)}</TableCell>
                   <TableCell className={cn(
                     "text-right font-semibold",
                     totals.net >= 0 ? "text-emerald-600" : "text-red-600",

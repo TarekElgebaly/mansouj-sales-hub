@@ -1,25 +1,43 @@
+import { calculateKashierFees } from "@/lib/kashier-fees";
+
 export function isCancelledOrder(order: { order_status?: string | null } | null | undefined) {
   return order?.order_status === "Cancelled";
 }
 
-export function financeNumber(order: Record<string, unknown>, key: string) {
-  if (isCancelledOrder(order)) {
-    if (key === "shipping_cost" || key === "packaging_cost") {
-      const n = Number(order[key] ?? 0);
-      return Number.isFinite(n) ? n : 0;
-    }
-    if (key === "net_profit") {
-      const shipping = Number(order.shipping_cost ?? 0);
-      const packaging = Number(order.packaging_cost ?? 0);
-      return -(Number.isFinite(shipping) ? shipping : 0) - (Number.isFinite(packaging) ? packaging : 0);
-    }
-    return 0;
-  }
+function rawNumber(order: Record<string, unknown>, key: string) {
   const n = Number(order[key] ?? 0);
   return Number.isFinite(n) ? n : 0;
 }
 
-export function financeNullable(order: Record<string, unknown>, key: string) {
+export function financeNumber(order: Record<string, unknown>, key: string): number {
+  if (isCancelledOrder(order)) {
+    if (key === "shipping_cost" || key === "packaging_cost") {
+      return rawNumber(order, key);
+    }
+    if (key === "net_profit") {
+      const shipping = Number(order.shipping_cost ?? 0);
+      const packaging = Number(order.packaging_cost ?? 0);
+      const kashierFees = calculateKashierFees(order, 0);
+      return (
+        -(Number.isFinite(shipping) ? shipping : 0) -
+        (Number.isFinite(packaging) ? packaging : 0) -
+        kashierFees
+      );
+    }
+    return 0;
+  }
+  if (key === "net_profit") {
+    const selling = rawNumber(order, "total_selling_price");
+    const cost = rawNumber(order, "items_cost");
+    const shipping = rawNumber(order, "shipping_cost");
+    const packaging = rawNumber(order, "packaging_cost");
+    const kashierFees = calculateKashierFees(order, selling);
+    return selling - cost - shipping - packaging - kashierFees;
+  }
+  return rawNumber(order, key);
+}
+
+export function financeNullable(order: Record<string, unknown>, key: string): number | null {
   if (isCancelledOrder(order)) {
     if (key === "shipping_cost" || key === "packaging_cost") {
       const n = Number(order[key] ?? 0);
@@ -30,6 +48,10 @@ export function financeNullable(order: Record<string, unknown>, key: string) {
       return net === 0 ? null : net;
     }
     return 0;
+  }
+  if (key === "net_profit") {
+    const net = financeNumber(order, "net_profit");
+    return net === 0 ? null : net;
   }
   const value = order[key];
   if (value === null || value === undefined || value === "") return null;

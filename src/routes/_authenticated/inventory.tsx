@@ -47,7 +47,12 @@ type InventoryItem = {
 type InventoryLevel = {
   inventory_item_id: string;
   available: number | null;
+  available_quantity?: number | null;
   on_hand?: number | null;
+  on_hand_quantity?: number | null;
+  committed_quantity?: number | null;
+  unavailable_quantity?: number | null;
+  incoming_quantity?: number | null;
 };
 
 type InventoryReportRow = {
@@ -63,6 +68,9 @@ type InventoryReportRow = {
   onHand: number;
   onHandKnown: boolean;
   available: number | null;
+  committed: number | null;
+  unavailable: number | null;
+  incoming: number | null;
   cost: number;
   salePrice: number;
   totalCost: number;
@@ -110,6 +118,18 @@ function missingColumn(error: unknown, column: string) {
   return message.toLowerCase().includes("column") && message.includes(column);
 }
 
+function quantityValue(value: unknown) {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function addQuantity(map: Map<string, number>, itemId: string | null | undefined, value: unknown) {
+  if (!itemId || value === null || value === undefined) return;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return;
+  map.set(itemId, (map.get(itemId) ?? 0) + n);
+}
+
 function InventoryPage() {
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"all" | "low">("all");
@@ -136,7 +156,12 @@ function InventoryPage() {
       ]);
       let levelsResult = await (supabase as any)
         .from("shopify_inventory_levels")
-        .select("inventory_item_id,available,on_hand");
+        .select("inventory_item_id,available,available_quantity,on_hand,on_hand_quantity,committed_quantity,unavailable_quantity,incoming_quantity");
+      if (levelsResult.error && missingColumn(levelsResult.error, "on_hand_quantity")) {
+        levelsResult = await (supabase as any)
+          .from("shopify_inventory_levels")
+          .select("inventory_item_id,available,on_hand");
+      }
       if (levelsResult.error && missingColumn(levelsResult.error, "on_hand")) {
         levelsResult = await (supabase as any)
           .from("shopify_inventory_levels")
@@ -152,30 +177,28 @@ function InventoryPage() {
       );
       const availableByInventoryItem = new Map<string, number>();
       const onHandByInventoryItem = new Map<string, number>();
+      const committedByInventoryItem = new Map<string, number>();
+      const unavailableByInventoryItem = new Map<string, number>();
+      const incomingByInventoryItem = new Map<string, number>();
       for (const level of levels) {
-        availableByInventoryItem.set(
-          level.inventory_item_id,
-          (availableByInventoryItem.get(level.inventory_item_id) ?? 0) + Number(level.available ?? 0),
-        );
-        if (level.on_hand != null) {
-          onHandByInventoryItem.set(
-            level.inventory_item_id,
-            (onHandByInventoryItem.get(level.inventory_item_id) ?? 0) + Number(level.on_hand),
-          );
-        }
+        addQuantity(availableByInventoryItem, level.inventory_item_id, level.available_quantity ?? level.available);
+        addQuantity(onHandByInventoryItem, level.inventory_item_id, level.on_hand_quantity ?? level.on_hand);
+        addQuantity(committedByInventoryItem, level.inventory_item_id, level.committed_quantity);
+        addQuantity(unavailableByInventoryItem, level.inventory_item_id, level.unavailable_quantity);
+        addQuantity(incomingByInventoryItem, level.inventory_item_id, level.incoming_quantity);
       }
 
       return variants.map((variant): InventoryReportRow => {
         const product = productRelation(variant.shopify_products);
         const media = mediaFromVariant(variant);
-        const available = variant.inventory_item_id
-          ? availableByInventoryItem.get(variant.inventory_item_id) ?? null
-          : null;
-        const onHandKnown = variant.inventory_item_id
-          ? onHandByInventoryItem.has(variant.inventory_item_id)
-          : false;
-        const onHand = variant.inventory_item_id
-          ? onHandByInventoryItem.get(variant.inventory_item_id) ?? available ?? 0
+        const inventoryItemId = variant.inventory_item_id;
+        const available = inventoryItemId ? availableByInventoryItem.get(inventoryItemId) ?? null : null;
+        const committed = inventoryItemId ? committedByInventoryItem.get(inventoryItemId) ?? null : null;
+        const unavailable = inventoryItemId ? unavailableByInventoryItem.get(inventoryItemId) ?? null : null;
+        const incoming = inventoryItemId ? incomingByInventoryItem.get(inventoryItemId) ?? null : null;
+        const onHandKnown = inventoryItemId ? onHandByInventoryItem.has(inventoryItemId) : false;
+        const onHand = inventoryItemId
+          ? onHandByInventoryItem.get(inventoryItemId) ?? quantityValue(variant.inventory_quantity)
           : 0;
         const cost = variant.inventory_item_id
           ? Number(costByInventoryItem.get(variant.inventory_item_id) ?? 0)
@@ -200,6 +223,9 @@ function InventoryPage() {
           onHand,
           onHandKnown,
           available,
+          committed,
+          unavailable,
+          incoming,
           cost,
           salePrice,
           totalCost: onHand * cost,
@@ -356,6 +382,7 @@ function InventoryPage() {
                 <TableHead>Variant / Size / Color</TableHead>
                 <TableHead className="text-right">On Hand Quantity</TableHead>
                 <TableHead className="text-right">Available Quantity</TableHead>
+                <TableHead className="text-right">Committed Quantity</TableHead>
                 <TableHead className="text-right">Cost</TableHead>
                 <TableHead className="text-right">Sale Price</TableHead>
                 <TableHead className="text-right">Total Cost</TableHead>
@@ -383,6 +410,7 @@ function InventoryPage() {
                   </TableCell>
                   <TableCell className="text-right">{row.onHand}</TableCell>
                   <TableCell className="text-right">{row.available ?? "—"}</TableCell>
+                  <TableCell className="text-right">{row.committed ?? "—"}</TableCell>
                   <TableCell className="text-right">{egp(row.cost)}</TableCell>
                   <TableCell className="text-right">{egp(row.salePrice)}</TableCell>
                   <TableCell className="text-right">{egp(row.totalCost)}</TableCell>
@@ -392,7 +420,7 @@ function InventoryPage() {
               ))}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                     No synced Shopify inventory matches these filters.
                   </TableCell>
                 </TableRow>

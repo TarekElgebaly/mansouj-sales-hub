@@ -32,7 +32,12 @@ type InventoryItem = {
 type InventoryLevel = {
   inventory_item_id: string;
   available: number | null;
+  available_quantity?: number | null;
   on_hand?: number | null;
+  on_hand_quantity?: number | null;
+  committed_quantity?: number | null;
+  unavailable_quantity?: number | null;
+  incoming_quantity?: number | null;
 };
 
 type LocalInventoryRow = {
@@ -126,12 +131,21 @@ function isMissingColumnError(error: unknown, column?: string) {
 async function loadInventoryLevels(supabaseAdmin: any) {
   const withOnHand = await supabaseAdmin
     .from("shopify_inventory_levels")
-    .select("inventory_item_id,available,on_hand");
+    .select("inventory_item_id,available,available_quantity,on_hand,on_hand_quantity,committed_quantity,unavailable_quantity,incoming_quantity");
   if (!withOnHand.error) {
     return { data: (withOnHand.data ?? []) as InventoryLevel[], hasOnHandColumn: true };
   }
-  if (!isMissingColumnError(withOnHand.error, "on_hand")) {
+  if (!isMissingColumnError(withOnHand.error)) {
     throw new Error(`Could not load shopify_inventory_levels: ${withOnHand.error.message}`);
+  }
+  const legacyWithOnHand = await supabaseAdmin
+    .from("shopify_inventory_levels")
+    .select("inventory_item_id,available,on_hand");
+  if (!legacyWithOnHand.error) {
+    return { data: (legacyWithOnHand.data ?? []) as InventoryLevel[], hasOnHandColumn: true };
+  }
+  if (!isMissingColumnError(legacyWithOnHand.error, "on_hand")) {
+    throw new Error(`Could not load shopify_inventory_levels: ${legacyWithOnHand.error.message}`);
   }
   const availableOnly = await supabaseAdmin
     .from("shopify_inventory_levels")
@@ -214,7 +228,9 @@ export const Route = createFileRoute("/api/shopify/inventory-reconciliation")({
           addQuantity(
             onHandByItemId,
             level.inventory_item_id,
-            levelsResult.hasOnHandColumn ? level.on_hand ?? null : level.available,
+            levelsResult.hasOnHandColumn
+              ? level.on_hand_quantity ?? level.on_hand ?? null
+              : null,
           );
         }
 
@@ -323,8 +339,8 @@ export const Route = createFileRoute("/api/shopify/inventory-reconciliation")({
           product_status: productStatus,
           sku_remaps_used: false,
           on_hand_quantity_source: levelsResult.hasOnHandColumn
-            ? "shopify_inventory_levels.on_hand"
-            : "shopify_inventory_levels.available",
+            ? "shopify_inventory_levels.on_hand_quantity"
+            : "missing_from_shopify_inventory_level_quantities",
           on_hand_column_present: levelsResult.hasOnHandColumn,
           inventory_source_columns_present: localResult.hasSourceColumns,
           on_hand_missing_count: onHandMissingCount,

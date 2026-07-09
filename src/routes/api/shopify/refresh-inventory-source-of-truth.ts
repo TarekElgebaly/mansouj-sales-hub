@@ -38,7 +38,12 @@ type InventoryItem = {
 type InventoryLevel = {
   inventory_item_id: string;
   available: number | null;
+  available_quantity?: number | null;
   on_hand?: number | null;
+  on_hand_quantity?: number | null;
+  committed_quantity?: number | null;
+  unavailable_quantity?: number | null;
+  incoming_quantity?: number | null;
 };
 
 type LocalInventoryRow = {
@@ -111,6 +116,9 @@ function stripSourceColumns(payload: Record<string, unknown>) {
     shopify_raw: _shopifyRaw,
     on_hand_quantity: _onHandQuantity,
     available_quantity: _availableQuantity,
+    committed_quantity: _committedQuantity,
+    unavailable_quantity: _unavailableQuantity,
+    incoming_quantity: _incomingQuantity,
     ...legacyPayload
   } = payload;
   return legacyPayload;
@@ -119,15 +127,27 @@ function stripSourceColumns(payload: Record<string, unknown>) {
 async function loadInventoryLevels(supabaseAdmin: any) {
   const withOnHand = await supabaseAdmin
     .from("shopify_inventory_levels")
-    .select("inventory_item_id,available,on_hand");
+    .select("inventory_item_id,available,available_quantity,on_hand,on_hand_quantity,committed_quantity,unavailable_quantity,incoming_quantity");
   if (!withOnHand.error) {
     return {
       data: (withOnHand.data ?? []) as InventoryLevel[],
       hasOnHandColumn: true,
     };
   }
-  if (!isMissingColumnError(withOnHand.error, "on_hand")) {
+  if (!isMissingColumnError(withOnHand.error)) {
     throw new Error(`Could not load shopify_inventory_levels: ${withOnHand.error.message}`);
+  }
+  const legacyWithOnHand = await supabaseAdmin
+    .from("shopify_inventory_levels")
+    .select("inventory_item_id,available,on_hand");
+  if (!legacyWithOnHand.error) {
+    return {
+      data: (legacyWithOnHand.data ?? []) as InventoryLevel[],
+      hasOnHandColumn: true,
+    };
+  }
+  if (!isMissingColumnError(legacyWithOnHand.error, "on_hand")) {
+    throw new Error(`Could not load shopify_inventory_levels: ${legacyWithOnHand.error.message}`);
   }
   const availableOnly = await supabaseAdmin
     .from("shopify_inventory_levels")
@@ -299,9 +319,15 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
           );
           const availableByItemId = new Map<string, number>();
           const onHandByItemId = new Map<string, number>();
+          const committedByItemId = new Map<string, number>();
+          const unavailableByItemId = new Map<string, number>();
+          const incomingByItemId = new Map<string, number>();
           for (const level of levels) {
-            addQuantity(availableByItemId, level.inventory_item_id, level.available);
-            addQuantity(onHandByItemId, level.inventory_item_id, level.on_hand ?? null);
+            addQuantity(availableByItemId, level.inventory_item_id, level.available_quantity ?? level.available);
+            addQuantity(onHandByItemId, level.inventory_item_id, level.on_hand_quantity ?? level.on_hand ?? null);
+            addQuantity(committedByItemId, level.inventory_item_id, level.committed_quantity ?? null);
+            addQuantity(unavailableByItemId, level.inventory_item_id, level.unavailable_quantity ?? null);
+            addQuantity(incomingByItemId, level.inventory_item_id, level.incoming_quantity ?? null);
           }
 
           const localIndexes = buildIndexes(localRows);
@@ -318,9 +344,10 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
             const inventoryItemId = variant.inventory_item_id ?? null;
             const hasOnHand = inventoryItemId ? onHandByItemId.has(inventoryItemId) : false;
             const available = inventoryItemId ? availableByItemId.get(inventoryItemId) ?? 0 : 0;
-            const onHand = inventoryItemId
-              ? onHandByItemId.get(inventoryItemId) ?? available
-              : 0;
+            const onHand = inventoryItemId ? onHandByItemId.get(inventoryItemId) ?? 0 : 0;
+            const committed = inventoryItemId ? committedByItemId.get(inventoryItemId) ?? 0 : 0;
+            const unavailable = inventoryItemId ? unavailableByItemId.get(inventoryItemId) ?? 0 : 0;
+            const incoming = inventoryItemId ? incomingByItemId.get(inventoryItemId) ?? 0 : 0;
             if (!hasOnHand) missingOnHandCount++;
 
             const color = cleanOption(variant.option1);
@@ -339,6 +366,9 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
               current_inventory: onHand,
               on_hand_quantity: hasOnHand ? onHand : null,
               available_quantity: available,
+              committed_quantity: committed,
+              unavailable_quantity: unavailable,
+              incoming_quantity: incoming,
               cost_price: inventoryItemId ? costByItemId.get(inventoryItemId) ?? 0 : 0,
               sale_price: numberValue(variant.price),
               status: stockStatus(onHand),
@@ -354,8 +384,12 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
                 product: product?.raw ?? null,
                 variant: variant.raw ?? null,
                 on_hand_quantity_source: hasOnHand
-                  ? "shopify_inventory_levels.on_hand"
+                  ? "shopify_inventory_levels.on_hand_quantity"
                   : "missing_from_shopify_response",
+                available_quantity: available,
+                committed_quantity: committed,
+                unavailable_quantity: unavailable,
+                incoming_quantity: incoming,
               },
             };
 
@@ -421,8 +455,11 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
                 current_inventory: 0,
                 on_hand_quantity: 0,
                 available_quantity: 0,
+                committed_quantity: 0,
+                unavailable_quantity: 0,
+                incoming_quantity: 0,
                 shopify_synced_at: refreshedAt,
-              })
+              } as never)
               .in("id", staleIds);
             if (error) throw new Error(`Could not mark stale inventory rows: ${error.message}`);
             staleRowsMarked = staleIds.length;

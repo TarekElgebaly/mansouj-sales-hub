@@ -25,6 +25,7 @@ import { saveOrderCosts } from "@/lib/order-costs";
 import { calculatePackagingCost } from "@/lib/packaging-cost";
 import { DateScopeFilter } from "@/components/date-scope-filter";
 import { createDefaultDateScope, dateInScope, getDateScopeRange } from "@/lib/date-scope";
+import { calculateKashierFees } from "@/lib/kashier-fees";
 
 export const Route = createFileRoute("/_authenticated/orders")({
   head: () => ({ meta: [{ title: "Orders — Mansouj" }] }),
@@ -307,6 +308,7 @@ function OrdersPage() {
                     <TableHead>City</TableHead><TableHead>Date</TableHead>
                     <TableHead>Confirmation</TableHead><TableHead>Status</TableHead>
                     <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-right">Kashier Fees</TableHead>
                     <TableHead className="text-right">Shipping Cost</TableHead>
                     <TableHead className="text-right">Packaging Cost</TableHead>
                   </TableRow>
@@ -323,6 +325,7 @@ function OrdersPage() {
                       <TableCell><Badge variant={statusTone(o.confirmation_status)}>{o.confirmation_status}</Badge></TableCell>
                       <TableCell><Badge variant={statusTone(o.order_status)}>{o.order_status}</Badge></TableCell>
                       <TableCell className="text-right">{egp(Number(o.total_selling_price ?? 0))}</TableCell>
+                      <TableCell className="text-right">{egp(calculateKashierFees(o))}</TableCell>
                       <OrderCostCells
                         order={o}
                         canEdit={canEditCosts}
@@ -334,7 +337,7 @@ function OrdersPage() {
                     </TableRow>
                   ))}
                   {filtered.length === 0 && (
-                    <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-8">No orders match.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground py-8">No orders match.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>

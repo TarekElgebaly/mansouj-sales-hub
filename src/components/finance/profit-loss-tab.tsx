@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { egp } from "@/lib/format";
 import { financeNumber, isCancelledOrder } from "@/lib/order-finance";
+import { calculateKashierFees } from "@/lib/kashier-fees";
 import { cn } from "@/lib/utils";
 import { EXPENSE_CATEGORIES } from "./expenses-tab";
 import { usePeriod } from "./period-filter";
@@ -14,7 +15,7 @@ export function ProfitLossTab() {
 
   const { data: orders } = useQuery({
     queryKey: ["pl-orders", from, to],
-    queryFn: async () => (await supabase.from("orders").select("total_selling_price,items_cost,shipping_cost,packaging_cost,order_date,order_status")
+    queryFn: async () => (await supabase.from("orders").select("total_selling_price,items_cost,shipping_cost,packaging_cost,payment_gateway,order_date,order_status")
       .gte("order_date", from).lte("order_date", to)).data ?? [],
   });
   const { data: expenses } = useQuery({
@@ -41,7 +42,8 @@ export function ProfitLossTab() {
       const cost = financeNumber(o, "items_cost");
       const shipping = financeNumber(o, "shipping_cost");
       const packaging = financeNumber(o, "packaging_cost");
-      return sum + (selling - cost - shipping - packaging);
+      const kashierFees = calculateKashierFees(o, selling);
+      return sum + (selling - cost - shipping - packaging - kashierFees);
     }, 0);
   }, [orders]);
 

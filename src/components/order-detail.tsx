@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { saveOrderCosts } from "@/lib/order-costs";
 import { ProductThumb } from "@/components/product-thumb";
 import { useProductMedia } from "@/hooks/use-product-media";
+import { calculateKashierFees } from "@/lib/kashier-fees";
 
 function Info({ label, value }: { label: string; value: any }) {
   return <div><div className="text-xs text-muted-foreground">{label}</div><div className="font-medium">{value}</div></div>;
@@ -91,6 +92,7 @@ export function OrderDetail({
   const selling = order.total_selling_price ?? null;
   const shipping = Number(shippingCost || 0);
   const packaging = Number(packagingCost || 0);
+  const kashierFees = calculateKashierFees(order, Number(selling ?? 0));
   const money = (v: number | null) => v == null ? <span className="text-muted-foreground">—</span> : egp(v);
 
   return (
@@ -215,6 +217,7 @@ export function OrderDetail({
           <Info label="Selling Price" value={money(selling)} />
           <Info label="Shipping Cost" value={money(shipping)} />
           <Info label="Packaging Cost" value={money(packaging)} />
+          <Info label="Kashier Fees" value={money(kashierFees)} />
         </div>
       </div>
 
