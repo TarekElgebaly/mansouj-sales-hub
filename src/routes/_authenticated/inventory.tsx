@@ -910,6 +910,9 @@ function InventoryPage() {
                   <TableCell className="text-right">{row.onHand}</TableCell>
                   <TableCell className="text-right">{row.available ?? "—"}</TableCell>
                   <TableCell className="text-right">{row.committed ?? "—"}</TableCell>
+                  {hasIncoming && (
+                    <TableCell className="text-right">{row.incoming ?? "—"}</TableCell>
+                  )}
                   <TableCell className="text-right">{egp(row.cost)}</TableCell>
                   <TableCell className="text-right">{egp(row.salePrice)}</TableCell>
                   <TableCell className="text-right">{egp(row.totalCost)}</TableCell>
