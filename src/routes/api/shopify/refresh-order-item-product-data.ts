@@ -360,7 +360,7 @@ export const Route = createFileRoute("/api/shopify/refresh-order-item-product-da
 
             const { error } = await supabaseAdmin
               .from("order_items")
-              .update(patch)
+              .update(patch as never)
               .eq("id", item.id);
             if (error) {
               failedCount++;
