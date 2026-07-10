@@ -187,6 +187,7 @@ function compareRowsByKey(a: InventoryReportRow, b: InventoryReportRow, key: Sor
   if (key === "onHand") return compareNullableNumbers(a.onHand, b.onHand);
   if (key === "available") return compareNullableNumbers(a.available, b.available);
   if (key === "committed") return compareNullableNumbers(a.committed, b.committed);
+  if (key === "incoming") return compareNullableNumbers(a.incoming, b.incoming);
   if (key === "cost") return compareNullableNumbers(a.cost, b.cost);
   if (key === "salePrice") return compareNullableNumbers(a.salePrice, b.salePrice);
   if (key === "totalCost") return compareNullableNumbers(a.totalCost, b.totalCost);
