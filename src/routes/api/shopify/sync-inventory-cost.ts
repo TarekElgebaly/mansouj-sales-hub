@@ -383,7 +383,7 @@ async function fetchInventoryItemsGraphql(
           first: INVENTORY_ITEM_PAGE_SIZE,
           after,
           inventoryLevelsFirst: INVENTORY_LEVELS_PER_ITEM,
-          quantityNames: ["available", "on_hand", "committed", "unavailable", "incoming"],
+          quantityNames: ["on_hand", "available", "committed", "incoming"],
         },
       }),
     });
