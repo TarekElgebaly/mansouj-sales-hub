@@ -157,21 +157,11 @@ export type Database = {
           created_at: string
           current_inventory: number
           id: string
-          inventory_item_id: string | null
-          is_shopify_stale: boolean
           low_stock_threshold: number
-          available_quantity: number | null
-          on_hand_quantity: number | null
           product_images: Json
           product_name: string
           sale_price: number
           size: string | null
-          shopify_product_id: string | null
-          shopify_product_status: string | null
-          shopify_product_type: string | null
-          shopify_raw: Json
-          shopify_synced_at: string | null
-          shopify_variant_id: string | null
           sku: string
           status: string
           updated_at: string
@@ -184,21 +174,11 @@ export type Database = {
           created_at?: string
           current_inventory?: number
           id?: string
-          inventory_item_id?: string | null
-          is_shopify_stale?: boolean
           low_stock_threshold?: number
-          available_quantity?: number | null
-          on_hand_quantity?: number | null
           product_images?: Json
           product_name: string
           sale_price?: number
           size?: string | null
-          shopify_product_id?: string | null
-          shopify_product_status?: string | null
-          shopify_product_type?: string | null
-          shopify_raw?: Json
-          shopify_synced_at?: string | null
-          shopify_variant_id?: string | null
           sku: string
           status?: string
           updated_at?: string
@@ -211,21 +191,11 @@ export type Database = {
           created_at?: string
           current_inventory?: number
           id?: string
-          inventory_item_id?: string | null
-          is_shopify_stale?: boolean
           low_stock_threshold?: number
-          available_quantity?: number | null
-          on_hand_quantity?: number | null
           product_images?: Json
           product_name?: string
           sale_price?: number
           size?: string | null
-          shopify_product_id?: string | null
-          shopify_product_status?: string | null
-          shopify_product_type?: string | null
-          shopify_raw?: Json
-          shopify_synced_at?: string | null
-          shopify_variant_id?: string | null
           sku?: string
           status?: string
           updated_at?: string
@@ -302,17 +272,11 @@ export type Database = {
         Row: {
           color: string | null
           created_at: string
-          barcode: string | null
           id: string
           order_id: string
           product_name: string
-          product_type: string | null
           quantity: number
           size: string | null
-          shopify_admin_graphql_api_id: string | null
-          shopify_line_item_id: string | null
-          shopify_product_id: string | null
-          shopify_variant_id: string | null
           sku: string
           total_cost: number | null
           total_selling_price: number | null
@@ -323,17 +287,11 @@ export type Database = {
         Insert: {
           color?: string | null
           created_at?: string
-          barcode?: string | null
           id?: string
           order_id: string
           product_name: string
-          product_type?: string | null
           quantity?: number
           size?: string | null
-          shopify_admin_graphql_api_id?: string | null
-          shopify_line_item_id?: string | null
-          shopify_product_id?: string | null
-          shopify_variant_id?: string | null
           sku: string
           total_cost?: number | null
           total_selling_price?: number | null
@@ -344,17 +302,11 @@ export type Database = {
         Update: {
           color?: string | null
           created_at?: string
-          barcode?: string | null
           id?: string
           order_id?: string
           product_name?: string
-          product_type?: string | null
           quantity?: number
           size?: string | null
-          shopify_admin_graphql_api_id?: string | null
-          shopify_line_item_id?: string | null
-          shopify_product_id?: string | null
-          shopify_variant_id?: string | null
           sku?: string
           total_cost?: number | null
           total_selling_price?: number | null
@@ -586,7 +538,6 @@ export type Database = {
           created_at: string
           id: string
           inventory_item_id: string
-          on_hand: number | null
           raw: Json
           shopify_location_id: string
           shopify_updated_at: string | null
@@ -597,7 +548,6 @@ export type Database = {
           created_at?: string
           id?: string
           inventory_item_id: string
-          on_hand?: number | null
           raw?: Json
           shopify_location_id: string
           shopify_updated_at?: string | null
@@ -608,7 +558,6 @@ export type Database = {
           created_at?: string
           id?: string
           inventory_item_id?: string
-          on_hand?: number | null
           raw?: Json
           shopify_location_id?: string
           shopify_updated_at?: string | null
