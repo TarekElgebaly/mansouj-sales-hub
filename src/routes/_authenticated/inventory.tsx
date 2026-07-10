@@ -378,6 +378,8 @@ function removeStaleDuplicates(rows: InventoryReportRow[]) {
 }
 
 function InventoryPage() {
+  const qc = useQueryClient();
+  const { canOps } = useUser();
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"all" | "low">("all");
   const [status, setStatus] = useState<string>("all");
@@ -387,6 +389,7 @@ function InventoryPage() {
   const [size, setSize] = useState<string>("all");
   const [sort, setSort] = useState("product");
   const [tableSort, setTableSort] = useState<TableSort>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const { data } = useQuery({
     queryKey: ["shopify-inventory-report"],
