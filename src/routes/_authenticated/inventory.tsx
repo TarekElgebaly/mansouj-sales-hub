@@ -924,7 +924,7 @@ function InventoryPage() {
               ))}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={hasIncoming ? 13 : 12} className="text-center py-8 text-muted-foreground">
                     No synced Shopify inventory matches these filters.
                   </TableCell>
                 </TableRow>
