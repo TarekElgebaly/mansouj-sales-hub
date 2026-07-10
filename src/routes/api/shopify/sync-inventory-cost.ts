@@ -126,12 +126,11 @@ const INVENTORY_ITEMS_QUERY = `
 
 const INVENTORY_ITEM_PAGE_SIZE = 50;
 const INVENTORY_LEVELS_PER_ITEM = 10;
-type InventoryQuantityName = "available" | "on_hand" | "committed" | "unavailable" | "incoming";
+type InventoryQuantityName = "available" | "on_hand" | "committed" | "incoming";
 type InventoryLevelQuantities = {
   available: number | null;
   onHand: number | null;
   committed: number | null;
-  unavailable: number | null;
   incoming: number | null;
   graphqlUpdatedAt: string | null;
 };
@@ -222,14 +221,12 @@ function enrichInventoryLevelRow(
     on_hand: graphQlQuantities.onHand,
     on_hand_quantity: graphQlQuantities.onHand,
     committed_quantity: graphQlQuantities.committed,
-    unavailable_quantity: graphQlQuantities.unavailable,
     incoming_quantity: graphQlQuantities.incoming,
     raw: {
       ...raw,
       graphql_available: graphQlQuantities.available,
       graphql_on_hand: graphQlQuantities.onHand,
       graphql_committed: graphQlQuantities.committed,
-      graphql_unavailable: graphQlQuantities.unavailable,
       graphql_incoming: graphQlQuantities.incoming,
       graphql_updated_at: graphQlQuantities.graphqlUpdatedAt,
     },
@@ -286,10 +283,7 @@ function stripQuantityBreakout(rows: Record<string, unknown>[]) {
   );
 }
 
-async function upsertInventoryLevelRows(
-  supabaseAdmin: any,
-  rows: Record<string, unknown>[],
-) {
+async function upsertInventoryLevelRows(supabaseAdmin: any, rows: Record<string, unknown>[]) {
   try {
     await upsertRows(
       supabaseAdmin,
@@ -357,11 +351,7 @@ async function updateVariantInventoryQuantities(
   return { variantsProcessed, variantsUpdated };
 }
 
-async function fetchInventoryItemsGraphql(
-  domain: string,
-  apiVersion: string,
-  accessToken: string,
-) {
+async function fetchInventoryItemsGraphql(domain: string, apiVersion: string, accessToken: string) {
   const headers = shopifyHeaders(accessToken);
   const endpoint = `https://${domain}/admin/api/${apiVersion}/graphql.json`;
   const rows: Record<string, unknown>[] = [];
@@ -383,7 +373,7 @@ async function fetchInventoryItemsGraphql(
           first: INVENTORY_ITEM_PAGE_SIZE,
           after,
           inventoryLevelsFirst: INVENTORY_LEVELS_PER_ITEM,
-          quantityNames: ["available", "on_hand", "committed", "unavailable", "incoming"],
+          quantityNames: ["available", "on_hand", "committed", "incoming"],
         },
       }),
     });
@@ -430,13 +420,11 @@ async function fetchInventoryItemsGraphql(
         const available = inventoryQuantity(level, "available");
         const onHand = inventoryQuantity(level, "on_hand");
         const committed = inventoryQuantity(level, "committed");
-        const unavailable = inventoryQuantity(level, "unavailable");
         const incoming = inventoryQuantity(level, "incoming");
         graphQlQuantitiesByLevelKey.set(`${itemId}:${locationId}`, {
           available,
           onHand,
           committed,
-          unavailable,
           incoming,
           graphqlUpdatedAt: level.updatedAt ?? null,
         });
@@ -449,7 +437,7 @@ async function fetchInventoryItemsGraphql(
         }
       }
     }
-    after = connection?.pageInfo?.hasNextPage ? connection.pageInfo.endCursor ?? null : null;
+    after = connection?.pageInfo?.hasNextPage ? (connection.pageInfo.endCursor ?? null) : null;
   } while (after);
 
   return {
@@ -487,10 +475,7 @@ async function fetchLocations(domain: string, apiVersion: string, accessToken: s
   return { rows: (json.locations ?? []).map(locationRow), pagesFetched: 1 };
 }
 
-async function ensureLevelLocations(
-  supabaseAdmin: any,
-  levelRows: Record<string, unknown>[],
-) {
+async function ensureLevelLocations(supabaseAdmin: any, levelRows: Record<string, unknown>[]) {
   const locationIds = Array.from(
     new Set(levelRows.map((row) => String(row.shopify_location_id)).filter(Boolean)),
   );
@@ -723,8 +708,7 @@ export const Route = createFileRoute("/api/shopify/sync-inventory-cost")({
 
               inventoryLevelsProcessed += levelRows.length;
               inventoryLevelsCreated += levelRows.filter(
-                (row) =>
-                  !existingLevels.has(`${row.inventory_item_id}:${row.shopify_location_id}`),
+                (row) => !existingLevels.has(`${row.inventory_item_id}:${row.shopify_location_id}`),
               ).length;
               inventoryLevelsUpdated = inventoryLevelsProcessed - inventoryLevelsCreated;
 

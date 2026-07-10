@@ -50,14 +50,17 @@ type LocalInventoryRow = {
   id: string;
   sku: string;
   shopify_variant_id?: string | null;
+  shopify_inventory_item_id?: string | null;
   inventory_item_id?: string | null;
   current_inventory: number;
   cost_price: number;
   sale_price: number;
+  is_stale?: boolean | null;
+  is_shopify_stale?: boolean | null;
 };
 
 function productRelation(value: ShopifyVariant["shopify_products"]) {
-  return Array.isArray(value) ? value[0] ?? null : value ?? null;
+  return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
 }
 
 function cleanOption(value: string | null | undefined) {
@@ -76,7 +79,11 @@ function numberValue(value: number | string | null | undefined) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function addQuantity(map: Map<string, number>, itemId: string | null | undefined, value: number | null) {
+function addQuantity(
+  map: Map<string, number>,
+  itemId: string | null | undefined,
+  value: number | null,
+) {
   if (!itemId || value == null || !Number.isFinite(value)) return;
   map.set(itemId, (map.get(itemId) ?? 0) + Number(value));
 }
@@ -88,6 +95,7 @@ function buildIndexes(rows: LocalInventoryRow[]) {
 
   for (const row of rows) {
     if (row.shopify_variant_id) byVariantId.set(row.shopify_variant_id, row);
+    if (row.shopify_inventory_item_id) byInventoryItemId.set(row.shopify_inventory_item_id, row);
     if (row.inventory_item_id) byInventoryItemId.set(row.inventory_item_id, row);
     if (row.sku) bySku.set(row.sku.trim(), row);
   }
@@ -104,21 +112,46 @@ function isMissingColumnError(error: unknown, column?: string) {
   return lower.includes("column") && (!column || message.includes(column));
 }
 
+function stripAliasColumns(payload: Record<string, unknown>) {
+  const {
+    shopify_inventory_item_id: _shopifyInventoryItemId,
+    product_title: _productTitle,
+    variant_title: _variantTitle,
+    product_status: _productStatus,
+    product_type: _productType,
+    image_url: _imageUrl,
+    cost: _cost,
+    is_stale: _isStale,
+    last_synced_at: _lastSyncedAt,
+    ...sourcePayload
+  } = payload;
+  return sourcePayload;
+}
+
 function stripSourceColumns(payload: Record<string, unknown>) {
   const {
     shopify_product_id: _shopifyProductId,
     shopify_variant_id: _shopifyVariantId,
+    shopify_inventory_item_id: _shopifyInventoryItemId,
     inventory_item_id: _inventoryItemId,
+    product_title: _productTitle,
+    variant_title: _variantTitle,
+    product_status: _productStatus,
+    product_type: _productType,
+    image_url: _imageUrl,
     shopify_product_status: _shopifyProductStatus,
     shopify_product_type: _shopifyProductType,
     shopify_synced_at: _shopifySyncedAt,
+    last_synced_at: _lastSyncedAt,
     is_shopify_stale: _isShopifyStale,
+    is_stale: _isStale,
     shopify_raw: _shopifyRaw,
     on_hand_quantity: _onHandQuantity,
     available_quantity: _availableQuantity,
     committed_quantity: _committedQuantity,
     unavailable_quantity: _unavailableQuantity,
     incoming_quantity: _incomingQuantity,
+    cost: _cost,
     ...legacyPayload
   } = payload;
   return legacyPayload;
@@ -127,7 +160,9 @@ function stripSourceColumns(payload: Record<string, unknown>) {
 async function loadInventoryLevels(supabaseAdmin: any) {
   const withOnHand = await supabaseAdmin
     .from("shopify_inventory_levels")
-    .select("inventory_item_id,available,available_quantity,on_hand,on_hand_quantity,committed_quantity,unavailable_quantity,incoming_quantity");
+    .select(
+      "inventory_item_id,available,available_quantity,on_hand,on_hand_quantity,committed_quantity,unavailable_quantity,incoming_quantity",
+    );
   if (!withOnHand.error) {
     return {
       data: (withOnHand.data ?? []) as InventoryLevel[],
@@ -164,10 +199,27 @@ async function loadInventoryLevels(supabaseAdmin: any) {
 async function loadLocalInventory(supabaseAdmin: any) {
   const full = await supabaseAdmin
     .from("inventory")
-    .select("id,sku,shopify_variant_id,inventory_item_id,current_inventory,cost_price,sale_price");
-  if (!full.error) return { data: (full.data ?? []) as LocalInventoryRow[], hasSourceColumns: true };
+    .select(
+      "id,sku,shopify_variant_id,shopify_inventory_item_id,inventory_item_id,current_inventory,cost_price,sale_price,is_stale,is_shopify_stale",
+    );
+  if (!full.error)
+    return { data: (full.data ?? []) as LocalInventoryRow[], hasSourceColumns: true };
   if (!isMissingColumnError(full.error)) {
     throw new Error(`Could not load local inventory: ${full.error.message}`);
+  }
+  const sourceColumns = await supabaseAdmin
+    .from("inventory")
+    .select(
+      "id,sku,shopify_variant_id,inventory_item_id,current_inventory,cost_price,sale_price,is_shopify_stale",
+    );
+  if (!sourceColumns.error) {
+    return {
+      data: (sourceColumns.data ?? []) as LocalInventoryRow[],
+      hasSourceColumns: true,
+    };
+  }
+  if (!isMissingColumnError(sourceColumns.error)) {
+    throw new Error(`Could not load local inventory: ${sourceColumns.error.message}`);
   }
   const legacy = await supabaseAdmin
     .from("inventory")
@@ -188,6 +240,12 @@ async function updateInventoryRow(
   if (!hasSourceColumns || !isMissingColumnError(error)) {
     throw new Error(`Could not update inventory row ${id}: ${error.message}`);
   }
+  const sourcePayload = stripAliasColumns(payload);
+  const sourceResult = await supabaseAdmin.from("inventory").update(sourcePayload).eq("id", id);
+  if (!sourceResult.error) return true;
+  if (!isMissingColumnError(sourceResult.error)) {
+    throw new Error(`Could not update inventory row ${id}: ${sourceResult.error.message}`);
+  }
   const fallback = stripSourceColumns(payload);
   const fallbackResult = await supabaseAdmin.from("inventory").update(fallback).eq("id", id);
   if (fallbackResult.error) {
@@ -205,6 +263,11 @@ async function insertInventoryRow(
   const { error } = await supabaseAdmin.from("inventory").insert(rowPayload);
   if (!error) return { inserted: true, hasSourceColumns };
   if (hasSourceColumns && isMissingColumnError(error)) {
+    const sourceFallback = await supabaseAdmin.from("inventory").insert(stripAliasColumns(payload));
+    if (!sourceFallback.error) return { inserted: true, hasSourceColumns: true };
+    if (!isMissingColumnError(sourceFallback.error)) {
+      return { inserted: false, hasSourceColumns, error: sourceFallback.error };
+    }
     const fallback = await supabaseAdmin.from("inventory").insert(stripSourceColumns(payload));
     if (!fallback.error) return { inserted: true, hasSourceColumns: false };
     return { inserted: false, hasSourceColumns: false, error: fallback.error };
@@ -224,12 +287,24 @@ async function updateInventoryRowBySku(
   if (!hasSourceColumns || !isMissingColumnError(error)) {
     throw new Error(`Could not update inventory row for duplicate SKU ${sku}: ${error.message}`);
   }
+  const sourceFallback = await supabaseAdmin
+    .from("inventory")
+    .update(stripAliasColumns(payload))
+    .eq("sku", sku);
+  if (!sourceFallback.error) return true;
+  if (!isMissingColumnError(sourceFallback.error)) {
+    throw new Error(
+      `Could not update inventory row for duplicate SKU ${sku}: ${sourceFallback.error.message}`,
+    );
+  }
   const fallback = await supabaseAdmin
     .from("inventory")
     .update(stripSourceColumns(payload))
     .eq("sku", sku);
   if (fallback.error) {
-    throw new Error(`Could not update inventory row for duplicate SKU ${sku}: ${fallback.error.message}`);
+    throw new Error(
+      `Could not update inventory row for duplicate SKU ${sku}: ${fallback.error.message}`,
+    );
   }
   return false;
 }
@@ -250,6 +325,9 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
         let rowsUpdated = 0;
         let staleRowsMarked = 0;
         let missingOnHandCount = 0;
+        let duplicateShopifySkusFound = 0;
+        let missingCostCount = 0;
+        let missingPriceCount = 0;
         let hasOnHandColumn = true;
         let hasInventorySourceColumns = true;
         let failedCount = 0;
@@ -261,6 +339,9 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
           inventory_rows_created: rowsCreated,
           inventory_rows_updated: rowsUpdated,
           stale_rows_marked: staleRowsMarked,
+          duplicate_shopify_skus_found: duplicateShopifySkusFound,
+          missing_cost_count: missingCostCount,
+          missing_price_count: missingPriceCount,
           missing_on_hand_count: missingOnHandCount,
           on_hand_column_present: hasOnHandColumn,
           inventory_source_columns_present: hasInventorySourceColumns,
@@ -323,18 +404,52 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
           const unavailableByItemId = new Map<string, number>();
           const incomingByItemId = new Map<string, number>();
           for (const level of levels) {
-            addQuantity(availableByItemId, level.inventory_item_id, level.available_quantity ?? level.available);
-            addQuantity(onHandByItemId, level.inventory_item_id, level.on_hand_quantity ?? level.on_hand ?? null);
-            addQuantity(committedByItemId, level.inventory_item_id, level.committed_quantity ?? null);
-            addQuantity(unavailableByItemId, level.inventory_item_id, level.unavailable_quantity ?? null);
+            addQuantity(
+              availableByItemId,
+              level.inventory_item_id,
+              level.available_quantity ?? level.available,
+            );
+            addQuantity(
+              onHandByItemId,
+              level.inventory_item_id,
+              level.on_hand_quantity ?? level.on_hand ?? null,
+            );
+            addQuantity(
+              committedByItemId,
+              level.inventory_item_id,
+              level.committed_quantity ?? null,
+            );
+            addQuantity(
+              unavailableByItemId,
+              level.inventory_item_id,
+              level.unavailable_quantity ?? null,
+            );
             addQuantity(incomingByItemId, level.inventory_item_id, level.incoming_quantity ?? null);
           }
 
           const localIndexes = buildIndexes(localRows);
-          const currentVariantIds = new Set(variants.map((variant) => String(variant.shopify_variant_id)));
+          const currentVariantIds = new Set(
+            variants.map((variant) => String(variant.shopify_variant_id)),
+          );
           const currentInventoryItemIds = new Set(
             variants.map((variant) => variant.inventory_item_id).filter(Boolean) as string[],
           );
+          const activeSkuCounts = new Map<string, number>();
+          for (const variant of variants) {
+            const product = productRelation(variant.shopify_products);
+            if (
+              String(product?.status ?? "")
+                .trim()
+                .toLowerCase() !== "active"
+            )
+              continue;
+            const sku = variant.sku?.trim().toLowerCase();
+            if (!sku) continue;
+            activeSkuCounts.set(sku, (activeSkuCounts.get(sku) ?? 0) + 1);
+          }
+          duplicateShopifySkusFound = Array.from(activeSkuCounts.values()).filter(
+            (count) => count > 1,
+          ).length;
           const refreshedAt = new Date().toISOString();
 
           stoppedReason = "refreshing_local_inventory_rows";
@@ -343,12 +458,18 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
             const media = mediaFromVariant(variant);
             const inventoryItemId = variant.inventory_item_id ?? null;
             const hasOnHand = inventoryItemId ? onHandByItemId.has(inventoryItemId) : false;
-            const available = inventoryItemId ? availableByItemId.get(inventoryItemId) ?? 0 : 0;
-            const onHand = inventoryItemId ? onHandByItemId.get(inventoryItemId) ?? 0 : 0;
-            const committed = inventoryItemId ? committedByItemId.get(inventoryItemId) ?? 0 : 0;
-            const unavailable = inventoryItemId ? unavailableByItemId.get(inventoryItemId) ?? 0 : 0;
-            const incoming = inventoryItemId ? incomingByItemId.get(inventoryItemId) ?? 0 : 0;
+            const available = inventoryItemId ? (availableByItemId.get(inventoryItemId) ?? 0) : 0;
+            const onHand = inventoryItemId ? (onHandByItemId.get(inventoryItemId) ?? 0) : 0;
+            const committed = inventoryItemId ? (committedByItemId.get(inventoryItemId) ?? 0) : 0;
+            const unavailable = inventoryItemId
+              ? (unavailableByItemId.get(inventoryItemId) ?? 0)
+              : 0;
+            const incoming = inventoryItemId ? (incomingByItemId.get(inventoryItemId) ?? 0) : 0;
             if (!hasOnHand) missingOnHandCount++;
+            const cost = inventoryItemId ? (costByItemId.get(inventoryItemId) ?? 0) : 0;
+            const salePrice = numberValue(variant.price);
+            if (cost <= 0) missingCostCount++;
+            if (salePrice <= 0) missingPriceCount++;
 
             const color = cleanOption(variant.option1);
             const size = cleanOption(variant.option2);
@@ -369,16 +490,31 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
               committed_quantity: committed,
               unavailable_quantity: unavailable,
               incoming_quantity: incoming,
-              cost_price: inventoryItemId ? costByItemId.get(inventoryItemId) ?? 0 : 0,
-              sale_price: numberValue(variant.price),
+              cost_price: cost,
+              sale_price: salePrice,
               status: stockStatus(onHand),
               product_images: media.imageUrl ? [media.imageUrl] : [],
               shopify_product_id: variant.shopify_product_id,
               shopify_variant_id: variant.shopify_variant_id,
+              shopify_inventory_item_id: inventoryItemId,
               inventory_item_id: inventoryItemId,
-              shopify_product_status: String(product?.status ?? "").trim().toLowerCase() || null,
+              product_title: product?.title ?? media.productTitle ?? "Untitled product",
+              variant_title: variantName,
+              product_status:
+                String(product?.status ?? "")
+                  .trim()
+                  .toLowerCase() || null,
+              product_type: product?.product_type ?? null,
+              image_url: media.imageUrl ?? null,
+              cost,
+              shopify_product_status:
+                String(product?.status ?? "")
+                  .trim()
+                  .toLowerCase() || null,
               shopify_product_type: product?.product_type ?? null,
+              last_synced_at: refreshedAt,
               shopify_synced_at: refreshedAt,
+              is_stale: false,
               is_shopify_stale: false,
               shopify_raw: {
                 product: product?.raw ?? null,
@@ -425,8 +561,14 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
               continue;
             }
 
-            if (!String(insertResult.error?.message ?? "").toLowerCase().includes("duplicate")) {
-              throw new Error(`Could not insert inventory row for ${sku}: ${insertResult.error?.message}`);
+            if (
+              !String(insertResult.error?.message ?? "")
+                .toLowerCase()
+                .includes("duplicate")
+            ) {
+              throw new Error(
+                `Could not insert inventory row for ${sku}: ${insertResult.error?.message}`,
+              );
             }
 
             hasInventorySourceColumns = await updateInventoryRowBySku(
@@ -439,29 +581,45 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
           }
 
           stoppedReason = "marking_stale_local_inventory_rows";
-          const staleIds = hasInventorySourceColumns ? localRows
-            .filter((row) => {
-              if (row.shopify_variant_id) return !currentVariantIds.has(row.shopify_variant_id);
-              if (row.inventory_item_id) return !currentInventoryItemIds.has(row.inventory_item_id);
-              return false;
-            })
-            .map((row) => row.id) : [];
+          const staleIds = hasInventorySourceColumns
+            ? localRows
+                .filter((row) => {
+                  if (row.shopify_variant_id) return !currentVariantIds.has(row.shopify_variant_id);
+                  if (row.inventory_item_id)
+                    return !currentInventoryItemIds.has(row.inventory_item_id);
+                  return false;
+                })
+                .map((row) => row.id)
+            : [];
 
           if (staleIds.length) {
+            const stalePayload = {
+              is_shopify_stale: true,
+              is_stale: true,
+              current_inventory: 0,
+              on_hand_quantity: 0,
+              available_quantity: 0,
+              committed_quantity: 0,
+              unavailable_quantity: 0,
+              incoming_quantity: 0,
+              last_synced_at: refreshedAt,
+              shopify_synced_at: refreshedAt,
+            };
             const { error } = await supabaseAdmin
               .from("inventory")
-              .update({
-                is_shopify_stale: true,
-                current_inventory: 0,
-                on_hand_quantity: 0,
-                available_quantity: 0,
-                committed_quantity: 0,
-                unavailable_quantity: 0,
-                incoming_quantity: 0,
-                shopify_synced_at: refreshedAt,
-              } as never)
+              .update(stalePayload as never)
               .in("id", staleIds);
-            if (error) throw new Error(`Could not mark stale inventory rows: ${error.message}`);
+            if (error && isMissingColumnError(error)) {
+              const fallback = await supabaseAdmin
+                .from("inventory")
+                .update(stripAliasColumns(stalePayload) as never)
+                .in("id", staleIds);
+              if (fallback.error) {
+                throw new Error(`Could not mark stale inventory rows: ${fallback.error.message}`);
+              }
+            } else if (error) {
+              throw new Error(`Could not mark stale inventory rows: ${error.message}`);
+            }
             staleRowsMarked = staleIds.length;
           }
 
@@ -497,7 +655,11 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
             inventory_rows_created: rowsCreated,
             inventory_rows_updated: rowsUpdated,
             stale_rows_marked: staleRowsMarked,
+            duplicate_shopify_skus_found: duplicateShopifySkusFound,
+            missing_cost_count: missingCostCount,
+            missing_price_count: missingPriceCount,
             missing_on_hand_count: missingOnHandCount,
+            last_synced_at: finishedAt,
             on_hand_column_present: hasOnHandColumn,
             inventory_source_columns_present: hasInventorySourceColumns,
             source: "synced_shopify_products_variants_inventory_levels",
