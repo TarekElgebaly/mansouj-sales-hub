@@ -126,6 +126,7 @@ type SortKey =
   | "onHand"
   | "available"
   | "committed"
+  | "incoming"
   | "cost"
   | "salePrice"
   | "totalCost"
