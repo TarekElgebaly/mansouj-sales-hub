@@ -1597,46 +1597,56 @@ function ShopifyPage() {
                       <RefreshCw
                         className={`mr-2 h-4 w-4 ${syncingInventoryCost ? "animate-spin" : ""}`}
                       />
-                      Sync Inventory & Cost
-                    </Button>
-                    <Button
-                      onClick={refreshInventorySourceOfTruth}
-                      disabled={
-                        !canOps ||
-                        syncingProducts ||
-                        syncingInventoryCost ||
-                        refreshingInventorySource ||
-                        reconcilingInventory
-                      }
-                      variant="secondary"
-                    >
-                      <RefreshCw
-                        className={`mr-2 h-4 w-4 ${refreshingInventorySource ? "animate-spin" : ""}`}
-                      />
-                      Refresh Inventory From Shopify Source of Truth
-                    </Button>
-                    <Button
-                      onClick={runInventoryReconciliation}
-                      disabled={
-                        !canOps ||
-                        syncingProducts ||
-                        syncingInventoryCost ||
-                        refreshingInventorySource ||
-                        reconcilingInventory
-                      }
-                      variant="outline"
-                    >
-                      <RefreshCw
-                        className={`mr-2 h-4 w-4 ${reconcilingInventory ? "animate-spin" : ""}`}
-                      />
-                      Inventory Reconciliation
+                      Sync Inventory from Shopify
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Flow: Sync Products → Sync Inventory & Cost → Refresh Inventory From Shopify
-                    Source of Truth → Inventory Reconciliation. The report uses Active products by
-                    default to match the Inventory page default filter.
+                    Daily-use button. Syncs Shopify locations, inventory levels, and
+                    InventoryItem unit cost. The Inventory page uses Active products by default.
                   </p>
+                  <details className="rounded-md border bg-muted/20 p-3">
+                    <summary className="cursor-pointer text-sm font-medium">
+                      Advanced Tools
+                    </summary>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        onClick={refreshInventorySourceOfTruth}
+                        disabled={
+                          !canOps ||
+                          syncingProducts ||
+                          syncingInventoryCost ||
+                          refreshingInventorySource ||
+                          reconcilingInventory
+                        }
+                        variant="secondary"
+                      >
+                        <RefreshCw
+                          className={`mr-2 h-4 w-4 ${refreshingInventorySource ? "animate-spin" : ""}`}
+                        />
+                        Refresh Inventory From Shopify Source of Truth
+                      </Button>
+                      <Button
+                        onClick={runInventoryReconciliation}
+                        disabled={
+                          !canOps ||
+                          syncingProducts ||
+                          syncingInventoryCost ||
+                          refreshingInventorySource ||
+                          reconcilingInventory
+                        }
+                        variant="outline"
+                      >
+                        <RefreshCw
+                          className={`mr-2 h-4 w-4 ${reconcilingInventory ? "animate-spin" : ""}`}
+                        />
+                        Inventory Reconciliation
+                      </Button>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Advanced flow: Sync Products → Sync Inventory from Shopify → Refresh Inventory
+                      From Shopify Source of Truth → Inventory Reconciliation.
+                    </p>
+                  </details>
                   {!canOps && (
                     <p className="text-sm text-muted-foreground">
                       Admin or operations access is required to run this sync.
