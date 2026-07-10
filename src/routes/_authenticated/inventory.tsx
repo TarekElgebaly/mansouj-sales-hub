@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { type Dispatch, type SetStateAction, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useUser } from "@/hooks/use-user";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -26,6 +28,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { egp, statusTone } from "@/lib/format";
 import { ProductThumb } from "@/components/product-thumb";
 import { mediaFromVariant, ShopifyVariantLike } from "@/lib/product-media";
+import { Download, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/inventory")({
   head: () => ({ meta: [{ title: "Inventory — Mansouj" }] }),
