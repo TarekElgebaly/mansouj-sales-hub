@@ -600,8 +600,79 @@ function InventoryPage() {
     );
   }, [filtered]);
 
+  const hasIncoming = useMemo(() => filtered.some((r) => (r.incoming ?? 0) > 0), [filtered]);
+
+  const syncInventory = async () => {
+    setSyncing(true);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) throw new Error("Please sign in again.");
+      const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+      toast.info("Syncing inventory & costs from Shopify…");
+      const r1 = await fetch("/api/shopify/sync-inventory-cost", { method: "POST", headers });
+      const j1 = await r1.json().catch(() => ({}));
+      if (!r1.ok) throw new Error(j1.error ?? "Inventory sync failed.");
+      toast.info("Refreshing inventory from Shopify source of truth…");
+      const r2 = await fetch("/api/shopify/refresh-inventory-source-of-truth", { method: "POST", headers });
+      const j2 = await r2.json().catch(() => ({}));
+      if (!r2.ok) throw new Error(j2.error ?? "Inventory refresh failed.");
+      toast.success("Inventory synced from Shopify.");
+      await qc.invalidateQueries({ queryKey: ["shopify-inventory-report"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const exportCsv = () => {
+    const esc = (v: unknown) => {
+      if (v === null || v === undefined) return "";
+      const s = String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = [
+      "SKU","Barcode","Product Name","Product Type","Variant","Color","Size",
+      "On Hand","Available","Committed","Incoming","Cost","Sale Price","Total Cost","Total Sale","Status","Shopify Status",
+    ];
+    const lines = [header.join(",")];
+    for (const r of filtered) {
+      lines.push([
+        r.sku, r.barcode, r.productName, r.productType, r.variantName, r.color, r.size,
+        r.onHand, r.available ?? "", r.committed ?? "", r.incoming ?? "",
+        r.cost, r.salePrice, r.totalCost, r.totalSale, r.status, r.shopifyStatus,
+      ].map(esc).join(","));
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `inventory-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <AppShell title="Inventory" search={search} onSearch={setSearch}>
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <Button onClick={syncInventory} disabled={!canOps || syncing} size="lg">
+          <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+          Sync Inventory from Shopify
+        </Button>
+        <Button onClick={exportCsv} variant="outline">
+          <Download className="mr-2 h-4 w-4" />
+          Export Inventory CSV
+        </Button>
+        {!canOps && (
+          <span className="text-xs text-muted-foreground">
+            Admin or operations access required to sync.
+          </span>
+        )}
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6 mb-4">
         <SummaryCard label="Total SKUs" value={summary.totalSkus} />
         <SummaryCard label="On Hand Quantity" value={summary.totalOnHand} />
