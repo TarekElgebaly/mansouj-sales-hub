@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { type Dispatch, type SetStateAction, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useUser } from "@/hooks/use-user";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { egp, statusTone } from "@/lib/format";
 import { ProductThumb } from "@/components/product-thumb";
 import { mediaFromVariant, ShopifyVariantLike } from "@/lib/product-media";
+import { Download, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/inventory")({
   head: () => ({ meta: [{ title: "Inventory — Mansouj" }] }),
@@ -76,34 +79,22 @@ type LocalInventoryRow = {
   sku: string | null;
   shopify_product_id?: string | null;
   shopify_variant_id?: string | null;
-  shopify_inventory_item_id?: string | null;
   inventory_item_id?: string | null;
-  product_title?: string | null;
-  variant_title?: string | null;
-  product_status?: string | null;
-  product_type?: string | null;
-  image_url?: string | null;
   current_inventory?: number | null;
   on_hand_quantity?: number | null;
   available_quantity?: number | null;
   committed_quantity?: number | null;
   unavailable_quantity?: number | null;
   incoming_quantity?: number | null;
-  cost?: number | null;
   cost_price?: number | null;
   sale_price?: number | null;
-  is_stale?: boolean | null;
   is_shopify_stale?: boolean | null;
-  last_synced_at?: string | null;
-  shopify_synced_at?: string | null;
 };
 
 type InventoryReportRow = {
   id: string;
-  shopifyProductId: string | null;
   shopifyVariantId: string | null;
   inventoryItemId: string | null;
-  lastSyncedAt: string | null;
   imageUrl: string | null;
   sku: string;
   barcode: string | null;
@@ -229,72 +220,6 @@ function sortRows(rows: InventoryReportRow[], sort: string, tableSort: TableSort
   return sorted;
 }
 
-function csvEscape(value: string | number | null | undefined) {
-  if (value === null || value === undefined) return "";
-  const text = String(value);
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
-function exportInventoryCsv(rows: InventoryReportRow[]) {
-  const headers = [
-    "SKU",
-    "Product Name",
-    "Product Status",
-    "Product Type / Category",
-    "Variant / Size / Color",
-    "On Hand Quantity",
-    "Available Quantity",
-    "Committed Quantity",
-    "Incoming Quantity",
-    "Cost",
-    "Sale Price",
-    "Total Cost",
-    "Total Sale Value",
-    "Stock Status",
-    "Shopify Product ID",
-    "Shopify Variant ID",
-    "Shopify Inventory Item ID",
-    "Last Synced At",
-  ];
-  const lines = [headers.join(",")];
-  for (const row of rows) {
-    lines.push(
-      [
-        row.sku,
-        row.productName,
-        row.shopifyStatus ?? "",
-        row.productType ?? "",
-        [row.variantName, row.color, row.size].filter(Boolean).join(" / "),
-        row.onHand,
-        row.available ?? "",
-        row.committed ?? "",
-        row.incoming ?? "",
-        row.cost,
-        row.salePrice,
-        row.totalCost,
-        row.totalSale,
-        row.status,
-        row.shopifyProductId ?? "",
-        row.shopifyVariantId ?? "",
-        row.inventoryItemId ?? "",
-        row.lastSyncedAt ?? "",
-      ]
-        .map(csvEscape)
-        .join(","),
-    );
-  }
-
-  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `mansouj_inventory_${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
 function missingColumn(error: unknown, column: string) {
   const message =
     typeof error === "object" && error && "message" in error
@@ -328,12 +253,11 @@ function normalizedSku(value: string | null | undefined) {
 
 function localInventoryScore(row: LocalInventoryRow) {
   let score = 0;
-  if (!row.is_shopify_stale && !row.is_stale) score += 100;
-  if (row.shopify_inventory_item_id || row.inventory_item_id) score += 30;
+  if (!row.is_shopify_stale) score += 100;
+  if (row.inventory_item_id) score += 30;
   if (row.shopify_variant_id) score += 20;
   if (numberOrNull(row.on_hand_quantity ?? row.current_inventory) !== null) score += 10;
-  if (numberOrNull(row.cost ?? row.cost_price) && numberOrNull(row.cost ?? row.cost_price)! > 0)
-    score += 5;
+  if (numberOrNull(row.cost_price) && numberOrNull(row.cost_price)! > 0) score += 5;
   return score;
 }
 
@@ -355,7 +279,7 @@ function buildLocalInventoryIndexes(rows: LocalInventoryRow[]) {
   const bySku = new Map<string, LocalInventoryRow>();
 
   for (const row of rows) {
-    setBestLocalIndex(byInventoryItem, row.shopify_inventory_item_id ?? row.inventory_item_id, row);
+    setBestLocalIndex(byInventoryItem, row.inventory_item_id, row);
     setBestLocalIndex(byVariant, row.shopify_variant_id, row);
     const sku = normalizedSku(row.sku);
     if (sku) setBestLocalIndex(bySku, sku, row);
@@ -383,20 +307,13 @@ async function loadLocalInventoryRows() {
   const full = await (supabase as any)
     .from("inventory")
     .select(
-      "id,sku,shopify_product_id,shopify_variant_id,shopify_inventory_item_id,inventory_item_id,product_title,variant_title,product_status,product_type,image_url,current_inventory,on_hand_quantity,available_quantity,committed_quantity,unavailable_quantity,incoming_quantity,cost,cost_price,sale_price,is_stale,is_shopify_stale,last_synced_at,shopify_synced_at",
+      "id,sku,shopify_product_id,shopify_variant_id,inventory_item_id,current_inventory,on_hand_quantity,available_quantity,committed_quantity,unavailable_quantity,incoming_quantity,cost_price,sale_price,is_shopify_stale",
     );
   if (!full.error) return (full.data ?? []) as LocalInventoryRow[];
 
   if (!missingAnyColumn(full.error)) {
     throw new Error(`Could not load inventory: ${full.error.message}`);
   }
-
-  const sourceColumns = await (supabase as any)
-    .from("inventory")
-    .select(
-      "id,sku,shopify_product_id,shopify_variant_id,inventory_item_id,current_inventory,on_hand_quantity,available_quantity,committed_quantity,unavailable_quantity,incoming_quantity,cost_price,sale_price,is_shopify_stale,shopify_synced_at",
-    );
-  if (!sourceColumns.error) return (sourceColumns.data ?? []) as LocalInventoryRow[];
 
   const legacy = await (supabase as any)
     .from("inventory")
@@ -463,6 +380,8 @@ function removeStaleDuplicates(rows: InventoryReportRow[]) {
 }
 
 function InventoryPage() {
+  const qc = useQueryClient();
+  const { canOps } = useUser();
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"all" | "low">("all");
   const [status, setStatus] = useState<string>("all");
@@ -472,6 +391,7 @@ function InventoryPage() {
   const [size, setSize] = useState<string>("all");
   const [sort, setSort] = useState("product");
   const [tableSort, setTableSort] = useState<TableSort>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const { data } = useQuery({
     queryKey: ["shopify-inventory-report"],
@@ -545,7 +465,7 @@ function InventoryPage() {
         const media = mediaFromVariant(variant);
         const inventoryItemId = variant.inventory_item_id;
         const localInventory = localInventoryForVariant(variant, localInventoryIndexes);
-        if (localInventory?.is_shopify_stale || localInventory?.is_stale) return [];
+        if (localInventory?.is_shopify_stale) return [];
 
         const hasLevelOnHand = inventoryItemId ? onHandByInventoryItem.has(inventoryItemId) : false;
         const hasCost = inventoryItemId ? costByInventoryItem.has(inventoryItemId) : false;
@@ -579,7 +499,6 @@ function InventoryPage() {
         const cost =
           firstNumber(
             hasCost && inventoryItemId ? costByInventoryItem.get(inventoryItemId) : null,
-            localInventory?.cost,
             localInventory?.cost_price,
           ) ?? 0;
         const salePrice = firstNumber(variant.price, localInventory?.sale_price) ?? 0;
@@ -587,27 +506,18 @@ function InventoryPage() {
         const size = cleanOption(variant.option2);
         const variantName =
           cleanOption(variant.title) ??
-          cleanOption(localInventory?.variant_title) ??
           ([color, size, cleanOption(variant.option3)].filter(Boolean).join(" / ") || null);
 
         return [
           {
             id: variant.id,
-            shopifyProductId:
-              variant.shopify_product_id ?? localInventory?.shopify_product_id ?? null,
             shopifyVariantId: variant.shopify_variant_id ?? null,
             inventoryItemId: inventoryItemId ?? null,
-            lastSyncedAt:
-              localInventory?.last_synced_at ?? localInventory?.shopify_synced_at ?? null,
-            imageUrl: localInventory?.image_url ?? media.imageUrl,
+            imageUrl: media.imageUrl,
             sku: variant.sku || `shopify-variant-${variant.shopify_variant_id}`,
             barcode: variant.barcode ?? null,
-            productName:
-              product?.title ??
-              localInventory?.product_title ??
-              media.productTitle ??
-              "Untitled product",
-            productType: product?.product_type ?? localInventory?.product_type ?? null,
+            productName: product?.title ?? media.productTitle ?? "Untitled product",
+            productType: product?.product_type ?? null,
             variantName,
             color,
             size,
@@ -622,10 +532,8 @@ function InventoryPage() {
             totalCost: onHand * cost,
             totalSale: onHand * salePrice,
             status: stockStatus(onHand),
-            shopifyStatus: normalizeProductStatus(
-              product?.status ?? localInventory?.product_status,
-            ),
-            isShopifyStale: Boolean(localInventory?.is_shopify_stale || localInventory?.is_stale),
+            shopifyStatus: normalizeProductStatus(product?.status),
+            isShopifyStale: Boolean(localInventory?.is_shopify_stale),
             duplicateSkuWarning: false,
           },
         ];
@@ -694,8 +602,79 @@ function InventoryPage() {
     );
   }, [filtered]);
 
+  const hasIncoming = useMemo(() => filtered.some((r) => (r.incoming ?? 0) > 0), [filtered]);
+
+  const syncInventory = async () => {
+    setSyncing(true);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) throw new Error("Please sign in again.");
+      const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+      toast.info("Syncing inventory & costs from Shopify…");
+      const r1 = await fetch("/api/shopify/sync-inventory-cost", { method: "POST", headers });
+      const j1 = await r1.json().catch(() => ({}));
+      if (!r1.ok) throw new Error(j1.error ?? "Inventory sync failed.");
+      toast.info("Refreshing inventory from Shopify source of truth…");
+      const r2 = await fetch("/api/shopify/refresh-inventory-source-of-truth", { method: "POST", headers });
+      const j2 = await r2.json().catch(() => ({}));
+      if (!r2.ok) throw new Error(j2.error ?? "Inventory refresh failed.");
+      toast.success("Inventory synced from Shopify.");
+      await qc.invalidateQueries({ queryKey: ["shopify-inventory-report"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const exportCsv = () => {
+    const esc = (v: unknown) => {
+      if (v === null || v === undefined) return "";
+      const s = String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = [
+      "SKU","Barcode","Product Name","Product Type","Variant","Color","Size",
+      "On Hand","Available","Committed","Incoming","Cost","Sale Price","Total Cost","Total Sale","Status","Shopify Status",
+    ];
+    const lines = [header.join(",")];
+    for (const r of filtered) {
+      lines.push([
+        r.sku, r.barcode, r.productName, r.productType, r.variantName, r.color, r.size,
+        r.onHand, r.available ?? "", r.committed ?? "", r.incoming ?? "",
+        r.cost, r.salePrice, r.totalCost, r.totalSale, r.status, r.shopifyStatus,
+      ].map(esc).join(","));
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `inventory-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <AppShell title="Inventory" search={search} onSearch={setSearch}>
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <Button onClick={syncInventory} disabled={!canOps || syncing} size="lg">
+          <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+          Sync Inventory from Shopify
+        </Button>
+        <Button onClick={exportCsv} variant="outline">
+          <Download className="mr-2 h-4 w-4" />
+          Export Inventory CSV
+        </Button>
+        {!canOps && (
+          <span className="text-xs text-muted-foreground">
+            Admin or operations access required to sync.
+          </span>
+        )}
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6 mb-4">
         <SummaryCard label="Total SKUs" value={summary.totalSkus} />
         <SummaryCard label="On Hand Quantity" value={summary.totalOnHand} />
@@ -810,9 +789,6 @@ function InventoryPage() {
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search product, SKU, barcode/ASIN..."
         />
-        <Button type="button" variant="outline" onClick={() => exportInventoryCsv(filtered)}>
-          Export Inventory CSV
-        </Button>
       </div>
 
       <Card>
@@ -855,13 +831,15 @@ function InventoryPage() {
                   onSort={setTableSort}
                   align="right"
                 />
-                <SortableHead
-                  label="Incoming Quantity"
-                  sortKey="incoming"
-                  sort={tableSort}
-                  onSort={setTableSort}
-                  align="right"
-                />
+                {hasIncoming && (
+                  <SortableHead
+                    label="Incoming"
+                    sortKey="incoming"
+                    sort={tableSort}
+                    onSort={setTableSort}
+                    align="right"
+                  />
+                )}
                 <SortableHead
                   label="Cost"
                   sortKey="cost"
@@ -932,7 +910,9 @@ function InventoryPage() {
                   <TableCell className="text-right">{row.onHand}</TableCell>
                   <TableCell className="text-right">{row.available ?? "—"}</TableCell>
                   <TableCell className="text-right">{row.committed ?? "—"}</TableCell>
-                  <TableCell className="text-right">{row.incoming ?? "—"}</TableCell>
+                  {hasIncoming && (
+                    <TableCell className="text-right">{row.incoming ?? "—"}</TableCell>
+                  )}
                   <TableCell className="text-right">{egp(row.cost)}</TableCell>
                   <TableCell className="text-right">{egp(row.salePrice)}</TableCell>
                   <TableCell className="text-right">{egp(row.totalCost)}</TableCell>
@@ -944,7 +924,7 @@ function InventoryPage() {
               ))}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={hasIncoming ? 13 : 12} className="text-center py-8 text-muted-foreground">
                     No synced Shopify inventory matches these filters.
                   </TableCell>
                 </TableRow>

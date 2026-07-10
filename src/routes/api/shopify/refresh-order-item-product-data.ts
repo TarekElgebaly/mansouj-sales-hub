@@ -324,7 +324,7 @@ export const Route = createFileRoute("/api/shopify/refresh-order-item-product-da
               )
               .range(from, from + pageSize - 1);
             if (error) throw new Error(`order_items lookup failed: ${error.message}`);
-            const rows = (data ?? []) as OrderItemRow[];
+            const rows = (data ?? []) as unknown as OrderItemRow[];
             items.push(...rows);
             if (rows.length < pageSize) break;
             from += pageSize;
@@ -360,7 +360,7 @@ export const Route = createFileRoute("/api/shopify/refresh-order-item-product-da
 
             const { error } = await supabaseAdmin
               .from("order_items")
-              .update(patch)
+              .update(patch as never)
               .eq("id", item.id);
             if (error) {
               failedCount++;

@@ -153,11 +153,7 @@ type InventorySourceRefreshResult = {
   inventory_rows_created: number;
   inventory_rows_updated: number;
   stale_rows_marked: number;
-  duplicate_shopify_skus_found: number;
-  missing_cost_count: number;
-  missing_price_count: number;
   missing_on_hand_count: number;
-  last_synced_at?: string | null;
   source: string;
   sku_remaps_used: boolean;
   shopify_write_calls: boolean;
@@ -196,31 +192,6 @@ type InventoryReconciliationResult = {
   difference_retail_value: number;
   mismatches_count: number;
   mismatches: InventoryReconciliationRow[];
-};
-
-type DailyInventorySyncResult = {
-  products_processed: number;
-  variants_processed: number;
-  inventory_items_processed: number;
-  rows_created: number;
-  rows_updated: number;
-  rows_marked_stale: number;
-  duplicate_shopify_skus_found: number;
-  missing_cost_count: number;
-  missing_price_count: number;
-  failed_count: number;
-  last_synced_at: string;
-  sn29: {
-    on_hand: number | null;
-    available: number | null;
-    committed: number | null;
-  } | null;
-  satDu400Wh220: {
-    active_rows: number;
-    on_hand: number | null;
-    cost: number | null;
-    total_cost: number | null;
-  } | null;
 };
 
 type UnmatchedSample = {
@@ -341,7 +312,6 @@ function ShopifyPage() {
   const [syncingInventoryCost, setSyncingInventoryCost] = useState(false);
   const [refreshingInventorySource, setRefreshingInventorySource] = useState(false);
   const [reconcilingInventory, setReconcilingInventory] = useState(false);
-  const [syncingDailyInventory, setSyncingDailyInventory] = useState(false);
   const [resettingOrders, setResettingOrders] = useState(false);
   const [resetSyncing2026, setResetSyncing2026] = useState(false);
   const [repairingMissingLineItems, setRepairingMissingLineItems] = useState(false);
@@ -356,17 +326,10 @@ function ShopifyPage() {
     useState<InventorySourceRefreshResult | null>(null);
   const [inventoryReconciliationResult, setInventoryReconciliationResult] =
     useState<InventoryReconciliationResult | null>(null);
-  const [dailyInventorySyncResult, setDailyInventorySyncResult] =
-    useState<DailyInventorySyncResult | null>(null);
   const [productSyncError, setProductSyncError] = useState<string | null>(null);
   const [inventoryCostSyncError, setInventoryCostSyncError] = useState<string | null>(null);
-  const [inventorySourceRefreshError, setInventorySourceRefreshError] = useState<string | null>(
-    null,
-  );
-  const [inventoryReconciliationError, setInventoryReconciliationError] = useState<string | null>(
-    null,
-  );
-  const [dailyInventorySyncError, setDailyInventorySyncError] = useState<string | null>(null);
+  const [inventorySourceRefreshError, setInventorySourceRefreshError] = useState<string | null>(null);
+  const [inventoryReconciliationError, setInventoryReconciliationError] = useState<string | null>(null);
   const [backfillingCosts, setBackfillingCosts] = useState(false);
   const [backfillResult, setBackfillResult] = useState<BackfillCostResult | null>(null);
   const [backfillError, setBackfillError] = useState<string | null>(null);
@@ -537,9 +500,7 @@ function ShopifyPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.ok) {
-        throw new Error(
-          json.error ?? json.errors?.[0] ?? "Could not repair missing order line items.",
-        );
+        throw new Error(json.error ?? json.errors?.[0] ?? "Could not repair missing order line items.");
       }
 
       const result: RepairMissingLineItemsResult = {
@@ -557,9 +518,7 @@ function ShopifyPage() {
       setRepairMissingLineItemsResult(result);
 
       if (result.repaired_orders > 0) {
-        toast.success(
-          `Repaired ${result.repaired_orders} orders and inserted ${result.line_items_inserted} line items.`,
-        );
+        toast.success(`Repaired ${result.repaired_orders} orders and inserted ${result.line_items_inserted} line items.`);
       } else {
         toast.info("No missing order line items found in the checked orders.");
       }
@@ -571,237 +530,6 @@ function ShopifyPage() {
       toast.error(e instanceof Error ? e.message : String(e));
     } finally {
       setRepairingMissingLineItems(false);
-    }
-  };
-
-  const loadDailyInventoryLocalSummary = async () => {
-    const full = await (supabase as any)
-      .from("inventory")
-      .select(
-        "sku,current_inventory,on_hand_quantity,available_quantity,committed_quantity,cost_price,sale_price,shopify_product_status,is_shopify_stale,is_stale",
-      );
-    const fallback =
-      full.error &&
-      String(full.error.message ?? "")
-        .toLowerCase()
-        .includes("column")
-        ? await (supabase as any)
-            .from("inventory")
-            .select(
-              "sku,current_inventory,on_hand_quantity,available_quantity,committed_quantity,cost_price,sale_price,shopify_product_status,is_shopify_stale",
-            )
-        : full;
-    if (fallback.error) {
-      throw new Error(`Could not load inventory sync examples: ${fallback.error.message}`);
-    }
-
-    const rows = ((fallback.data ?? []) as Array<Record<string, unknown>>).filter((row) => {
-      const status = String(row.shopify_product_status ?? "")
-        .trim()
-        .toLowerCase();
-      const stale = Boolean(row.is_shopify_stale) || Boolean(row.is_stale);
-      return status === "active" && !stale;
-    });
-
-    const skuCounts = new Map<string, number>();
-    for (const row of rows) {
-      const sku = String(row.sku ?? "")
-        .trim()
-        .toLowerCase();
-      if (!sku) continue;
-      skuCounts.set(sku, (skuCounts.get(sku) ?? 0) + 1);
-    }
-
-    const bySku = (sku: string) =>
-      rows.filter(
-        (row) =>
-          String(row.sku ?? "")
-            .trim()
-            .toLowerCase() === sku.toLowerCase(),
-      );
-    const numberOrNull = (value: unknown) => {
-      if (value === null || value === undefined || value === "") return null;
-      const n = Number(value);
-      return Number.isFinite(n) ? n : null;
-    };
-    const first = (matches: Array<Record<string, unknown>>) => matches[0] ?? null;
-    const sn29 = first(bySku("SN29"));
-    const satRows = bySku("SAT-DU400 - WH220");
-    const sat = first(satRows);
-    const satOnHand = sat
-      ? (numberOrNull(sat.on_hand_quantity) ?? numberOrNull(sat.current_inventory))
-      : null;
-    const satCost = sat ? numberOrNull(sat.cost_price) : null;
-
-    return {
-      duplicate_shopify_skus_found: Array.from(skuCounts.values()).filter((count) => count > 1)
-        .length,
-      missing_cost_count: rows.filter((row) => Number(row.cost_price ?? 0) <= 0).length,
-      missing_price_count: rows.filter((row) => Number(row.sale_price ?? 0) <= 0).length,
-      sn29: sn29
-        ? {
-            on_hand: numberOrNull(sn29.on_hand_quantity) ?? numberOrNull(sn29.current_inventory),
-            available: numberOrNull(sn29.available_quantity),
-            committed: numberOrNull(sn29.committed_quantity),
-          }
-        : null,
-      satDu400Wh220: sat
-        ? {
-            active_rows: satRows.length,
-            on_hand: satOnHand,
-            cost: satCost,
-            total_cost: satOnHand != null && satCost != null ? satOnHand * satCost : null,
-          }
-        : null,
-    };
-  };
-
-  const syncDailyInventoryFromShopify = async () => {
-    setSyncingDailyInventory(true);
-    setDailyInventorySyncResult(null);
-    setDailyInventorySyncError(null);
-    setProductSyncError(null);
-    setInventoryCostSyncError(null);
-    setInventorySourceRefreshError(null);
-    setInventoryReconciliationError(null);
-
-    try {
-      const headers = {
-        ...(await authHeader()),
-        "Content-Type": "application/json",
-      };
-      const post = async (url: string, body?: unknown) => {
-        const res = await fetch(url, {
-          method: "POST",
-          headers,
-          body: body === undefined ? undefined : JSON.stringify(body),
-        });
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok || !json.ok) throw new Error(json.error ?? `${url} failed.`);
-        return json;
-      };
-
-      const productsJson = await post("/api/shopify/sync-products");
-      const productsResult: ProductSyncResult = {
-        status: productsJson.status ?? "success",
-        message: productsJson.message ?? null,
-        products_processed: productsJson.products_processed ?? 0,
-        products_created: productsJson.products_created ?? 0,
-        products_updated: productsJson.products_updated ?? 0,
-        variants_processed: productsJson.variants_processed ?? 0,
-        variants_created: productsJson.variants_created ?? 0,
-        variants_updated: productsJson.variants_updated ?? 0,
-        failed_count: productsJson.failed_count ?? 0,
-        pages_fetched: productsJson.pages_fetched ?? 0,
-        shop_domain_used: productsJson.shop_domain_used ?? null,
-        api_version_used: productsJson.api_version_used ?? null,
-        api_method_used: productsJson.api_method_used ?? null,
-        first_api_response_product_count: productsJson.first_api_response_product_count ?? null,
-        stopped_reason: productsJson.stopped_reason ?? null,
-        raw_shopify_response_shape_summary: productsJson.raw_shopify_response_shape_summary ?? null,
-      };
-      setProductSyncResult(productsResult);
-
-      const inventoryJson = await post("/api/shopify/sync-inventory-cost");
-      const inventoryResult: InventoryCostSyncResult = {
-        inventory_items_processed: inventoryJson.inventory_items_processed ?? 0,
-        inventory_items_with_cost: inventoryJson.inventory_items_with_cost ?? 0,
-        inventory_items_missing_cost: inventoryJson.inventory_items_missing_cost ?? 0,
-        locations_processed: inventoryJson.locations_processed ?? 0,
-        inventory_levels_processed: inventoryJson.inventory_levels_processed ?? 0,
-        inventory_levels_with_on_hand: inventoryJson.inventory_levels_with_on_hand ?? 0,
-        inventory_levels_missing_on_hand: inventoryJson.inventory_levels_missing_on_hand ?? 0,
-        on_hand_quantity_source: inventoryJson.on_hand_quantity_source ?? null,
-        on_hand_fallback_used: Boolean(inventoryJson.on_hand_fallback_used),
-        variant_on_hand_quantities_processed:
-          inventoryJson.variant_on_hand_quantities_processed ?? 0,
-        variant_on_hand_quantities_updated: inventoryJson.variant_on_hand_quantities_updated ?? 0,
-        variant_on_hand_quantity_fallbacks: inventoryJson.variant_on_hand_quantity_fallbacks ?? 0,
-        failed_count: inventoryJson.failed_count ?? 0,
-        pages_fetched: inventoryJson.pages_fetched ?? 0,
-      };
-      setInventoryCostSyncResult(inventoryResult);
-
-      const refreshJson = await post("/api/shopify/refresh-inventory-source-of-truth");
-      const refreshResult: InventorySourceRefreshResult = {
-        status: refreshJson.status ?? "success",
-        variants_processed: refreshJson.variants_processed ?? 0,
-        inventory_rows_created: refreshJson.inventory_rows_created ?? 0,
-        inventory_rows_updated: refreshJson.inventory_rows_updated ?? 0,
-        stale_rows_marked: refreshJson.stale_rows_marked ?? 0,
-        duplicate_shopify_skus_found: refreshJson.duplicate_shopify_skus_found ?? 0,
-        missing_cost_count: refreshJson.missing_cost_count ?? 0,
-        missing_price_count: refreshJson.missing_price_count ?? 0,
-        missing_on_hand_count: refreshJson.missing_on_hand_count ?? 0,
-        last_synced_at: refreshJson.last_synced_at ?? null,
-        source: refreshJson.source ?? "synced_shopify_products_variants_inventory_levels",
-        sku_remaps_used: Boolean(refreshJson.sku_remaps_used),
-        shopify_write_calls: Boolean(refreshJson.shopify_write_calls),
-      };
-      setInventorySourceRefreshResult(refreshResult);
-
-      const reconciliationJson = await post("/api/shopify/inventory-reconciliation", {
-        product_status: "active",
-      });
-      const reconciliationResult: InventoryReconciliationResult = {
-        product_status: reconciliationJson.product_status ?? "active",
-        on_hand_missing_count: reconciliationJson.on_hand_missing_count ?? 0,
-        shopify_total_skus: reconciliationJson.shopify_total_skus ?? 0,
-        mansouj_local_total_skus: reconciliationJson.mansouj_local_total_skus ?? 0,
-        shopify_on_hand_quantity: reconciliationJson.shopify_on_hand_quantity ?? 0,
-        mansouj_on_hand_quantity: reconciliationJson.mansouj_on_hand_quantity ?? 0,
-        difference_quantity: reconciliationJson.difference_quantity ?? 0,
-        shopify_inventory_cost_value: reconciliationJson.shopify_inventory_cost_value ?? 0,
-        mansouj_inventory_cost_value: reconciliationJson.mansouj_inventory_cost_value ?? 0,
-        difference_cost_value: reconciliationJson.difference_cost_value ?? 0,
-        shopify_retail_value: reconciliationJson.shopify_retail_value ?? 0,
-        mansouj_retail_value: reconciliationJson.mansouj_retail_value ?? 0,
-        difference_retail_value: reconciliationJson.difference_retail_value ?? 0,
-        mismatches_count: reconciliationJson.mismatches_count ?? 0,
-        mismatches: Array.isArray(reconciliationJson.mismatches)
-          ? reconciliationJson.mismatches
-          : [],
-      };
-      setInventoryReconciliationResult(reconciliationResult);
-
-      const localSummary = await loadDailyInventoryLocalSummary();
-      const result: DailyInventorySyncResult = {
-        products_processed: productsResult.products_processed,
-        variants_processed: productsResult.variants_processed,
-        inventory_items_processed: inventoryResult.inventory_items_processed,
-        rows_created: refreshResult.inventory_rows_created,
-        rows_updated: refreshResult.inventory_rows_updated,
-        rows_marked_stale: refreshResult.stale_rows_marked,
-        duplicate_shopify_skus_found:
-          refreshResult.duplicate_shopify_skus_found || localSummary.duplicate_shopify_skus_found,
-        missing_cost_count: refreshResult.missing_cost_count || localSummary.missing_cost_count,
-        missing_price_count: refreshResult.missing_price_count || localSummary.missing_price_count,
-        failed_count:
-          productsResult.failed_count +
-          inventoryResult.failed_count +
-          (reconciliationResult.mismatches_count > 0 ? 0 : 0),
-        last_synced_at: refreshResult.last_synced_at ?? new Date().toISOString(),
-        sn29: localSummary.sn29,
-        satDu400Wh220: localSummary.satDu400Wh220,
-      };
-      setDailyInventorySyncResult(result);
-
-      if (reconciliationResult.mismatches_count > 0) {
-        toast.warning(
-          `Inventory sync finished. Reconciliation found ${reconciliationResult.mismatches_count} active mismatches.`,
-        );
-      } else {
-        toast.success("Inventory sync from Shopify finished.");
-      }
-      await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
-      await qc.invalidateQueries({ queryKey: ["shopify-inventory-report"] });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      setDailyInventorySyncError(message);
-      toast.error(message);
-      await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
-    } finally {
-      setSyncingDailyInventory(false);
     }
   };
 
@@ -927,11 +655,7 @@ function ShopifyPage() {
         inventory_rows_created: json.inventory_rows_created ?? 0,
         inventory_rows_updated: json.inventory_rows_updated ?? 0,
         stale_rows_marked: json.stale_rows_marked ?? 0,
-        duplicate_shopify_skus_found: json.duplicate_shopify_skus_found ?? 0,
-        missing_cost_count: json.missing_cost_count ?? 0,
-        missing_price_count: json.missing_price_count ?? 0,
         missing_on_hand_count: json.missing_on_hand_count ?? 0,
-        last_synced_at: json.last_synced_at ?? null,
         source: json.source ?? "synced_shopify_products_variants_inventory_levels",
         sku_remaps_used: Boolean(json.sku_remaps_used),
         shopify_write_calls: Boolean(json.shopify_write_calls),
@@ -942,9 +666,7 @@ function ShopifyPage() {
           `Inventory refreshed, but ${result.missing_on_hand_count} variants are missing Shopify on-hand quantity.`,
         );
       } else {
-        toast.success(
-          `Inventory refreshed from Shopify source data: ${result.variants_processed} variants.`,
-        );
+        toast.success(`Inventory refreshed from Shopify source data: ${result.variants_processed} variants.`);
       }
       await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
       await qc.invalidateQueries({ queryKey: ["shopify-inventory-report"] });
@@ -1560,9 +1282,7 @@ function ShopifyPage() {
                         Repaired:{" "}
                         {repairMissingLineItemsResult.repaired
                           .slice(0, 8)
-                          .map(
-                            (row) => `${row.order_number ?? "order"} (${row.line_items_inserted})`,
-                          )
+                          .map((row) => `${row.order_number ?? "order"} (${row.line_items_inserted})`)
                           .join(", ")}
                       </div>
                     )}
@@ -1665,10 +1385,15 @@ function ShopifyPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
-                    Product and variant sync is included in Sync Inventory from Shopify. The manual
-                    Sync Products button is now under Inventory &amp; Cost → Advanced Tools.
-                  </div>
+                  <Button
+                    onClick={syncProducts}
+                    disabled={!canOps || syncingProducts || syncingInventoryCost}
+                  >
+                    <RefreshCw
+                      className={`mr-2 h-4 w-4 ${syncingProducts ? "animate-spin" : ""}`}
+                    />
+                    Sync Products
+                  </Button>
                   {!canOps && (
                     <p className="text-sm text-muted-foreground">
                       Admin or operations access is required to run this sync.
@@ -1858,24 +1583,11 @@ function ShopifyPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-3 rounded-md border bg-muted/30 p-4">
-                    <div>
-                      <h4 className="text-sm font-medium">Daily inventory update</h4>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Click “Sync Inventory from Shopify” after changing products, prices, costs,
-                        quantities, SKUs, images, or product status in Shopify.
-                      </p>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        Important: If Cost per item was changed and you want Finance/order profits
-                        to update for existing orders, click “Recalculate Finance Costs” separately.
-                        Inventory sync must not automatically rewrite old order profits.
-                      </p>
-                    </div>
+                  <div className="flex flex-wrap gap-2">
                     <Button
-                      onClick={syncDailyInventoryFromShopify}
+                      onClick={syncInventoryCost}
                       disabled={
                         !canOps ||
-                        syncingDailyInventory ||
                         syncingProducts ||
                         syncingInventoryCost ||
                         refreshingInventorySource ||
@@ -1883,135 +1595,33 @@ function ShopifyPage() {
                       }
                     >
                       <RefreshCw
-                        className={`mr-2 h-4 w-4 ${syncingDailyInventory ? "animate-spin" : ""}`}
+                        className={`mr-2 h-4 w-4 ${syncingInventoryCost ? "animate-spin" : ""}`}
                       />
                       Sync Inventory from Shopify
                     </Button>
                   </div>
-                  {dailyInventorySyncError && (
-                    <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                      {dailyInventorySyncError}
-                    </div>
-                  )}
-                  {dailyInventorySyncResult && (
-                    <div className="space-y-3 rounded-md border bg-muted/30 p-4">
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        <StatusItem
-                          label="Products processed"
-                          value={String(dailyInventorySyncResult.products_processed)}
-                        />
-                        <StatusItem
-                          label="Variants processed"
-                          value={String(dailyInventorySyncResult.variants_processed)}
-                        />
-                        <StatusItem
-                          label="Inventory items processed"
-                          value={String(dailyInventorySyncResult.inventory_items_processed)}
-                        />
-                        <StatusItem
-                          label="Rows created"
-                          value={String(dailyInventorySyncResult.rows_created)}
-                        />
-                        <StatusItem
-                          label="Rows updated"
-                          value={String(dailyInventorySyncResult.rows_updated)}
-                        />
-                        <StatusItem
-                          label="Rows marked stale"
-                          value={String(dailyInventorySyncResult.rows_marked_stale)}
-                        />
-                        <StatusItem
-                          label="Duplicate Shopify SKUs"
-                          value={String(dailyInventorySyncResult.duplicate_shopify_skus_found)}
-                        />
-                        <StatusItem
-                          label="Missing cost"
-                          value={String(dailyInventorySyncResult.missing_cost_count)}
-                        />
-                        <StatusItem
-                          label="Missing price"
-                          value={String(dailyInventorySyncResult.missing_price_count)}
-                        />
-                        <StatusItem
-                          label="Failed"
-                          value={String(dailyInventorySyncResult.failed_count)}
-                        />
-                        <StatusItem
-                          label="Last synced"
-                          value={fmtDateTime(dailyInventorySyncResult.last_synced_at)}
-                        />
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <StatusItem
-                          label="SN29 check"
-                          value={
-                            dailyInventorySyncResult.sn29
-                              ? `On hand ${dailyInventorySyncResult.sn29.on_hand ?? "—"} · Available ${dailyInventorySyncResult.sn29.available ?? "—"} · Committed ${dailyInventorySyncResult.sn29.committed ?? "—"}`
-                              : "Not found in active inventory"
-                          }
-                        />
-                        <StatusItem
-                          label="SAT-DU400 - WH220 check"
-                          value={
-                            dailyInventorySyncResult.satDu400Wh220
-                              ? `Active rows ${dailyInventorySyncResult.satDu400Wh220.active_rows} · On hand ${dailyInventorySyncResult.satDu400Wh220.on_hand ?? "—"} · Cost ${dailyInventorySyncResult.satDu400Wh220.cost ?? "—"} · Total cost ${dailyInventorySyncResult.satDu400Wh220.total_cost ?? "—"}`
-                              : "Not found in active inventory"
-                          }
-                        />
-                      </div>
-                    </div>
-                  )}
-                  <details className="rounded-md border bg-background p-4">
-                    <summary className="cursor-pointer text-sm font-medium">Advanced Tools</summary>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Button
-                        onClick={syncProducts}
-                        disabled={
-                          !canOps ||
-                          syncingDailyInventory ||
-                          syncingProducts ||
-                          syncingInventoryCost
-                        }
-                        variant="outline"
-                      >
-                        <RefreshCw
-                          className={`mr-2 h-4 w-4 ${syncingProducts ? "animate-spin" : ""}`}
-                        />
-                        Sync Products
-                      </Button>
-                      <Button
-                        onClick={syncInventoryCost}
-                        disabled={
-                          !canOps ||
-                          syncingDailyInventory ||
-                          syncingProducts ||
-                          syncingInventoryCost ||
-                          refreshingInventorySource ||
-                          reconcilingInventory
-                        }
-                        variant="outline"
-                      >
-                        <RefreshCw
-                          className={`mr-2 h-4 w-4 ${syncingInventoryCost ? "animate-spin" : ""}`}
-                        />
-                        Sync Inventory & Cost
-                      </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Daily-use button. Syncs Shopify locations, inventory levels, and
+                    InventoryItem unit cost. The Inventory page uses Active products by default.
+                  </p>
+                  <details className="rounded-md border bg-muted/20 p-3">
+                    <summary className="cursor-pointer text-sm font-medium">
+                      Advanced Tools
+                    </summary>
+                    <div className="mt-3 flex flex-wrap gap-2">
                       <Button
                         onClick={refreshInventorySourceOfTruth}
                         disabled={
                           !canOps ||
-                          syncingDailyInventory ||
                           syncingProducts ||
                           syncingInventoryCost ||
                           refreshingInventorySource ||
                           reconcilingInventory
                         }
-                        variant="outline"
+                        variant="secondary"
                       >
                         <RefreshCw
-                          className={`mr-2 h-4 w-4 ${
-                            refreshingInventorySource ? "animate-spin" : ""
-                          }`}
+                          className={`mr-2 h-4 w-4 ${refreshingInventorySource ? "animate-spin" : ""}`}
                         />
                         Refresh Inventory From Shopify Source of Truth
                       </Button>
@@ -2019,7 +1629,6 @@ function ShopifyPage() {
                         onClick={runInventoryReconciliation}
                         disabled={
                           !canOps ||
-                          syncingDailyInventory ||
                           syncingProducts ||
                           syncingInventoryCost ||
                           refreshingInventorySource ||
@@ -2033,10 +1642,9 @@ function ShopifyPage() {
                         Inventory Reconciliation
                       </Button>
                     </div>
-                    <p className="mt-3 text-xs text-muted-foreground">
-                      Advanced flow: Sync Products → Sync Inventory &amp; Cost → Refresh Inventory
-                      From Shopify Source of Truth → Inventory Reconciliation. The report uses
-                      Active products by default to match the Inventory page default filter.
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Advanced flow: Sync Products → Sync Inventory from Shopify → Refresh Inventory
+                      From Shopify Source of Truth → Inventory Reconciliation.
                     </p>
                   </details>
                   {!canOps && (
@@ -2135,24 +1743,8 @@ function ShopifyPage() {
                           value={String(inventorySourceRefreshResult.stale_rows_marked)}
                         />
                         <StatusItem
-                          label="Duplicate Shopify SKUs"
-                          value={String(inventorySourceRefreshResult.duplicate_shopify_skus_found)}
-                        />
-                        <StatusItem
-                          label="Missing cost"
-                          value={String(inventorySourceRefreshResult.missing_cost_count)}
-                        />
-                        <StatusItem
-                          label="Missing price"
-                          value={String(inventorySourceRefreshResult.missing_price_count)}
-                        />
-                        <StatusItem
                           label="Missing on hand"
                           value={String(inventorySourceRefreshResult.missing_on_hand_count)}
-                        />
-                        <StatusItem
-                          label="Last synced"
-                          value={fmtDateTime(inventorySourceRefreshResult.last_synced_at)}
                         />
                         <StatusItem
                           label="SKU remaps used"
@@ -2583,10 +2175,10 @@ function ShopifyPage() {
                       <h4 className="text-sm font-medium">Recalculate Order & Packaging Costs</h4>
                       <p className="text-xs text-muted-foreground">
                         Recomputes each local order's items_cost from order_items (quantity ×
-                        unit_cost), and updates Packaging Cost to 140 EGP per eligible item. Fitted
-                        sheet sets with pillowcases are included; standalone pillows, pillowcases,
-                        and duvets are excluded. Manual packaging edits are preserved. Does not
-                        modify Shopify or change order revenue.
+                        unit_cost), and updates Packaging Cost to 140 EGP per eligible item.
+                        Fitted sheet sets with pillowcases are included; standalone pillows,
+                        pillowcases, and duvets are excluded. Manual packaging edits are preserved.
+                        Does not modify Shopify or change order revenue.
                       </p>
                     </div>
                     <Button

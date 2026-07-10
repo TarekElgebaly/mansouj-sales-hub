@@ -194,7 +194,7 @@ export const Route = createFileRoute("/api/shopify/force-update-order-item-costs
               .select("id,order_id,sku,product_name,variant,shopify_variant_id,shopify_product_id,quantity,unit_cost")
               .in("order_id", slice);
             if (!error) {
-              items.push(...((data ?? []) as OrderItemRow[]));
+              items.push(...((data ?? []) as unknown as OrderItemRow[]));
               continue;
             }
             if (!isSchemaError(error)) throw new Error(`order_items lookup failed: ${error.message}`);
