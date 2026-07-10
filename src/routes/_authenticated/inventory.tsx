@@ -831,6 +831,15 @@ function InventoryPage() {
                   onSort={setTableSort}
                   align="right"
                 />
+                {hasIncoming && (
+                  <SortableHead
+                    label="Incoming"
+                    sortKey="incoming"
+                    sort={tableSort}
+                    onSort={setTableSort}
+                    align="right"
+                  />
+                )}
                 <SortableHead
                   label="Cost"
                   sortKey="cost"
