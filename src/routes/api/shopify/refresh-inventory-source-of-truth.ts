@@ -57,7 +57,7 @@ type LocalInventoryRow = {
 };
 
 function productRelation(value: ShopifyVariant["shopify_products"]) {
-  return Array.isArray(value) ? value[0] ?? null : value ?? null;
+  return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
 }
 
 function cleanOption(value: string | null | undefined) {
@@ -76,7 +76,11 @@ function numberValue(value: number | string | null | undefined) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function addQuantity(map: Map<string, number>, itemId: string | null | undefined, value: number | null) {
+function addQuantity(
+  map: Map<string, number>,
+  itemId: string | null | undefined,
+  value: number | null,
+) {
   if (!itemId || value == null || !Number.isFinite(value)) return;
   map.set(itemId, (map.get(itemId) ?? 0) + Number(value));
 }
@@ -127,7 +131,9 @@ function stripSourceColumns(payload: Record<string, unknown>) {
 async function loadInventoryLevels(supabaseAdmin: any) {
   const withOnHand = await supabaseAdmin
     .from("shopify_inventory_levels")
-    .select("inventory_item_id,available,available_quantity,on_hand,on_hand_quantity,committed_quantity,unavailable_quantity,incoming_quantity");
+    .select(
+      "inventory_item_id,available,available_quantity,on_hand,on_hand_quantity,committed_quantity,unavailable_quantity,incoming_quantity",
+    );
   if (!withOnHand.error) {
     return {
       data: (withOnHand.data ?? []) as InventoryLevel[],
@@ -165,7 +171,8 @@ async function loadLocalInventory(supabaseAdmin: any) {
   const full = await supabaseAdmin
     .from("inventory")
     .select("id,sku,shopify_variant_id,inventory_item_id,current_inventory,cost_price,sale_price");
-  if (!full.error) return { data: (full.data ?? []) as LocalInventoryRow[], hasSourceColumns: true };
+  if (!full.error)
+    return { data: (full.data ?? []) as LocalInventoryRow[], hasSourceColumns: true };
   if (!isMissingColumnError(full.error)) {
     throw new Error(`Could not load local inventory: ${full.error.message}`);
   }
@@ -229,7 +236,9 @@ async function updateInventoryRowBySku(
     .update(stripSourceColumns(payload))
     .eq("sku", sku);
   if (fallback.error) {
-    throw new Error(`Could not update inventory row for duplicate SKU ${sku}: ${fallback.error.message}`);
+    throw new Error(
+      `Could not update inventory row for duplicate SKU ${sku}: ${fallback.error.message}`,
+    );
   }
   return false;
 }
@@ -250,6 +259,8 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
         let rowsUpdated = 0;
         let staleRowsMarked = 0;
         let missingOnHandCount = 0;
+        let committedValuesReturnedFromShopify = 0;
+        let committedValuesCalculatedByFallback = 0;
         let hasOnHandColumn = true;
         let hasInventorySourceColumns = true;
         let failedCount = 0;
@@ -262,6 +273,8 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
           inventory_rows_updated: rowsUpdated,
           stale_rows_marked: staleRowsMarked,
           missing_on_hand_count: missingOnHandCount,
+          committed_values_returned_from_shopify: committedValuesReturnedFromShopify,
+          committed_values_calculated_by_fallback: committedValuesCalculatedByFallback,
           on_hand_column_present: hasOnHandColumn,
           inventory_source_columns_present: hasInventorySourceColumns,
           matching_priority: [
@@ -323,15 +336,33 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
           const unavailableByItemId = new Map<string, number>();
           const incomingByItemId = new Map<string, number>();
           for (const level of levels) {
-            addQuantity(availableByItemId, level.inventory_item_id, level.available_quantity ?? level.available);
-            addQuantity(onHandByItemId, level.inventory_item_id, level.on_hand_quantity ?? level.on_hand ?? null);
-            addQuantity(committedByItemId, level.inventory_item_id, level.committed_quantity ?? null);
-            addQuantity(unavailableByItemId, level.inventory_item_id, level.unavailable_quantity ?? null);
+            addQuantity(
+              availableByItemId,
+              level.inventory_item_id,
+              level.available_quantity ?? level.available,
+            );
+            addQuantity(
+              onHandByItemId,
+              level.inventory_item_id,
+              level.on_hand_quantity ?? level.on_hand ?? null,
+            );
+            addQuantity(
+              committedByItemId,
+              level.inventory_item_id,
+              level.committed_quantity ?? null,
+            );
+            addQuantity(
+              unavailableByItemId,
+              level.inventory_item_id,
+              level.unavailable_quantity ?? null,
+            );
             addQuantity(incomingByItemId, level.inventory_item_id, level.incoming_quantity ?? null);
           }
 
           const localIndexes = buildIndexes(localRows);
-          const currentVariantIds = new Set(variants.map((variant) => String(variant.shopify_variant_id)));
+          const currentVariantIds = new Set(
+            variants.map((variant) => String(variant.shopify_variant_id)),
+          );
           const currentInventoryItemIds = new Set(
             variants.map((variant) => variant.inventory_item_id).filter(Boolean) as string[],
           );
@@ -343,11 +374,24 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
             const media = mediaFromVariant(variant);
             const inventoryItemId = variant.inventory_item_id ?? null;
             const hasOnHand = inventoryItemId ? onHandByItemId.has(inventoryItemId) : false;
-            const available = inventoryItemId ? availableByItemId.get(inventoryItemId) ?? 0 : 0;
-            const onHand = inventoryItemId ? onHandByItemId.get(inventoryItemId) ?? 0 : 0;
-            const committed = inventoryItemId ? committedByItemId.get(inventoryItemId) ?? 0 : 0;
-            const unavailable = inventoryItemId ? unavailableByItemId.get(inventoryItemId) ?? 0 : 0;
-            const incoming = inventoryItemId ? incomingByItemId.get(inventoryItemId) ?? 0 : 0;
+            const hasAvailable = inventoryItemId ? availableByItemId.has(inventoryItemId) : false;
+            const available = inventoryItemId ? (availableByItemId.get(inventoryItemId) ?? 0) : 0;
+            const onHand = inventoryItemId ? (onHandByItemId.get(inventoryItemId) ?? 0) : 0;
+            let committed = inventoryItemId
+              ? (committedByItemId.get(inventoryItemId) ?? null)
+              : null;
+            if (committed != null) {
+              committedValuesReturnedFromShopify++;
+            } else if (hasOnHand && hasAvailable) {
+              committed = Number((onHand - available).toFixed(2));
+              committedValuesCalculatedByFallback++;
+            } else {
+              committed = 0;
+            }
+            const unavailable = inventoryItemId
+              ? (unavailableByItemId.get(inventoryItemId) ?? 0)
+              : 0;
+            const incoming = inventoryItemId ? (incomingByItemId.get(inventoryItemId) ?? 0) : 0;
             if (!hasOnHand) missingOnHandCount++;
 
             const color = cleanOption(variant.option1);
@@ -369,14 +413,17 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
               committed_quantity: committed,
               unavailable_quantity: unavailable,
               incoming_quantity: incoming,
-              cost_price: inventoryItemId ? costByItemId.get(inventoryItemId) ?? 0 : 0,
+              cost_price: inventoryItemId ? (costByItemId.get(inventoryItemId) ?? 0) : 0,
               sale_price: numberValue(variant.price),
               status: stockStatus(onHand),
               product_images: media.imageUrl ? [media.imageUrl] : [],
               shopify_product_id: variant.shopify_product_id,
               shopify_variant_id: variant.shopify_variant_id,
               inventory_item_id: inventoryItemId,
-              shopify_product_status: String(product?.status ?? "").trim().toLowerCase() || null,
+              shopify_product_status:
+                String(product?.status ?? "")
+                  .trim()
+                  .toLowerCase() || null,
               shopify_product_type: product?.product_type ?? null,
               shopify_synced_at: refreshedAt,
               is_shopify_stale: false,
@@ -425,8 +472,14 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
               continue;
             }
 
-            if (!String(insertResult.error?.message ?? "").toLowerCase().includes("duplicate")) {
-              throw new Error(`Could not insert inventory row for ${sku}: ${insertResult.error?.message}`);
+            if (
+              !String(insertResult.error?.message ?? "")
+                .toLowerCase()
+                .includes("duplicate")
+            ) {
+              throw new Error(
+                `Could not insert inventory row for ${sku}: ${insertResult.error?.message}`,
+              );
             }
 
             hasInventorySourceColumns = await updateInventoryRowBySku(
@@ -439,13 +492,16 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
           }
 
           stoppedReason = "marking_stale_local_inventory_rows";
-          const staleIds = hasInventorySourceColumns ? localRows
-            .filter((row) => {
-              if (row.shopify_variant_id) return !currentVariantIds.has(row.shopify_variant_id);
-              if (row.inventory_item_id) return !currentInventoryItemIds.has(row.inventory_item_id);
-              return false;
-            })
-            .map((row) => row.id) : [];
+          const staleIds = hasInventorySourceColumns
+            ? localRows
+                .filter((row) => {
+                  if (row.shopify_variant_id) return !currentVariantIds.has(row.shopify_variant_id);
+                  if (row.inventory_item_id)
+                    return !currentInventoryItemIds.has(row.inventory_item_id);
+                  return false;
+                })
+                .map((row) => row.id)
+            : [];
 
           if (staleIds.length) {
             const { error } = await supabaseAdmin
@@ -498,6 +554,8 @@ export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-t
             inventory_rows_updated: rowsUpdated,
             stale_rows_marked: staleRowsMarked,
             missing_on_hand_count: missingOnHandCount,
+            committed_values_returned_from_shopify: committedValuesReturnedFromShopify,
+            committed_values_calculated_by_fallback: committedValuesCalculatedByFallback,
             on_hand_column_present: hasOnHandColumn,
             inventory_source_columns_present: hasInventorySourceColumns,
             source: "synced_shopify_products_variants_inventory_levels",

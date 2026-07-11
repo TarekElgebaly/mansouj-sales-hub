@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireOpsUser, saveShopifySyncRun } from "@/lib/shopify-sync.server";
+import { buildInventoryCostMatcher } from "@/lib/inventory-cost-match.server";
 
 type OrderRow = {
   id: string;
   order_number: string | null;
+  order_status: string | null;
   items_cost: number | null;
 };
 
@@ -13,6 +15,7 @@ type OrderItemRow = {
   sku: string | null;
   product_name: string | null;
   variant: string | null;
+  inventory_item_id?: string | null;
   shopify_variant_id?: string | null;
   shopify_product_id?: string | null;
   quantity: number | null;
@@ -78,6 +81,10 @@ function money(value: number) {
   return Number(value.toFixed(2));
 }
 
+function isCancelled(status: string | null | undefined) {
+  return status === "Cancelled";
+}
+
 function isSchemaError(error: { message?: string; code?: string } | null | undefined) {
   const message = error?.message ?? "";
   return (
@@ -138,6 +145,10 @@ export const Route = createFileRoute("/api/shopify/force-update-order-item-costs
         let lastError: string | null = null;
         let totalCostBefore = 0;
         let totalCostAfter = 0;
+        let missingCostsBefore = 0;
+        let missingCostsFixed = 0;
+        let missingCostsRemaining = 0;
+        let cancelledOrdersNormalized = 0;
 
         const matchCounts: Record<string, number> = {};
         const mismatchReasons: Record<string, number> = {};
@@ -146,7 +157,7 @@ export const Route = createFileRoute("/api/shopify/force-update-order-item-costs
           sku: string | null;
           item_title: string | null;
           variant: string | null;
-          reason: MatchReason;
+          reason: string;
         }> = [];
 
         const addMismatch = (
@@ -167,13 +178,14 @@ export const Route = createFileRoute("/api/shopify/force-update-order-item-costs
         };
 
         try {
+          const costMatcher = await buildInventoryCostMatcher(supabaseAdmin);
           const orders: OrderRow[] = [];
           const pageSize = 1000;
           let from = 0;
           while (true) {
             const { data, error } = await supabaseAdmin
               .from("orders")
-              .select("id,order_number,items_cost")
+              .select("id,order_number,order_status,items_cost")
               .not("shopify_order_id", "is", null)
               .range(from, from + pageSize - 1);
             if (error) throw new Error(`orders lookup failed: ${error.message}`);
@@ -191,19 +203,23 @@ export const Route = createFileRoute("/api/shopify/force-update-order-item-costs
             const slice = orderIds.slice(i, i + 200);
             const { data, error } = await supabaseAdmin
               .from("order_items")
-              .select("id,order_id,sku,product_name,variant,shopify_variant_id,shopify_product_id,quantity,unit_cost")
+              .select(
+                "id,order_id,sku,product_name,variant,inventory_item_id,shopify_variant_id,shopify_product_id,quantity,unit_cost",
+              )
               .in("order_id", slice);
             if (!error) {
               items.push(...((data ?? []) as unknown as OrderItemRow[]));
               continue;
             }
-            if (!isSchemaError(error)) throw new Error(`order_items lookup failed: ${error.message}`);
+            if (!isSchemaError(error))
+              throw new Error(`order_items lookup failed: ${error.message}`);
 
             const fallback = await supabaseAdmin
               .from("order_items")
               .select("id,order_id,sku,product_name,variant,quantity,unit_cost")
               .in("order_id", slice);
-            if (fallback.error) throw new Error(`order_items lookup failed: ${fallback.error.message}`);
+            if (fallback.error)
+              throw new Error(`order_items lookup failed: ${fallback.error.message}`);
             items.push(...((fallback.data ?? []) as OrderItemRow[]));
           }
           itemsChecked = items.length;
@@ -388,32 +404,59 @@ export const Route = createFileRoute("/api/shopify/force-update-order-item-costs
             const qty = Number(item.quantity ?? 0);
             const safeOldCost = Number.isFinite(oldCost) ? oldCost : 0;
             const safeQty = Number.isFinite(qty) ? qty : 0;
-            const { variant, reason } = resolveVariant(item);
+            if (safeOldCost <= 0) missingCostsBefore++;
 
-            if (!variant) {
-              missingMatch++;
-              addMismatch(item, ordersById, reason);
-              totalCostBefore += safeQty * safeOldCost;
-              totalCostAfter += safeQty * safeOldCost;
-              continue;
+            let newCost: number | null = null;
+            let reason = "matched_by_inventory_cost_matcher";
+            const inventoryMatch = costMatcher.resolve(item);
+            if (inventoryMatch) {
+              newCost = inventoryMatch.unitCost;
+              reason = inventoryMatch.reason;
+            } else {
+              const resolved = resolveVariant(item);
+              const variant = resolved.variant;
+              reason = resolved.reason;
+
+              if (!variant) {
+                missingMatch++;
+                addMismatch(item, ordersById, resolved.reason);
+                if (safeOldCost <= 0) missingCostsRemaining++;
+                totalCostBefore += safeQty * safeOldCost;
+                totalCostAfter += safeQty * safeOldCost;
+                continue;
+              }
+
+              if (!variant.inventory_item_id) {
+                missingMatch++;
+                addMismatch(item, ordersById, "variant_missing_inventory_item_id");
+                if (safeOldCost <= 0) missingCostsRemaining++;
+                totalCostBefore += safeQty * safeOldCost;
+                totalCostAfter += safeQty * safeOldCost;
+                continue;
+              }
+
+              const resolvedCost = costByInventoryItemId.get(variant.inventory_item_id);
+              if (resolvedCost == null || !Number.isFinite(resolvedCost) || resolvedCost <= 0) {
+                missingCost++;
+                addMismatch(item, ordersById, "inventory_cost_missing");
+                if (safeOldCost <= 0) missingCostsRemaining++;
+                totalCostBefore += safeQty * safeOldCost;
+                totalCostAfter += safeQty * safeOldCost;
+                continue;
+              }
+              newCost = resolvedCost;
             }
 
-            if (!variant.inventory_item_id) {
-              missingMatch++;
-              addMismatch(item, ordersById, "variant_missing_inventory_item_id");
-              totalCostBefore += safeQty * safeOldCost;
-              totalCostAfter += safeQty * safeOldCost;
-              continue;
-            }
-
-            const newCost = costByInventoryItemId.get(variant.inventory_item_id);
             if (newCost == null || !Number.isFinite(newCost) || newCost <= 0) {
               missingCost++;
               addMismatch(item, ordersById, "inventory_cost_missing");
+              if (safeOldCost <= 0) missingCostsRemaining++;
               totalCostBefore += safeQty * safeOldCost;
               totalCostAfter += safeQty * safeOldCost;
               continue;
             }
+
+            if (safeOldCost <= 0) missingCostsFixed++;
 
             matchCounts[reason] = (matchCounts[reason] ?? 0) + 1;
             totalCostBefore += safeQty * safeOldCost;
@@ -444,13 +487,18 @@ export const Route = createFileRoute("/api/shopify/force-update-order-item-costs
           }
 
           for (const orderId of affectedOrderIds) {
-            const nextItemsCost = items
-              .filter((item) => item.order_id === orderId)
-              .reduce((sum, item) => {
-                const qty = Number(item.quantity ?? 0);
-                const cost = newCostByItemId.get(item.id) ?? Number(item.unit_cost ?? 0);
-                return sum + (Number.isFinite(qty) ? qty : 0) * (Number.isFinite(cost) ? cost : 0);
-              }, 0);
+            const order = ordersById.get(orderId);
+            const nextItemsCost = isCancelled(order?.order_status)
+              ? 0
+              : items
+                  .filter((item) => item.order_id === orderId)
+                  .reduce((sum, item) => {
+                    const qty = Number(item.quantity ?? 0);
+                    const cost = newCostByItemId.get(item.id) ?? Number(item.unit_cost ?? 0);
+                    return (
+                      sum + (Number.isFinite(qty) ? qty : 0) * (Number.isFinite(cost) ? cost : 0)
+                    );
+                  }, 0);
 
             const { error } = await supabaseAdmin
               .from("orders")
@@ -461,6 +509,27 @@ export const Route = createFileRoute("/api/shopify/force-update-order-item-costs
               lastError = error.message;
             } else {
               ordersRecalculated++;
+              if (isCancelled(order?.order_status)) cancelledOrdersNormalized++;
+            }
+          }
+
+          for (const order of orders) {
+            if (
+              !affectedOrderIds.has(order.id) &&
+              isCancelled(order.order_status) &&
+              Number(order.items_cost ?? 0) !== 0
+            ) {
+              const { error } = await supabaseAdmin
+                .from("orders")
+                .update({ items_cost: 0 })
+                .eq("id", order.id);
+              if (error) {
+                failedCount++;
+                lastError = error.message;
+              } else {
+                ordersRecalculated++;
+                cancelledOrdersNormalized++;
+              }
             }
           }
 
@@ -476,12 +545,21 @@ export const Route = createFileRoute("/api/shopify/force-update-order-item-costs
             missing_cost: missingCost,
             missing_match: missingMatch,
             orders_recalculated: ordersRecalculated,
+            missing_costs_before: missingCostsBefore,
+            missing_costs_fixed: missingCostsFixed,
+            missing_costs_remaining: missingCostsRemaining,
+            cancelled_orders_normalized: cancelledOrdersNormalized,
             total_cost_before: money(totalCostBefore),
             total_cost_after: money(totalCostAfter),
             failed_count: failedCount,
             match_counts: matchCounts,
             mismatch_reasons: mismatchReasons,
             samples,
+            cost_matcher: {
+              inventory_rows_indexed: costMatcher.inventory_rows_indexed,
+              shopify_variants_indexed: costMatcher.shopify_variants_indexed,
+              shopify_inventory_items_indexed: costMatcher.shopify_inventory_items_indexed,
+            },
             started_at: startedAt,
             finished_at: finishedAt,
             last_error: lastError,
@@ -525,6 +603,10 @@ export const Route = createFileRoute("/api/shopify/force-update-order-item-costs
               items_updated: itemsUpdated,
               missing_cost: missingCost,
               missing_match: missingMatch,
+              missing_costs_before: missingCostsBefore,
+              missing_costs_fixed: missingCostsFixed,
+              missing_costs_remaining: missingCostsRemaining,
+              cancelled_orders_normalized: cancelledOrdersNormalized,
               shopify_write_calls: false,
             },
           });

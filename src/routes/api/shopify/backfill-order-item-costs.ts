@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireOpsUser, saveShopifySyncRun } from "@/lib/shopify-sync.server";
+import { buildInventoryCostMatcher } from "@/lib/inventory-cost-match.server";
 
 type OrderItemRow = {
   id: string;
@@ -7,6 +8,9 @@ type OrderItemRow = {
   sku: string | null;
   product_name: string | null;
   variant: string | null;
+  inventory_item_id?: string | null;
+  shopify_variant_id?: string | null;
+  shopify_product_id?: string | null;
   quantity: number | null;
   unit_cost: number | null;
 };
@@ -46,6 +50,15 @@ function normalizeSku(sku: string | null): string {
   return sku.toLowerCase().replace(/\s+/g, "").trim();
 }
 
+function isSchemaError(error: { message?: string; code?: string } | null | undefined) {
+  const message = error?.message ?? "";
+  return (
+    error?.code === "PGRST204" ||
+    error?.code === "PGRST205" ||
+    /column|schema cache|could not find/i.test(message)
+  );
+}
+
 type MatchReason =
   | "matched_by_variant_id"
   | "matched_by_sku"
@@ -73,8 +86,7 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
 
         const url = new URL(request.url);
         const dryRun =
-          url.searchParams.get("dry_run") === "1" ||
-          url.searchParams.get("dry_run") === "true";
+          url.searchParams.get("dry_run") === "1" || url.searchParams.get("dry_run") === "true";
 
         const startedAt = new Date().toISOString();
         const syncType = "order_item_cost_backfill";
@@ -90,6 +102,7 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
         let matchedByVariantId = 0;
         let matchedBySku = 0;
         let matchedBySkuNormalized = 0;
+        let matchedByLocalInventory = 0;
         let matchedByRemapVariantId = 0;
         let matchedByRemapSku = 0;
         let reasonMissingShopifyVariantId = 0;
@@ -123,6 +136,8 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
         const unmatchedSkuMap = new Map<string, UnmatchedSkuAgg>();
 
         try {
+          const costMatcher = await buildInventoryCostMatcher(supabaseAdmin);
+
           // 0. Load active SKU remaps.
           const remapByOldSku = new Map<string, RemapRow>();
           const remapByOldSkuNormalized = new Map<string, RemapRow>();
@@ -167,10 +182,25 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
             const slice = orderIds.slice(i, i + 200);
             const { data, error } = await supabaseAdmin
               .from("order_items")
+              .select(
+                "id,order_id,sku,product_name,variant,inventory_item_id,shopify_variant_id,shopify_product_id,quantity,unit_cost",
+              )
+              .in("order_id", slice);
+            if (!error) {
+              items.push(...((data ?? []) as unknown as OrderItemRow[]));
+              continue;
+            }
+            if (!isSchemaError(error)) {
+              throw new Error(`order_items lookup failed: ${error.message}`);
+            }
+            const fallback = await supabaseAdmin
+              .from("order_items")
               .select("id,order_id,sku,product_name,variant,quantity,unit_cost")
               .in("order_id", slice);
-            if (error) throw new Error(`order_items lookup failed: ${error.message}`);
-            items.push(...((data ?? []) as OrderItemRow[]));
+            if (fallback.error) {
+              throw new Error(`order_items lookup failed: ${fallback.error.message}`);
+            }
+            items.push(...((fallback.data ?? []) as OrderItemRow[]));
           }
           orderItemsChecked = items.length;
 
@@ -186,8 +216,7 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
                 .from("shopify_variants")
                 .select("shopify_variant_id,sku,barcode,inventory_item_id")
                 .range(vFrom, vFrom + vPageSize - 1);
-              if (error)
-                throw new Error(`shopify_variants scan failed: ${error.message}`);
+              if (error) throw new Error(`shopify_variants scan failed: ${error.message}`);
               const rows = (data ?? []) as VariantRow[];
               for (const v of rows) {
                 if (v.shopify_variant_id) variantsByVariantId.set(v.shopify_variant_id, v);
@@ -229,8 +258,7 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
               .from("shopify_inventory_items")
               .select("inventory_item_id,unit_cost_amount,unit_cost_currency_code")
               .in("inventory_item_id", slice);
-            if (error)
-              throw new Error(`shopify_inventory_items lookup failed: ${error.message}`);
+            if (error) throw new Error(`shopify_inventory_items lookup failed: ${error.message}`);
             for (const r of (data ?? []) as InventoryCostRow[]) {
               costByInventoryItemId.set(r.inventory_item_id, r);
             }
@@ -280,9 +308,7 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
             }
           };
 
-          const resolveVariantFromInventoryId = (
-            inventoryItemId: string,
-          ): VariantRow | null => {
+          const resolveVariantFromInventoryId = (inventoryItemId: string): VariantRow | null => {
             // Synthetic variant just so downstream cost lookup works.
             return {
               shopify_variant_id: "",
@@ -299,14 +325,17 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
               continue;
             }
 
+            const inventoryMatch = costMatcher.resolve(it);
+            if (inventoryMatch) {
+              matchedByLocalInventory++;
+              updates.push({ id: it.id, unit_cost: inventoryMatch.unitCost });
+              continue;
+            }
+
             let variant: VariantRow | undefined;
             let matchedVia:
-              | "variant_id"
-              | "sku"
-              | "sku_normalized"
-              | "remap_variant_id"
-              | "remap_sku"
-              | null = null;
+              "variant_id" | "sku" | "sku_normalized" | "remap_variant_id" | "remap_sku" | null =
+              null;
 
             // A) variant id encoded in SKU
             const vid = variantIdFromSku(it.sku);
@@ -352,8 +381,7 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
                   continue;
                 } else {
                   // D) Active SKU remap
-                  const remap =
-                    remapByOldSku.get(rawSku) ?? remapByOldSkuNormalized.get(norm);
+                  const remap = remapByOldSku.get(rawSku) ?? remapByOldSkuNormalized.get(norm);
                   if (!remap) {
                     reasonSkuNotFound++;
                     recordSample(it, "sku_not_found", null);
@@ -368,18 +396,12 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
                       matchedVia = "remap_variant_id";
                     } else {
                       reasonRemapTargetNotFound++;
-                      recordSample(
-                        it,
-                        "remap_target_not_found",
-                        remap.shopify_variant_id,
-                      );
+                      recordSample(it, "remap_target_not_found", remap.shopify_variant_id);
                       continue;
                     }
                   } else if (remap.inventory_item_id) {
                     // D1b: direct inventory_item_id on remap
-                    const synthetic = resolveVariantFromInventoryId(
-                      remap.inventory_item_id,
-                    );
+                    const synthetic = resolveVariantFromInventoryId(remap.inventory_item_id);
                     if (synthetic) {
                       variant = synthetic;
                       matchedVia = "remap_variant_id";
@@ -388,11 +410,8 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
                     // D2: resolve via new_sku → shopify_variants.sku
                     const newSkuTrim = remap.new_sku.trim();
                     const exact = variantsBySkuExact.get(newSkuTrim);
-                    const normMatches2 = variantsBySkuNormalized.get(
-                      normalizeSku(remap.new_sku),
-                    );
-                    const pool =
-                      exact && exact.length > 0 ? exact : normMatches2 ?? [];
+                    const normMatches2 = variantsBySkuNormalized.get(normalizeSku(remap.new_sku));
+                    const pool = exact && exact.length > 0 ? exact : (normMatches2 ?? []);
                     if (pool.length === 1) {
                       variant = pool[0];
                       matchedVia = "remap_sku";
@@ -425,15 +444,10 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
             }
 
             const cost = costByInventoryItemId.get(variant.inventory_item_id);
-            const amount =
-              cost?.unit_cost_amount != null ? Number(cost.unit_cost_amount) : null;
+            const amount = cost?.unit_cost_amount != null ? Number(cost.unit_cost_amount) : null;
             if (amount == null || !Number.isFinite(amount) || amount <= 0) {
               orderItemsMissingInventoryCost++;
-              recordSample(
-                it,
-                "inventory_cost_missing",
-                variant.shopify_variant_id || null,
-              );
+              recordSample(it, "inventory_cost_missing", variant.shopify_variant_id || null);
               continue;
             }
 
@@ -492,6 +506,7 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
             matched_by_variant_id: matchedByVariantId,
             matched_by_sku: matchedBySku,
             matched_by_sku_normalized: matchedBySkuNormalized,
+            matched_by_local_inventory: matchedByLocalInventory,
             matched_by_remap_variant_id: matchedByRemapVariantId,
             matched_by_remap_sku: matchedByRemapSku,
             remap_matches_count: remapMatchesCount,
@@ -517,11 +532,16 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
             orders_considered: orderIds.length,
             shopify_write_calls: false,
             source:
-              "local shopify_variants + shopify_inventory_items + shopify_sku_remaps",
+              "local inventory + shopify_variants + shopify_inventory_items + shopify_sku_remaps",
             match_rules:
-              "1) shopify-variant-{id} encoded SKU → variant_id, 2) exact SKU, 3) normalized SKU, 4) active SKU remap (variant_id, inventory_item_id, or new_sku).",
+              "0) local inventory matcher (inventory item, variant, product+variant, exact SKU, normalized SKU, title+variant), 1) shopify-variant-{id} encoded SKU → variant_id, 2) exact SKU, 3) normalized SKU, 4) active SKU remap (variant_id, inventory_item_id, or new_sku).",
             updates_only_zero_or_null_unit_cost: true,
             touched_order_totals: false,
+            cost_matcher: {
+              inventory_rows_indexed: costMatcher.inventory_rows_indexed,
+              shopify_variants_indexed: costMatcher.shopify_variants_indexed,
+              shopify_inventory_items_indexed: costMatcher.shopify_inventory_items_indexed,
+            },
           };
 
           if (!dryRun) {
@@ -550,6 +570,7 @@ export const Route = createFileRoute("/api/shopify/backfill-order-item-costs")({
             matched_by_variant_id: matchedByVariantId,
             matched_by_sku: matchedBySku,
             matched_by_sku_normalized: matchedBySkuNormalized,
+            matched_by_local_inventory: matchedByLocalInventory,
             matched_by_remap_variant_id: matchedByRemapVariantId,
             matched_by_remap_sku: matchedByRemapSku,
             remap_matches_count: remapMatchesCount,

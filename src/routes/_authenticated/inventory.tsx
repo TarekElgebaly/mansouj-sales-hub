@@ -473,10 +473,6 @@ function InventoryPage() {
           inventoryItemId ? availableByInventoryItem.get(inventoryItemId) : null,
           localInventory?.available_quantity,
         );
-        const committed = firstNumber(
-          inventoryItemId ? committedByInventoryItem.get(inventoryItemId) : null,
-          localInventory?.committed_quantity,
-        );
         const unavailable = firstNumber(
           inventoryItemId ? unavailableByInventoryItem.get(inventoryItemId) : null,
           localInventory?.unavailable_quantity,
@@ -496,6 +492,17 @@ function InventoryPage() {
             variant.inventory_quantity,
             localInventory?.current_inventory,
           ) ?? 0;
+        const committedFromShopify =
+          inventoryItemId && committedByInventoryItem.has(inventoryItemId)
+            ? committedByInventoryItem.get(inventoryItemId)!
+            : null;
+        const committedFallback =
+          onHandKnown && available !== null ? Number((onHand - available).toFixed(2)) : null;
+        const committed = firstNumber(
+          committedFromShopify,
+          committedFallback,
+          localInventory?.committed_quantity,
+        );
         const cost =
           firstNumber(
             hasCost && inventoryItemId ? costByInventoryItem.get(inventoryItemId) : null,
@@ -616,7 +623,10 @@ function InventoryPage() {
       const j1 = await r1.json().catch(() => ({}));
       if (!r1.ok) throw new Error(j1.error ?? "Inventory sync failed.");
       toast.info("Refreshing inventory from Shopify source of truth…");
-      const r2 = await fetch("/api/shopify/refresh-inventory-source-of-truth", { method: "POST", headers });
+      const r2 = await fetch("/api/shopify/refresh-inventory-source-of-truth", {
+        method: "POST",
+        headers,
+      });
       const j2 = await r2.json().catch(() => ({}));
       if (!r2.ok) throw new Error(j2.error ?? "Inventory refresh failed.");
       toast.success("Inventory synced from Shopify.");
@@ -635,16 +645,49 @@ function InventoryPage() {
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const header = [
-      "SKU","Barcode","Product Name","Product Type","Variant","Color","Size",
-      "On Hand","Available","Committed","Incoming","Cost","Sale Price","Total Cost","Total Sale","Status","Shopify Status",
+      "SKU",
+      "Barcode",
+      "Product Name",
+      "Product Type",
+      "Variant",
+      "Color",
+      "Size",
+      "On Hand",
+      "Available",
+      "Committed",
+      "Incoming",
+      "Cost",
+      "Sale Price",
+      "Total Cost",
+      "Total Sale",
+      "Status",
+      "Shopify Status",
     ];
     const lines = [header.join(",")];
     for (const r of filtered) {
-      lines.push([
-        r.sku, r.barcode, r.productName, r.productType, r.variantName, r.color, r.size,
-        r.onHand, r.available ?? "", r.committed ?? "", r.incoming ?? "",
-        r.cost, r.salePrice, r.totalCost, r.totalSale, r.status, r.shopifyStatus,
-      ].map(esc).join(","));
+      lines.push(
+        [
+          r.sku,
+          r.barcode,
+          r.productName,
+          r.productType,
+          r.variantName,
+          r.color,
+          r.size,
+          r.onHand,
+          r.available ?? "",
+          r.committed ?? "",
+          r.incoming ?? "",
+          r.cost,
+          r.salePrice,
+          r.totalCost,
+          r.totalSale,
+          r.status,
+          r.shopifyStatus,
+        ]
+          .map(esc)
+          .join(","),
+      );
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -924,7 +967,10 @@ function InventoryPage() {
               ))}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={hasIncoming ? 13 : 12} className="text-center py-8 text-muted-foreground">
+                  <TableCell
+                    colSpan={hasIncoming ? 13 : 12}
+                    className="text-center py-8 text-muted-foreground"
+                  >
                     No synced Shopify inventory matches these filters.
                   </TableCell>
                 </TableRow>

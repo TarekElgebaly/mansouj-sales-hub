@@ -1,17 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireOpsUser, saveShopifySyncRun } from "@/lib/shopify-sync.server";
 import { calculatePackagingCost } from "@/lib/packaging-cost";
+import { buildInventoryCostMatcher } from "@/lib/inventory-cost-match.server";
 
 type OrderRow = {
   id: string;
+  order_status: string | null;
   items_cost: number | null;
   packaging_cost: number | null;
 };
 type ItemRow = {
+  id: string;
   order_id: string;
   sku: string | null;
   product_name: string | null;
   variant: string | null;
+  inventory_item_id?: string | null;
+  shopify_variant_id?: string | null;
+  shopify_product_id?: string | null;
   quantity: number | null;
   unit_cost: number | null;
 };
@@ -31,9 +37,19 @@ function activityTouchesPackagingCost(action: string | null | undefined, details
       return Math.abs(oldValue - newValue) >= 0.005;
     }
   }
+  return "packaging_cost" in details || "new_packaging_cost" in details;
+}
+
+function isCancelled(status: string | null | undefined) {
+  return status === "Cancelled";
+}
+
+function isSchemaError(error: { message?: string; code?: string } | null | undefined) {
+  const message = error?.message ?? "";
   return (
-    "packaging_cost" in details ||
-    "new_packaging_cost" in details
+    error?.code === "PGRST204" ||
+    error?.code === "PGRST205" ||
+    /column|schema cache|could not find/i.test(message)
   );
 }
 
@@ -61,6 +77,10 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
         let packagingCostsPreservedManual = 0;
         let totalPackagingCostBefore = 0;
         let totalPackagingCostAfter = 0;
+        let missingCostsBefore = 0;
+        let missingCostsFixed = 0;
+        let missingCostsRemaining = 0;
+        let cancelledOrdersNormalized = 0;
         let failedCount = 0;
         let lastError: string | null = null;
         const missingCostSamples: Array<{
@@ -71,6 +91,8 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
         }> = [];
 
         try {
+          const costMatcher = await buildInventoryCostMatcher(supabaseAdmin);
+
           // Load all orders.
           const orders: OrderRow[] = [];
           const pageSize = 1000;
@@ -78,7 +100,7 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
           while (true) {
             const { data, error } = await supabaseAdmin
               .from("orders")
-              .select("id,items_cost,packaging_cost")
+              .select("id,order_status,items_cost,packaging_cost")
               .range(from, from + pageSize - 1);
             if (error) throw new Error(`orders lookup failed: ${error.message}`);
             const rows = (data ?? []) as OrderRow[];
@@ -88,6 +110,7 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
           }
           ordersChecked = orders.length;
           const orderIds = orders.map((o) => o.id);
+          const ordersById = new Map(orders.map((order) => [order.id, order]));
 
           // Sum order_items by order_id.
           const sumByOrder = new Map<string, number>();
@@ -96,17 +119,57 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
             const slice = orderIds.slice(i, i + 200);
             const { data, error } = await supabaseAdmin
               .from("order_items")
-              .select("order_id,sku,product_name,variant,quantity,unit_cost")
+              .select(
+                "id,order_id,sku,product_name,variant,inventory_item_id,shopify_variant_id,shopify_product_id,quantity,unit_cost",
+              )
               .in("order_id", slice);
-            if (error)
-              throw new Error(`order_items lookup failed: ${error.message}`);
-            for (const it of (data ?? []) as ItemRow[]) {
+
+            let rows = (data ?? []) as unknown as ItemRow[];
+            if (error) {
+              if (!isSchemaError(error)) {
+                throw new Error(`order_items lookup failed: ${error.message}`);
+              }
+              const fallback = await supabaseAdmin
+                .from("order_items")
+                .select("id,order_id,sku,product_name,variant,quantity,unit_cost")
+                .in("order_id", slice);
+              if (fallback.error) {
+                throw new Error(`order_items lookup failed: ${fallback.error.message}`);
+              }
+              rows = (fallback.data ?? []) as ItemRow[];
+            }
+
+            for (const it of rows) {
               orderItemsChecked++;
               const qty = Number(it.quantity ?? 0);
-              const cost = Number(it.unit_cost ?? 0);
-              if (cost > 0) orderItemsWithCost++;
-              else {
+              let cost = Number(it.unit_cost ?? 0);
+              const parentOrder = ordersById.get(it.order_id);
+              const cancelled = isCancelled(parentOrder?.order_status);
+              if (cost > 0) {
+                orderItemsWithCost++;
+              } else if (!cancelled) {
+                missingCostsBefore++;
+                const match = costMatcher.resolve(it);
+                if (match && match.unitCost > 0) {
+                  const { error: updateCostError } = await supabaseAdmin
+                    .from("order_items")
+                    .update({ unit_cost: match.unitCost })
+                    .eq("id", it.id);
+                  if (updateCostError) {
+                    failedCount++;
+                    lastError = updateCostError.message;
+                  } else {
+                    cost = match.unitCost;
+                    it.unit_cost = match.unitCost;
+                    missingCostsFixed++;
+                    orderItemsWithCost++;
+                  }
+                }
+              }
+
+              if (cost <= 0 && !cancelled) {
                 orderItemsMissingCost++;
+                missingCostsRemaining++;
                 if (missingCostSamples.length < 20) {
                   missingCostSamples.push({
                     order_id: it.order_id,
@@ -117,10 +180,7 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
                 }
               }
               const line = qty * cost;
-              sumByOrder.set(
-                it.order_id,
-                (sumByOrder.get(it.order_id) ?? 0) + line,
-              );
+              sumByOrder.set(it.order_id, (sumByOrder.get(it.order_id) ?? 0) + line);
               const existing = itemsByOrder.get(it.order_id) ?? [];
               existing.push(it);
               itemsByOrder.set(it.order_id, existing);
@@ -149,17 +209,22 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
           // profit/net_profit are generated columns and refresh automatically.
           for (const o of orders) {
             const before = Number(o.items_cost ?? 0);
-            const after = Number((sumByOrder.get(o.id) ?? 0).toFixed(2));
+            const cancelled = isCancelled(o.order_status);
+            const after = cancelled ? 0 : Number((sumByOrder.get(o.id) ?? 0).toFixed(2));
             const packagingBefore = Number(o.packaging_cost ?? 0);
             const packagingManual = manualPackagingOrderIds.has(o.id);
-            const orderHasMissingCost = (itemsByOrder.get(o.id) ?? []).some(
-              (item) => Number(item.unit_cost ?? 0) <= 0,
-            );
+            const orderHasMissingCost =
+              (itemsByOrder.get(o.id) ?? []).some((item) => Number(item.unit_cost ?? 0) <= 0) &&
+              !cancelled;
             if (orderHasMissingCost) ordersWithMissingCosts++;
             const calculatedPackaging = Number(
               calculatePackagingCost(itemsByOrder.get(o.id) ?? []).toFixed(2),
             );
-            const packagingAfter = packagingManual ? packagingBefore : calculatedPackaging;
+            const packagingAfter = cancelled
+              ? packagingBefore
+              : packagingManual
+                ? packagingBefore
+                : calculatedPackaging;
             totalItemsCostBefore += before;
             totalItemsCostAfter += after;
             totalPackagingCostBefore += packagingBefore;
@@ -185,6 +250,7 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
             } else {
               ordersUpdated++;
               if (packagingChanged) packagingCostsUpdated++;
+              if (cancelled && itemsChanged) cancelledOrdersNormalized++;
             }
           }
 
@@ -203,8 +269,12 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
               order_items_checked: orderItemsChecked,
               order_items_with_cost: orderItemsWithCost,
               order_items_missing_cost: orderItemsMissingCost,
+              missing_costs_before: missingCostsBefore,
+              missing_costs_fixed: missingCostsFixed,
+              missing_costs_remaining: missingCostsRemaining,
               orders_with_missing_costs: ordersWithMissingCosts,
               missing_cost_samples: missingCostSamples,
+              cancelled_orders_normalized: cancelledOrdersNormalized,
               total_items_cost_before: Number(totalItemsCostBefore.toFixed(2)),
               total_items_cost_after: Number(totalItemsCostAfter.toFixed(2)),
               packaging_costs_checked: packagingCostsChecked,
@@ -214,6 +284,11 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
               total_packaging_cost_after: Number(totalPackagingCostAfter.toFixed(2)),
               packaging_cost_rule:
                 "eligible item quantity * 140 EGP; fitted sheet sets with pillowcases are included; standalone pillows, pillowcases, and duvets excluded",
+              cost_matcher: {
+                inventory_rows_indexed: costMatcher.inventory_rows_indexed,
+                shopify_variants_indexed: costMatcher.shopify_variants_indexed,
+                shopify_inventory_items_indexed: costMatcher.shopify_inventory_items_indexed,
+              },
             },
           });
 
@@ -224,8 +299,12 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
             order_items_checked: orderItemsChecked,
             order_items_with_cost: orderItemsWithCost,
             order_items_missing_cost: orderItemsMissingCost,
+            missing_costs_before: missingCostsBefore,
+            missing_costs_fixed: missingCostsFixed,
+            missing_costs_remaining: missingCostsRemaining,
             orders_with_missing_costs: ordersWithMissingCosts,
             missing_cost_samples: missingCostSamples,
+            cancelled_orders_normalized: cancelledOrdersNormalized,
             total_items_cost_before: Number(totalItemsCostBefore.toFixed(2)),
             total_items_cost_after: Number(totalItemsCostAfter.toFixed(2)),
             packaging_costs_checked: packagingCostsChecked,
@@ -252,17 +331,18 @@ export const Route = createFileRoute("/api/shopify/recalculate-order-costs")({
               order_items_checked: orderItemsChecked,
               order_items_with_cost: orderItemsWithCost,
               order_items_missing_cost: orderItemsMissingCost,
+              missing_costs_before: missingCostsBefore,
+              missing_costs_fixed: missingCostsFixed,
+              missing_costs_remaining: missingCostsRemaining,
               orders_with_missing_costs: ordersWithMissingCosts,
               missing_cost_samples: missingCostSamples,
+              cancelled_orders_normalized: cancelledOrdersNormalized,
               packaging_costs_checked: packagingCostsChecked,
               packaging_costs_updated: packagingCostsUpdated,
               packaging_costs_preserved_manual: packagingCostsPreservedManual,
             },
           });
-          return Response.json(
-            { status: "error", error: message },
-            { status: 500 },
-          );
+          return Response.json({ status: "error", error: message }, { status: 500 });
         }
       },
     },

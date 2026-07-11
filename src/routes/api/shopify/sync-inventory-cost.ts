@@ -286,10 +286,7 @@ function stripQuantityBreakout(rows: Record<string, unknown>[]) {
   );
 }
 
-async function upsertInventoryLevelRows(
-  supabaseAdmin: any,
-  rows: Record<string, unknown>[],
-) {
+async function upsertInventoryLevelRows(supabaseAdmin: any, rows: Record<string, unknown>[]) {
   try {
     await upsertRows(
       supabaseAdmin,
@@ -357,11 +354,7 @@ async function updateVariantInventoryQuantities(
   return { variantsProcessed, variantsUpdated };
 }
 
-async function fetchInventoryItemsGraphql(
-  domain: string,
-  apiVersion: string,
-  accessToken: string,
-) {
+async function fetchInventoryItemsGraphql(domain: string, apiVersion: string, accessToken: string) {
   const headers = shopifyHeaders(accessToken);
   const endpoint = `https://${domain}/admin/api/${apiVersion}/graphql.json`;
   const rows: Record<string, unknown>[] = [];
@@ -370,6 +363,8 @@ async function fetchInventoryItemsGraphql(
   let pagesFetched = 0;
   let inventoryLevelsWithOnHand = 0;
   let inventoryLevelsMissingOnHand = 0;
+  let inventoryLevelsWithCommitted = 0;
+  let inventoryLevelsCommittedFallbacks = 0;
   let inventoryLevelPagesTruncated = 0;
   let after: string | null = null;
   const syncedAt = new Date().toISOString();
@@ -429,7 +424,10 @@ async function fetchInventoryItemsGraphql(
 
         const available = inventoryQuantity(level, "available");
         const onHand = inventoryQuantity(level, "on_hand");
-        const committed = inventoryQuantity(level, "committed");
+        const committedFromShopify = inventoryQuantity(level, "committed");
+        const committed =
+          committedFromShopify ??
+          (onHand != null && available != null ? Number((onHand - available).toFixed(2)) : null);
         const unavailable = inventoryQuantity(level, "unavailable");
         const incoming = inventoryQuantity(level, "incoming");
         graphQlQuantitiesByLevelKey.set(`${itemId}:${locationId}`, {
@@ -447,9 +445,11 @@ async function fetchInventoryItemsGraphql(
           inventoryLevelsWithOnHand++;
           addQuantity(onHandByInventoryItemId, itemId, onHand);
         }
+        if (committedFromShopify != null) inventoryLevelsWithCommitted++;
+        else if (committed != null) inventoryLevelsCommittedFallbacks++;
       }
     }
-    after = connection?.pageInfo?.hasNextPage ? connection.pageInfo.endCursor ?? null : null;
+    after = connection?.pageInfo?.hasNextPage ? (connection.pageInfo.endCursor ?? null) : null;
   } while (after);
 
   return {
@@ -459,6 +459,8 @@ async function fetchInventoryItemsGraphql(
     onHandByInventoryItemId,
     inventoryLevelsWithOnHand,
     inventoryLevelsMissingOnHand,
+    inventoryLevelsWithCommitted,
+    inventoryLevelsCommittedFallbacks,
     inventoryLevelPagesTruncated,
   };
 }
@@ -487,10 +489,7 @@ async function fetchLocations(domain: string, apiVersion: string, accessToken: s
   return { rows: (json.locations ?? []).map(locationRow), pagesFetched: 1 };
 }
 
-async function ensureLevelLocations(
-  supabaseAdmin: any,
-  levelRows: Record<string, unknown>[],
-) {
+async function ensureLevelLocations(supabaseAdmin: any, levelRows: Record<string, unknown>[]) {
   const locationIds = Array.from(
     new Set(levelRows.map((row) => String(row.shopify_location_id)).filter(Boolean)),
   );
@@ -538,6 +537,8 @@ export const Route = createFileRoute("/api/shopify/sync-inventory-cost")({
         let inventoryLevelsUpdated = 0;
         let inventoryLevelsWithOnHand = 0;
         let inventoryLevelsMissingOnHand = 0;
+        let inventoryLevelsWithCommitted = 0;
+        let inventoryLevelsCommittedFallbacks = 0;
         let inventoryLevelsOnHandColumnPresent = true;
         let inventoryLevelPagesTruncated = 0;
         let variantOnHandQuantitiesProcessed = 0;
@@ -561,6 +562,8 @@ export const Route = createFileRoute("/api/shopify/sync-inventory-cost")({
           inventory_levels_updated: inventoryLevelsUpdated,
           inventory_levels_with_on_hand: inventoryLevelsWithOnHand,
           inventory_levels_missing_on_hand: inventoryLevelsMissingOnHand,
+          inventory_levels_with_committed: inventoryLevelsWithCommitted,
+          inventory_levels_committed_fallbacks: inventoryLevelsCommittedFallbacks,
           inventory_levels_on_hand_column_present: inventoryLevelsOnHandColumnPresent,
           inventory_level_pages_truncated: inventoryLevelPagesTruncated,
           variant_on_hand_quantities_processed: variantOnHandQuantitiesProcessed,
@@ -621,6 +624,8 @@ export const Route = createFileRoute("/api/shopify/sync-inventory-cost")({
           pagesFetched += inventoryItems.pagesFetched;
           inventoryLevelsWithOnHand = inventoryItems.inventoryLevelsWithOnHand;
           inventoryLevelsMissingOnHand = inventoryItems.inventoryLevelsMissingOnHand;
+          inventoryLevelsWithCommitted = inventoryItems.inventoryLevelsWithCommitted;
+          inventoryLevelsCommittedFallbacks = inventoryItems.inventoryLevelsCommittedFallbacks;
           inventoryLevelPagesTruncated = inventoryItems.inventoryLevelPagesTruncated;
           const inventoryItemRows = inventoryItems.rows;
           const inventoryItemIds = inventoryItemRows.map((row) => String(row.inventory_item_id));
@@ -723,8 +728,7 @@ export const Route = createFileRoute("/api/shopify/sync-inventory-cost")({
 
               inventoryLevelsProcessed += levelRows.length;
               inventoryLevelsCreated += levelRows.filter(
-                (row) =>
-                  !existingLevels.has(`${row.inventory_item_id}:${row.shopify_location_id}`),
+                (row) => !existingLevels.has(`${row.inventory_item_id}:${row.shopify_location_id}`),
               ).length;
               inventoryLevelsUpdated = inventoryLevelsProcessed - inventoryLevelsCreated;
 
@@ -787,6 +791,8 @@ export const Route = createFileRoute("/api/shopify/sync-inventory-cost")({
             inventory_levels_processed: inventoryLevelsProcessed,
             inventory_levels_with_on_hand: inventoryLevelsWithOnHand,
             inventory_levels_missing_on_hand: inventoryLevelsMissingOnHand,
+            inventory_levels_with_committed: inventoryLevelsWithCommitted,
+            inventory_levels_committed_fallbacks: inventoryLevelsCommittedFallbacks,
             inventory_levels_on_hand_column_present: inventoryLevelsOnHandColumnPresent,
             on_hand_quantity_source:
               inventoryLevelsOnHandColumnPresent && inventoryLevelsWithOnHand > 0
