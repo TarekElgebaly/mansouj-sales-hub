@@ -190,6 +190,8 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
         let orderItemsWithCost = 0;
         let orderItemsMissingCost = 0;
         let affectedOrdersRecalculated = 0;
+        let customerFieldsPreserved = 0;
+        let customerFieldsRepairedFromShopify = 0;
         let pagesFetched = 0;
         let cursorAfter: string | null = null;
         let firstOrderNumberImported: string | null = null;
@@ -512,6 +514,10 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
                 orderItemsWithCost += result.processResult.order_items_with_cost;
                 orderItemsMissingCost += result.processResult.order_items_missing_cost;
                 affectedOrdersRecalculated += result.processResult.affected_orders_recalculated;
+                if (result.processResult.contact_fields_preserved) customerFieldsPreserved++;
+                if (result.processResult.contact_fields_filled_from_shopify.length > 0) {
+                  customerFieldsRepairedFromShopify++;
+                }
                 for (const example of result.processResult.stale_order_item_examples) {
                   if (staleOrderItemExamples.length >= 10) break;
                   staleOrderItemExamples.push(example);
@@ -619,6 +625,21 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             }
           }
 
+          let stillUnknownCount: number | null = null;
+          try {
+            const { count } = await (supabaseAdmin as any)
+              .from("orders")
+              .select("id", { count: "exact", head: true })
+              .or(
+                "customer_full_name.is.null,customer_full_name.eq.,customer_full_name.ilike.unknown",
+              );
+            stillUnknownCount = typeof count === "number" ? count : null;
+          } catch (e) {
+            console.error("[sync-orders] still_unknown_count query failed", e);
+          }
+
+          const pendingRepaired = pendingIntake?.repaired ?? 0;
+
           return Response.json({
             ok: true,
             mode,
@@ -629,6 +650,12 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             failed: failedCount,
             records_processed: recordsProcessed,
             orders_processed: recordsProcessed,
+            orders_synced: recordsProcessed,
+            customer_fields_preserved: customerFieldsPreserved,
+            customer_fields_repaired_from_shopify: customerFieldsRepairedFromShopify,
+            customer_fields_repaired_from_external_intake: pendingRepaired,
+            pending_intake_rows_applied: pendingRepaired,
+            still_unknown_count: stillUnknownCount,
             order_items_processed: orderItemsProcessed,
             order_items_inserted: orderItemsInserted,
             order_items_updated: orderItemsUpdated,

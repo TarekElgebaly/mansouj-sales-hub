@@ -134,6 +134,11 @@ type RemovedOrderItemDebug = {
   reason: "removed_from_shopify_order" | "current_quantity_zero";
 };
 
+export type CustomerNameOutcome =
+  | "preserved_existing"
+  | "repaired_from_shopify"
+  | "still_unknown";
+
 export type ShopifyOrderProcessResult = {
   orderId: string;
   shopifyOrderId: string;
@@ -147,6 +152,9 @@ export type ShopifyOrderProcessResult = {
   order_items_missing_cost: number;
   affected_orders_recalculated: number;
   stale_order_item_examples: RemovedOrderItemDebug[];
+  customer_name_outcome: CustomerNameOutcome;
+  contact_fields_preserved: boolean;
+  contact_fields_filled_from_shopify: string[];
 };
 
 function fullName(parts: Array<string | null | undefined>): string {
@@ -700,15 +708,71 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     .eq("shopify_order_id", shopifyOrderId)
     .maybeSingle();
 
-  // Preserve existing contact fields if the incoming payload resolved nothing useful.
+  // Existing local data ALWAYS wins over Shopify-resolved data for the 5 contact
+  // fields. Shopify's Admin API returns redacted/placeholder junk for protected
+  // customer fields on this store, which used to overwrite MESA-repaired values.
+  // We only use Shopify-resolved values to fill fields that are currently
+  // null/empty/"Unknown" locally.
   const existingName = nonEmpty(existingOrder?.customer_full_name);
-  const existingNameIsReal = existingName && existingName.toLowerCase() !== "unknown";
-  const customerName =
-    resolvedName ?? (existingNameIsReal ? (existingName as string) : "Unknown");
-  const finalPhone = phone ?? nonEmpty(existingOrder?.phone) ?? null;
-  const finalCity = city ?? nonEmpty(existingOrder?.city) ?? null;
-  const finalArea = area ?? nonEmpty(existingOrder?.area) ?? null;
-  const finalAddress = address ?? nonEmpty(existingOrder?.full_address) ?? null;
+  const existingNameIsReal = !!existingName && existingName.toLowerCase() !== "unknown";
+  const existingPhone = nonEmpty(existingOrder?.phone);
+  const existingCity = nonEmpty(existingOrder?.city);
+  const existingArea = nonEmpty(existingOrder?.area);
+  const existingAddress = nonEmpty(existingOrder?.full_address);
+
+  const contactFieldsFilledFromShopify: string[] = [];
+  let contactFieldsPreserved = false;
+
+  let customerName: string;
+  let customerNameOutcome: CustomerNameOutcome;
+  if (existingNameIsReal) {
+    customerName = existingName as string;
+    customerNameOutcome = "preserved_existing";
+    contactFieldsPreserved = true;
+  } else if (resolvedName) {
+    customerName = resolvedName;
+    customerNameOutcome = "repaired_from_shopify";
+    contactFieldsFilledFromShopify.push("customer_full_name");
+  } else {
+    customerName = "Unknown";
+    customerNameOutcome = "still_unknown";
+  }
+
+  let finalPhone: string | null;
+  if (existingPhone) {
+    finalPhone = existingPhone;
+    contactFieldsPreserved = true;
+  } else {
+    finalPhone = phone ?? null;
+    if (finalPhone) contactFieldsFilledFromShopify.push("phone");
+  }
+
+  let finalCity: string | null;
+  if (existingCity) {
+    finalCity = existingCity;
+    contactFieldsPreserved = true;
+  } else {
+    finalCity = city ?? null;
+    if (finalCity) contactFieldsFilledFromShopify.push("city");
+  }
+
+  let finalArea: string | null;
+  if (existingArea) {
+    finalArea = existingArea;
+    contactFieldsPreserved = true;
+  } else {
+    finalArea = area ?? null;
+    if (finalArea) contactFieldsFilledFromShopify.push("area");
+  }
+
+  let finalAddress: string | null;
+  if (existingAddress) {
+    finalAddress = existingAddress;
+    contactFieldsPreserved = true;
+  } else {
+    finalAddress = address ?? null;
+    if (finalAddress) contactFieldsFilledFromShopify.push("full_address");
+  }
 
   // Upsert customer by phone (best-effort dedupe). Do not overwrite an
   // existing customer's real name with a placeholder.
@@ -716,25 +780,28 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
   if (finalPhone) {
     const { data: existing } = await supabaseAdmin
       .from("customers")
-      .select("id, full_name")
+      .select("id, full_name, city, area, full_address")
       .eq("phone", finalPhone)
       .limit(1)
       .maybeSingle();
     if (existing?.id) {
       customerId = existing.id;
       const existingCustomerName = nonEmpty(existing.full_name);
-      const nextCustomerName =
-        resolvedName ??
-        (existingCustomerName && existingCustomerName.toLowerCase() !== "unknown"
-          ? existingCustomerName
-          : "Unknown");
+      const existingCustomerNameIsReal =
+        !!existingCustomerName && existingCustomerName.toLowerCase() !== "unknown";
+      const nextCustomerName = existingCustomerNameIsReal
+        ? (existingCustomerName as string)
+        : (resolvedName ?? "Unknown");
+      const nextCustomerCity = nonEmpty(existing.city) ?? finalCity;
+      const nextCustomerArea = nonEmpty(existing.area) ?? finalArea;
+      const nextCustomerAddress = nonEmpty(existing.full_address) ?? finalAddress;
       await supabaseAdmin
         .from("customers")
         .update({
           full_name: nextCustomerName,
-          city: finalCity,
-          area: finalArea,
-          full_address: finalAddress,
+          city: nextCustomerCity,
+          area: nextCustomerArea,
+          full_address: nextCustomerAddress,
         })
         .eq("id", customerId);
     } else {
@@ -883,5 +950,8 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     order_items_missing_cost: currentItems.length - withCost,
     affected_orders_recalculated: 1,
     stale_order_item_examples: [...staleExamples, ...zeroExamples].slice(0, 10),
+    customer_name_outcome: customerNameOutcome,
+    contact_fields_preserved: contactFieldsPreserved,
+    contact_fields_filled_from_shopify: contactFieldsFilledFromShopify,
   } satisfies ShopifyOrderProcessResult;
 }
