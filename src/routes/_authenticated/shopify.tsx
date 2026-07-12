@@ -268,6 +268,24 @@ const FORCE_UPDATE_COSTS_CONFIRMATION_MESSAGE =
   "This will overwrite existing local order item costs with the latest synced Shopify costs. It will NOT change Shopify, selling price, shipping cost, packaging cost, statuses, notes, or customer data. Continue?";
 const REFRESH_PRODUCT_DATA_CONFIRMATION_MESSAGE =
   "This will refresh local order item SKU, product title, variant title, barcode, and product type from the latest synced Shopify product data. It will NOT change quantities, selling prices, costs, shipping, packaging, statuses, notes, or Shopify data. Continue?";
+const RECALCULATE_FINANCE_COSTS_CONFIRMATION_MESSAGE =
+  "This will overwrite existing local order item costs with the latest synced Shopify costs so order profits reflect the current cost per item. It will NOT change Shopify, selling price, shipping cost, packaging cost, Kashier fees, statuses, notes, or customer data. Continue?";
+const DAILY_INVENTORY_NOTE_TEXT =
+  `Daily inventory update: Click "Sync Inventory from Shopify" after changing products, variants, quantities, prices, costs, SKUs, images, or product status in Shopify.
+Important: If Cost per item was changed and you want existing order profits to update, click "Recalculate Finance Costs" manually after syncing inventory. Keep these two actions separate.`;
+
+type DailyInventorySyncResult = {
+  products_processed: number;
+  variants_processed: number;
+  inventory_rows_created: number;
+  inventory_rows_updated: number;
+  rows_marked_stale: number | null;
+  missing_cost_count: number;
+  missing_sale_price_count: number | null;
+  duplicate_skus_found: number | null;
+  failed_count: number;
+  last_synced_at: string;
+};
 
 function csvEscape(v: string | number | null | undefined): string {
   if (v === null || v === undefined) return "";
