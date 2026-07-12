@@ -780,25 +780,28 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
   if (finalPhone) {
     const { data: existing } = await supabaseAdmin
       .from("customers")
-      .select("id, full_name")
+      .select("id, full_name, city, area, full_address")
       .eq("phone", finalPhone)
       .limit(1)
       .maybeSingle();
     if (existing?.id) {
       customerId = existing.id;
       const existingCustomerName = nonEmpty(existing.full_name);
-      const nextCustomerName =
-        resolvedName ??
-        (existingCustomerName && existingCustomerName.toLowerCase() !== "unknown"
-          ? existingCustomerName
-          : "Unknown");
+      const existingCustomerNameIsReal =
+        !!existingCustomerName && existingCustomerName.toLowerCase() !== "unknown";
+      const nextCustomerName = existingCustomerNameIsReal
+        ? (existingCustomerName as string)
+        : (resolvedName ?? "Unknown");
+      const nextCustomerCity = nonEmpty(existing.city) ?? finalCity;
+      const nextCustomerArea = nonEmpty(existing.area) ?? finalArea;
+      const nextCustomerAddress = nonEmpty(existing.full_address) ?? finalAddress;
       await supabaseAdmin
         .from("customers")
         .update({
           full_name: nextCustomerName,
-          city: finalCity,
-          area: finalArea,
-          full_address: finalAddress,
+          city: nextCustomerCity,
+          area: nextCustomerArea,
+          full_address: nextCustomerAddress,
         })
         .eq("id", customerId);
     } else {
