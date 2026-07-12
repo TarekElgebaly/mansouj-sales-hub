@@ -100,6 +100,33 @@ function OrdersPage() {
     }
   };
 
+  const repairUnknownCustomers = async () => {
+    setRepairing(true);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) { toast.error("Please sign in again."); return; }
+      const res = await fetch("/api/shopify/repair-unknown-customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) {
+        toast.error(json.error ?? "Repair failed");
+        return;
+      }
+      toast.success(
+        `Repair complete — ${json.updated ?? 0} updated, ${json.skipped ?? 0} skipped, ${json.failed ?? 0} failed (of ${json.candidates ?? 0} candidates)`,
+      );
+      qc.invalidateQueries({ queryKey: ["orders"] });
+      qc.invalidateQueries({ queryKey: ["orders-all"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setRepairing(false);
+    }
+  };
+
   const restoreOpenOrderLineItems = async () => {
     if (!openOrder) return;
 
