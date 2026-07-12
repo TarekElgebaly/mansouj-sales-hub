@@ -1158,6 +1158,154 @@ function ShopifyPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
+                  <Warehouse className="h-5 w-5" />
+                  Inventory Daily Workflow
+                </CardTitle>
+                <CardDescription>
+                  Two primary buttons for daily inventory management. Run these — nothing else — for
+                  routine Shopify updates.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={runDailyInventorySync}
+                    disabled={
+                      !canOps ||
+                      dailyInventoryRunning ||
+                      syncingProducts ||
+                      syncingInventoryCost ||
+                      refreshingInventorySource ||
+                      reconcilingInventory
+                    }
+                  >
+                    <RefreshCw
+                      className={`mr-2 h-4 w-4 ${dailyInventoryRunning ? "animate-spin" : ""}`}
+                    />
+                    Sync Inventory from Shopify
+                  </Button>
+                  <Button
+                    onClick={forceUpdateOrderItemCosts}
+                    disabled={!canOps || forcingCostUpdate}
+                    variant="secondary"
+                  >
+                    <RefreshCw
+                      className={`mr-2 h-4 w-4 ${forcingCostUpdate ? "animate-spin" : ""}`}
+                    />
+                    Recalculate Finance Costs
+                  </Button>
+                </div>
+                {!canOps && (
+                  <p className="text-sm text-muted-foreground">
+                    Admin or operations access is required.
+                  </p>
+                )}
+                <div className="whitespace-pre-line rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                  {DAILY_INVENTORY_NOTE_TEXT}
+                </div>
+                {dailyInventoryError && (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                    {dailyInventoryError}
+                  </div>
+                )}
+                {dailyInventoryResult && (
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Sync Inventory from Shopify — result</div>
+                    <div className="grid gap-3 rounded-md border bg-muted/30 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <StatusItem
+                        label="Products processed"
+                        value={String(dailyInventoryResult.products_processed)}
+                      />
+                      <StatusItem
+                        label="Variants processed"
+                        value={String(dailyInventoryResult.variants_processed)}
+                      />
+                      <StatusItem
+                        label="Inventory rows created"
+                        value={String(dailyInventoryResult.inventory_rows_created)}
+                      />
+                      <StatusItem
+                        label="Inventory rows updated"
+                        value={String(dailyInventoryResult.inventory_rows_updated)}
+                      />
+                      <StatusItem
+                        label="Rows marked stale"
+                        value={
+                          dailyInventoryResult.rows_marked_stale === null
+                            ? "—"
+                            : String(dailyInventoryResult.rows_marked_stale)
+                        }
+                      />
+                      <StatusItem
+                        label="Missing cost count"
+                        value={String(dailyInventoryResult.missing_cost_count)}
+                      />
+                      <StatusItem
+                        label="Missing sale price count"
+                        value={
+                          dailyInventoryResult.missing_sale_price_count === null
+                            ? "—"
+                            : String(dailyInventoryResult.missing_sale_price_count)
+                        }
+                      />
+                      <StatusItem
+                        label="Duplicate Shopify SKUs"
+                        value={
+                          dailyInventoryResult.duplicate_skus_found === null
+                            ? "—"
+                            : String(dailyInventoryResult.duplicate_skus_found)
+                        }
+                      />
+                      <StatusItem
+                        label="Failed"
+                        value={String(dailyInventoryResult.failed_count)}
+                      />
+                      <StatusItem
+                        label="Last synced"
+                        value={fmtDateTime(dailyInventoryResult.last_synced_at)}
+                      />
+                    </div>
+                  </div>
+                )}
+                {forceCostResult && (
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">
+                      Recalculate Finance Costs — result
+                    </div>
+                    <div className="grid gap-3 rounded-md border bg-muted/30 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                      <StatusItem
+                        label="Orders checked"
+                        value={String(forceCostResult.orders_recalculated)}
+                      />
+                      <StatusItem
+                        label="Order items recalculated"
+                        value={String(forceCostResult.items_updated)}
+                      />
+                      <StatusItem
+                        label="Orders updated"
+                        value={String(forceCostResult.orders_recalculated)}
+                      />
+                      <StatusItem
+                        label="Missing cost items"
+                        value={String(forceCostResult.missing_cost)}
+                      />
+                      <StatusItem
+                        label="Failed"
+                        value={String(forceCostResult.failed_count)}
+                      />
+                      <StatusItem
+                        label="Last recalculated"
+                        value={fmtDateTime(lastFinanceRecalcAt)}
+                      />
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
                   {connectionOk ? (
                     <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                   ) : (
