@@ -10,7 +10,7 @@ import {
 import { requireRoles } from "@/lib/route-auth.server";
 import { applyPendingIntake, type PendingIntakeSummary } from "@/lib/order-intake.server";
 
-type SyncMode = "incremental" | "full_backfill";
+type SyncMode = "incremental" | "full_backfill" | "date_range";
 type SyncStatus = "success" | "partial" | "error";
 type SyncSettings = {
   last_successful_orders_sync_at?: string | null;
@@ -40,8 +40,15 @@ class ShopifyFetchError extends Error {
 
 function parseSyncMode(value: unknown): SyncMode | null {
   if (value == null || value === "") return "incremental";
-  if (value === "incremental" || value === "full_backfill") return value;
+  if (value === "incremental" || value === "full_backfill" || value === "date_range") return value;
   return null;
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function parseIsoDate(value: unknown): string | null {
+  if (typeof value !== "string" || !DATE_RE.test(value)) return null;
+  const d = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? null : value;
 }
 
 function validDate(value?: string | null) {
@@ -192,6 +199,12 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
         let affectedOrdersRecalculated = 0;
         let customerFieldsPreserved = 0;
         let customerFieldsRepairedFromShopify = 0;
+        let statusesUpdated = 0;
+        let cancelledOrdersUpdated = 0;
+        let fulfillmentUpdates = 0;
+        let shopifyOrdersFound = 0;
+        let dateFrom: string | null = null;
+        let dateTo: string | null = null;
         let pagesFetched = 0;
         let cursorAfter: string | null = null;
         let firstOrderNumberImported: string | null = null;
@@ -252,6 +265,13 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
           shop_domain: domain || null,
           api_version: apiVersion || null,
           per_page: perPage,
+          statuses_updated: statusesUpdated,
+          cancelled_orders_updated: cancelledOrdersUpdated,
+          fulfillment_updates: fulfillmentUpdates,
+          customer_fields_preserved: customerFieldsPreserved,
+          customer_fields_repaired_from_shopify: customerFieldsRepairedFromShopify,
+          shopify_orders_found: shopifyOrdersFound,
+          date_range_used: mode === "date_range" && dateFrom && dateTo ? { from: dateFrom, to: dateTo } : null,
           ...extra,
         });
 
@@ -276,6 +296,8 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             mode?: unknown;
             limit?: unknown;
             since?: string;
+            date_from?: unknown;
+            date_to?: unknown;
           };
           requestedMode = body.mode ?? "incremental";
           const parsedMode = parseSyncMode(body.mode);
@@ -286,7 +308,30 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             );
           }
           mode = parsedMode;
-          syncType = mode === "full_backfill" ? "orders_full_backfill" : "orders_incremental";
+          if (mode === "date_range") {
+            const from = parseIsoDate(body.date_from);
+            const to = parseIsoDate(body.date_to);
+            if (!from || !to) {
+              return Response.json(
+                { ok: false, error: "date_from and date_to (YYYY-MM-DD) are required for date_range." },
+                { status: 400 },
+              );
+            }
+            if (from > to) {
+              return Response.json(
+                { ok: false, error: "date_from must be on or before date_to." },
+                { status: 400 },
+              );
+            }
+            dateFrom = from;
+            dateTo = to;
+          }
+          syncType =
+            mode === "full_backfill"
+              ? "orders_full_backfill"
+              : mode === "date_range"
+                ? "orders_date_range"
+                : "orders_incremental";
 
           apiVersion = getShopifyApiVersion();
           domain = normalizeShopDomain(process.env.SHOPIFY_SHOP_DOMAIN || "");
@@ -378,6 +423,10 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
           url.searchParams.set("limit", String(perPage));
           url.searchParams.set("order", "updated_at asc");
           if (incrementalStart) url.searchParams.set("updated_at_min", incrementalStart);
+          if (mode === "date_range" && dateFrom && dateTo) {
+            url.searchParams.set("created_at_min", `${dateFrom}T00:00:00Z`);
+            url.searchParams.set("created_at_max", `${dateTo}T23:59:59Z`);
+          }
 
           const headers = {
             "X-Shopify-Access-Token": accessToken,
@@ -460,6 +509,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             pagesFetched++;
             const json = (await res.json()) as ShopifyOrdersResponse;
             const orders = json.orders ?? [];
+            shopifyOrdersFound += orders.length;
             const shopifyIds = orders.map((order) => String(order.id));
             const existingSet = new Set<string>();
 
@@ -475,7 +525,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
 
             const orderResults = await mapWithConcurrency(
               orders,
-              mode === "full_backfill" ? 8 : 4,
+              mode === "full_backfill" || mode === "date_range" ? 8 : 4,
               async (order) => {
                 const shopifyOrderId = String(order.id);
                 try {
@@ -518,6 +568,9 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
                 if (result.processResult.contact_fields_filled_from_shopify.length > 0) {
                   customerFieldsRepairedFromShopify++;
                 }
+                if (result.processResult.status_changed) statusesUpdated++;
+                if (result.processResult.cancelled_now) cancelledOrdersUpdated++;
+                if (result.processResult.fulfillment_changed) fulfillmentUpdates++;
                 for (const example of result.processResult.stale_order_item_examples) {
                   if (staleOrderItemExamples.length >= 10) break;
                   staleOrderItemExamples.push(example);
@@ -673,6 +726,11 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             latest_imported_order_number: latestImportedOrderLabel,
             latest_shopify_order_number: latestShopifyOrderLabel,
             stopped_reason: stoppedReason,
+            statuses_updated: statusesUpdated,
+            cancelled_orders_updated: cancelledOrdersUpdated,
+            fulfillment_updates: fulfillmentUpdates,
+            shopify_orders_found: shopifyOrdersFound,
+            date_range_used: mode === "date_range" && dateFrom && dateTo ? { from: dateFrom, to: dateTo } : null,
             errors,
             pending_intake: pendingIntake,
           });

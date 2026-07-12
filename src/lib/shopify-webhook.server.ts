@@ -155,6 +155,9 @@ export type ShopifyOrderProcessResult = {
   customer_name_outcome: CustomerNameOutcome;
   contact_fields_preserved: boolean;
   contact_fields_filled_from_shopify: string[];
+  status_changed: boolean;
+  cancelled_now: boolean;
+  fulfillment_changed: boolean;
 };
 
 function fullName(parts: Array<string | null | undefined>): string {
@@ -827,6 +830,19 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
   const orderStatus = preserveManualDelivered ? "Delivered" : mappedOrderStatus;
   const isCancelled = orderStatus === "Cancelled";
 
+  const previousOrderStatus = existingOrder?.order_status ?? null;
+  const previousDelivered = existingOrder?.delivered ?? null;
+  const statusChanged = existingOrder != null && previousOrderStatus !== orderStatus;
+  const cancelledNow =
+    existingOrder != null && previousOrderStatus !== "Cancelled" && orderStatus === "Cancelled";
+  const fulfillmentBucket = (s: string | null) =>
+    s === "Shipped" || s === "Delivered" || s === "Ready" ? s : "Other";
+  const fulfillmentChanged =
+    existingOrder != null &&
+    (fulfillmentBucket(previousOrderStatus) !== fulfillmentBucket(orderStatus) ||
+      previousDelivered !== (orderStatus === "Delivered"));
+
+
   const { currentItems, zeroSkipped, zeroExamples } = prepareLineItems(
     payload,
     orderNumber,
@@ -953,5 +969,8 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     customer_name_outcome: customerNameOutcome,
     contact_fields_preserved: contactFieldsPreserved,
     contact_fields_filled_from_shopify: contactFieldsFilledFromShopify,
+    status_changed: statusChanged,
+    cancelled_now: cancelledNow,
+    fulfillment_changed: fulfillmentChanged,
   } satisfies ShopifyOrderProcessResult;
 }

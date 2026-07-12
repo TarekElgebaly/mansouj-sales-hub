@@ -24,8 +24,80 @@ import { OrderDetail } from "@/components/order-detail";
 import { saveOrderCosts } from "@/lib/order-costs";
 import { calculatePackagingCost } from "@/lib/packaging-cost";
 import { DateScopeFilter } from "@/components/date-scope-filter";
-import { createDefaultDateScope, dateInScope, getDateScopeRange } from "@/lib/date-scope";
+import { createDefaultDateScope, dateInScope, getDateScopeRange, MONTHS } from "@/lib/date-scope";
 import { calculateKashierFees } from "@/lib/kashier-fees";
+
+type SyncResult = {
+  mode?: string;
+  status?: string;
+  created: number;
+  updated: number;
+  failed: number;
+  order_items_processed: number;
+  order_items_inserted: number;
+  order_items_updated: number;
+  stale_order_items_removed: number;
+  affected_orders_recalculated: number;
+  statuses_updated: number;
+  cancelled_orders_updated: number;
+  fulfillment_updates: number;
+  customer_fields_preserved: number;
+  customer_fields_repaired_from_shopify: number;
+  customer_fields_repaired_from_external_intake: number;
+  pending_intake_rows_applied: number;
+  still_unknown_count: number | null;
+  shopify_orders_found?: number;
+  date_range_used?: { from: string; to: string } | null;
+  finished_at: string;
+};
+
+type RangeMode = "today" | "yesterday" | "last7" | "last30" | "month" | "custom";
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const toIso = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const daysAgo = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d;
+};
+const fmtRangeLabel = (from: string, to: string) => {
+  const f = new Date(`${from}T00:00:00`);
+  const t = new Date(`${to}T00:00:00`);
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
+  return `${f.toLocaleDateString(undefined, opts)} – ${t.toLocaleDateString(undefined, opts)}`;
+};
+
+function computeRange(
+  mode: RangeMode,
+  monthValue: string,
+  yearValue: string,
+  customFrom: string,
+  customTo: string,
+): { from: string; to: string } | null {
+  const today = new Date();
+  if (mode === "today") return { from: toIso(today), to: toIso(today) };
+  if (mode === "yesterday") {
+    const y = daysAgo(1);
+    return { from: toIso(y), to: toIso(y) };
+  }
+  if (mode === "last7") return { from: toIso(daysAgo(6)), to: toIso(today) };
+  if (mode === "last30") return { from: toIso(daysAgo(29)), to: toIso(today) };
+  if (mode === "month") {
+    const y = Number(yearValue);
+    const m = Number(monthValue);
+    if (!Number.isFinite(y) || !Number.isFinite(m)) return null;
+    const first = new Date(y, m, 1);
+    const last = new Date(y, m + 1, 0);
+    return { from: toIso(first), to: toIso(last) };
+  }
+  if (mode === "custom") {
+    if (!customFrom || !customTo) return null;
+    return customFrom <= customTo
+      ? { from: customFrom, to: customTo }
+      : { from: customTo, to: customFrom };
+  }
+  return null;
+}
 
 export const Route = createFileRoute("/_authenticated/orders")({
   head: () => ({ meta: [{ title: "Orders — Mansouj" }] }),
@@ -46,15 +118,52 @@ function OrdersPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [openNew, setOpenNew] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [syncingRange, setSyncingRange] = useState(false);
   const [repairing, setRepairing] = useState(false);
   const [restoringLineItems, setRestoringLineItems] = useState(false);
-  const [syncResult, setSyncResult] = useState<{
-    created: number;
-    updated: number;
-    failed: number;
-    order_items_processed: number;
-    affected_orders_recalculated: number;
-  } | null>(null);
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+
+  const now = new Date();
+  const [rangeMode, setRangeMode] = useState<RangeMode>("last7");
+  const [rangeMonth, setRangeMonth] = useState(String(now.getMonth()));
+  const [rangeYear, setRangeYear] = useState(String(now.getFullYear()));
+  const [customFrom, setCustomFrom] = useState(toIso(daysAgo(6)));
+  const [customTo, setCustomTo] = useState(toIso(now));
+
+  const resolvedRange = useMemo(
+    () => computeRange(rangeMode, rangeMonth, rangeYear, customFrom, customTo),
+    [rangeMode, rangeMonth, rangeYear, customFrom, customTo],
+  );
+
+  const applySyncJson = (json: any) => {
+    setSyncResult({
+      mode: json.mode,
+      status: json.status,
+      created: json.created ?? 0,
+      updated: json.updated ?? 0,
+      failed: json.failed ?? 0,
+      order_items_processed: json.order_items_processed ?? 0,
+      order_items_inserted: json.order_items_inserted ?? 0,
+      order_items_updated: json.order_items_updated ?? 0,
+      stale_order_items_removed: json.stale_order_items_removed ?? 0,
+      affected_orders_recalculated: json.affected_orders_recalculated ?? 0,
+      statuses_updated: json.statuses_updated ?? 0,
+      cancelled_orders_updated: json.cancelled_orders_updated ?? 0,
+      fulfillment_updates: json.fulfillment_updates ?? 0,
+      customer_fields_preserved: json.customer_fields_preserved ?? 0,
+      customer_fields_repaired_from_shopify: json.customer_fields_repaired_from_shopify ?? 0,
+      customer_fields_repaired_from_external_intake: json.customer_fields_repaired_from_external_intake ?? 0,
+      pending_intake_rows_applied: json.pending_intake_rows_applied ?? 0,
+      still_unknown_count: json.still_unknown_count ?? null,
+      shopify_orders_found: json.shopify_orders_found,
+      date_range_used: json.date_range_used ?? null,
+      finished_at: new Date().toISOString(),
+    });
+    qc.invalidateQueries({ queryKey: ["orders"] });
+    qc.invalidateQueries({ queryKey: ["order-items"] });
+    qc.invalidateQueries({ queryKey: ["orders-all"] });
+    qc.invalidateQueries({ queryKey: ["shopify-settings"] });
+  };
 
   const pullShopify = async () => {
     setSyncing(true);
@@ -67,29 +176,10 @@ function OrdersPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ mode: "incremental" }),
       });
-      const json = await res.json() as {
-        ok: boolean;
-        created?: number;
-        updated?: number;
-        failed?: number;
-        error?: string;
-        errors?: string[];
-        order_items_processed?: number;
-        affected_orders_recalculated?: number;
-      };
+      const json = await res.json();
       if (json.ok) {
-        setSyncResult({
-          created: json.created ?? 0,
-          updated: json.updated ?? 0,
-          failed: json.failed ?? 0,
-          order_items_processed: json.order_items_processed ?? 0,
-          affected_orders_recalculated: json.affected_orders_recalculated ?? 0,
-        });
-        toast.success(`Pulled recent Shopify orders — ${json.created ?? 0} new, ${json.updated ?? 0} updated${json.errors?.length ? `, ${json.errors.length} errors` : ""}`);
-        qc.invalidateQueries({ queryKey: ["orders"] });
-        qc.invalidateQueries({ queryKey: ["order-items"] });
-        qc.invalidateQueries({ queryKey: ["orders-all"] });
-        qc.invalidateQueries({ queryKey: ["shopify-settings"] });
+        applySyncJson(json);
+        toast.success(`Synced recent orders — ${json.created ?? 0} new, ${json.updated ?? 0} updated${json.errors?.length ? `, ${json.errors.length} errors` : ""}`);
       } else {
         toast.error(json.error ?? "Shopify sync failed");
       }
@@ -99,6 +189,40 @@ function OrdersPage() {
       setSyncing(false);
     }
   };
+
+  const syncByDateRange = async () => {
+    if (!resolvedRange) {
+      toast.error("Please pick a valid date range.");
+      return;
+    }
+    setSyncingRange(true);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) { toast.error("Please sign in again."); return; }
+      const res = await fetch("/api/shopify/sync-orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          mode: "date_range",
+          date_from: resolvedRange.from,
+          date_to: resolvedRange.to,
+        }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        applySyncJson(json);
+        toast.success(`Synced ${json.shopify_orders_found ?? 0} Shopify orders in range — ${json.created ?? 0} new, ${json.updated ?? 0} updated`);
+      } else {
+        toast.error(json.error ?? "Date-range sync failed");
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSyncingRange(false);
+    }
+  };
+
 
   const repairUnknownCustomers = async () => {
     setRepairing(true);
@@ -255,18 +379,150 @@ function OrdersPage() {
   const detailItemsError =
     openItemsError instanceof Error && detailItems.length === 0 ? openItemsError.message : null;
 
+  const yearsList = useMemo(() => {
+    const y = new Date().getFullYear();
+    const out: number[] = [];
+    for (let i = y - 5; i <= y + 1; i++) out.push(i);
+    return out;
+  }, []);
+
   return (
     <AppShell title="Orders" search={search} onSearch={setSearch}
       actions={
         <div className="flex items-center gap-2">
           {canOps && <Button size="sm" onClick={() => setOpenNew(true)}><Plus className="h-4 w-4 mr-1" />New Order</Button>}
-          {canOps && (
-            <Button size="sm" variant="outline" onClick={pullShopify} disabled={syncing}>
-              <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} />
-              {syncing ? "Pulling..." : "Pull recent Shopify orders"}
-            </Button>
-          )}
-          {canOps && (
+          <Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-4 w-4 mr-1" />Export CSV</Button>
+        </div>
+      }>
+      {canOps && (
+        <Card className="mb-4">
+          <CardContent className="p-4 space-y-4">
+            <div className="text-sm font-semibold">Orders Sync</div>
+            <div className="flex flex-wrap items-end gap-3">
+              <Button size="sm" onClick={pullShopify} disabled={syncing || syncingRange}>
+                <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} />
+                {syncing ? "Syncing..." : "Sync Recent Orders"}
+              </Button>
+
+              <div className="flex flex-wrap items-end gap-2">
+                <div>
+                  <Label className="text-xs">Range</Label>
+                  <Select value={rangeMode} onValueChange={(v) => setRangeMode(v as RangeMode)}>
+                    <SelectTrigger className="h-9 w-40"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="yesterday">Yesterday</SelectItem>
+                      <SelectItem value="last7">Last 7 days</SelectItem>
+                      <SelectItem value="last30">Last 30 days</SelectItem>
+                      <SelectItem value="month">Single month</SelectItem>
+                      <SelectItem value="custom">Custom range</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {rangeMode === "month" && (
+                  <>
+                    <div>
+                      <Label className="text-xs">Month</Label>
+                      <Select value={rangeMonth} onValueChange={setRangeMonth}>
+                        <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {MONTHS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Year</Label>
+                      <Select value={rangeYear} onValueChange={setRangeYear}>
+                        <SelectTrigger className="h-9 w-24"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {yearsList.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+                {rangeMode === "custom" && (
+                  <>
+                    <div>
+                      <Label className="text-xs">From</Label>
+                      <Input type="date" className="h-9 w-40" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">To</Label>
+                      <Input type="date" className="h-9 w-40" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
+                    </div>
+                  </>
+                )}
+                <Button size="sm" variant="outline" onClick={syncByDateRange} disabled={syncing || syncingRange || !resolvedRange}>
+                  <RefreshCw className={`h-4 w-4 mr-1 ${syncingRange ? "animate-spin" : ""}`} />
+                  {syncingRange ? "Syncing..." : "Sync Orders by Date Range"}
+                </Button>
+                {resolvedRange && (
+                  <span className="text-xs text-muted-foreground pb-2">
+                    {fmtRangeLabel(resolvedRange.from, resolvedRange.to)}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground whitespace-pre-line">
+              {`Use "Sync Recent Orders" for daily updates, new orders, and Shopify status/item changes.
+Use "Sync Orders by Date Range" when you want to import or refresh all orders within a specific period.`}
+            </div>
+
+            {syncResult && (
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="text-sm font-medium">
+                    Last sync result
+                    {syncResult.mode ? <span className="ml-2 text-xs text-muted-foreground">({syncResult.mode})</span> : null}
+                  </div>
+                  <Button size="icon" variant="ghost" className="h-6 w-6 -mt-1 -mr-1" onClick={() => setSyncResult(null)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                {syncResult.date_range_used && (
+                  <div className="text-xs text-muted-foreground">
+                    Date range used: {syncResult.date_range_used.from} → {syncResult.date_range_used.to}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 text-xs">
+                  <Stat label="Orders created" value={syncResult.created} />
+                  <Stat label="Orders updated" value={syncResult.updated} />
+                  <Stat label="Items processed" value={syncResult.order_items_processed} />
+                  <Stat label="Order items created" value={syncResult.order_items_inserted} />
+                  <Stat label="Order items updated" value={syncResult.order_items_updated} />
+                  <Stat label="Order items removed" value={syncResult.stale_order_items_removed} />
+                  <Stat label="Orders recalculated" value={syncResult.affected_orders_recalculated} />
+                  <Stat label="Statuses updated" value={syncResult.statuses_updated} />
+                  <Stat label="Cancelled orders updated" value={syncResult.cancelled_orders_updated} />
+                  <Stat label="Fulfillment/delivery updates" value={syncResult.fulfillment_updates} />
+                  <Stat label="Customer fields preserved" value={syncResult.customer_fields_preserved} />
+                  <Stat label="Customer fields repaired (Shopify)" value={syncResult.customer_fields_repaired_from_shopify} />
+                  <Stat label="Customer fields repaired (external intake)" value={syncResult.customer_fields_repaired_from_external_intake} />
+                  <Stat label="Pending intake rows applied" value={syncResult.pending_intake_rows_applied} />
+                  <Stat label="Still unknown" value={syncResult.still_unknown_count ?? "—"} />
+                  <Stat label="Failed" value={syncResult.failed} />
+                  {syncResult.date_range_used && (
+                    <Stat label="Shopify orders found" value={syncResult.shopify_orders_found ?? 0} />
+                  )}
+                  <Stat label="Last synced" value={new Date(syncResult.finished_at).toLocaleString()} />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {canOps && (
+        <details className="mb-4 rounded-md border bg-muted/20">
+          <summary className="cursor-pointer select-none px-4 py-2 text-sm font-medium">
+            Advanced Tools
+          </summary>
+          <div className="px-4 pb-4 pt-2 space-y-3">
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              These tools are for one-time repairs only. Do not use them for daily order sync.
+            </div>
             <Button
               size="sm"
               variant="outline"
@@ -277,34 +533,10 @@ function OrdersPage() {
               <RefreshCw className={`h-4 w-4 mr-1 ${repairing ? "animate-spin" : ""}`} />
               {repairing ? "Repairing..." : "Repair unknown customers"}
             </Button>
-          )}
-          <Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-4 w-4 mr-1" />Export CSV</Button>
-        </div>
-      }>
-      {syncResult && (
-        <Card className="mb-4">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="text-sm font-medium">Last Shopify sync result</div>
-              <Button size="icon" variant="ghost" className="h-6 w-6 -mt-1 -mr-1" onClick={() => setSyncResult(null)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            {syncResult.failed === 0 && syncResult.affected_orders_recalculated > 0 && (
-              <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
-                Recent orders synced successfully.
-              </div>
-            )}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
-              <Stat label="Orders created" value={syncResult.created} />
-              <Stat label="Orders updated" value={syncResult.updated} />
-              <Stat label="Items processed" value={syncResult.order_items_processed} />
-              <Stat label="Orders recalculated" value={syncResult.affected_orders_recalculated} />
-              <Stat label="Failed" value={syncResult.failed} />
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </details>
       )}
+
       <Card>
         <CardContent className="p-3 flex flex-wrap items-end gap-2">
           <DateScopeFilter value={dateScope} onChange={setDateScope} allowAllMonths />
