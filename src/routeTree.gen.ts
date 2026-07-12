@@ -40,6 +40,7 @@ import { Route as ApiOrdersUpdateCostsRouteImport } from './routes/api/orders/up
 import { Route as ApiOrdersRestoreLineItemsRouteImport } from './routes/api/orders/restore-line-items'
 import { Route as ApiOrdersResetAllRouteImport } from './routes/api/orders/reset-all'
 import { Route as ApiOrdersItemsRouteImport } from './routes/api/orders/items'
+import { Route as ApiOrdersExternalOrderIntakeStatusRouteImport } from './routes/api/orders/external-order-intake-status'
 import { Route as ApiOrdersExternalOrderIntakeRouteImport } from './routes/api/orders/external-order-intake'
 import { Route as ApiFinanceUnlockRouteImport } from './routes/api/finance/unlock'
 import { Route as ApiAuthEnsureSignupProfileRouteImport } from './routes/api/auth/ensure-signup-profile'
@@ -213,6 +214,12 @@ const ApiOrdersItemsRoute = ApiOrdersItemsRouteImport.update({
   path: '/api/orders/items',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOrdersExternalOrderIntakeStatusRoute =
+  ApiOrdersExternalOrderIntakeStatusRouteImport.update({
+    id: '/api/orders/external-order-intake-status',
+    path: '/api/orders/external-order-intake-status',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOrdersExternalOrderIntakeRoute =
   ApiOrdersExternalOrderIntakeRouteImport.update({
     id: '/api/orders/external-order-intake',
@@ -258,6 +265,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/ensure-signup-profile': typeof ApiAuthEnsureSignupProfileRoute
   '/api/finance/unlock': typeof ApiFinanceUnlockRoute
   '/api/orders/external-order-intake': typeof ApiOrdersExternalOrderIntakeRoute
+  '/api/orders/external-order-intake-status': typeof ApiOrdersExternalOrderIntakeStatusRoute
   '/api/orders/items': typeof ApiOrdersItemsRoute
   '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
   '/api/orders/restore-line-items': typeof ApiOrdersRestoreLineItemsRoute
@@ -295,6 +303,7 @@ export interface FileRoutesByTo {
   '/api/auth/ensure-signup-profile': typeof ApiAuthEnsureSignupProfileRoute
   '/api/finance/unlock': typeof ApiFinanceUnlockRoute
   '/api/orders/external-order-intake': typeof ApiOrdersExternalOrderIntakeRoute
+  '/api/orders/external-order-intake-status': typeof ApiOrdersExternalOrderIntakeStatusRoute
   '/api/orders/items': typeof ApiOrdersItemsRoute
   '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
   '/api/orders/restore-line-items': typeof ApiOrdersRestoreLineItemsRoute
@@ -334,6 +343,7 @@ export interface FileRoutesById {
   '/api/auth/ensure-signup-profile': typeof ApiAuthEnsureSignupProfileRoute
   '/api/finance/unlock': typeof ApiFinanceUnlockRoute
   '/api/orders/external-order-intake': typeof ApiOrdersExternalOrderIntakeRoute
+  '/api/orders/external-order-intake-status': typeof ApiOrdersExternalOrderIntakeStatusRoute
   '/api/orders/items': typeof ApiOrdersItemsRoute
   '/api/orders/reset-all': typeof ApiOrdersResetAllRoute
   '/api/orders/restore-line-items': typeof ApiOrdersRestoreLineItemsRoute
@@ -373,6 +383,7 @@ export interface FileRouteTypes {
     | '/api/auth/ensure-signup-profile'
     | '/api/finance/unlock'
     | '/api/orders/external-order-intake'
+    | '/api/orders/external-order-intake-status'
     | '/api/orders/items'
     | '/api/orders/reset-all'
     | '/api/orders/restore-line-items'
@@ -410,6 +421,7 @@ export interface FileRouteTypes {
     | '/api/auth/ensure-signup-profile'
     | '/api/finance/unlock'
     | '/api/orders/external-order-intake'
+    | '/api/orders/external-order-intake-status'
     | '/api/orders/items'
     | '/api/orders/reset-all'
     | '/api/orders/restore-line-items'
@@ -448,6 +460,7 @@ export interface FileRouteTypes {
     | '/api/auth/ensure-signup-profile'
     | '/api/finance/unlock'
     | '/api/orders/external-order-intake'
+    | '/api/orders/external-order-intake-status'
     | '/api/orders/items'
     | '/api/orders/reset-all'
     | '/api/orders/restore-line-items'
@@ -478,6 +491,7 @@ export interface RootRouteChildren {
   ApiAuthEnsureSignupProfileRoute: typeof ApiAuthEnsureSignupProfileRoute
   ApiFinanceUnlockRoute: typeof ApiFinanceUnlockRoute
   ApiOrdersExternalOrderIntakeRoute: typeof ApiOrdersExternalOrderIntakeRoute
+  ApiOrdersExternalOrderIntakeStatusRoute: typeof ApiOrdersExternalOrderIntakeStatusRoute
   ApiOrdersItemsRoute: typeof ApiOrdersItemsRoute
   ApiOrdersResetAllRoute: typeof ApiOrdersResetAllRoute
   ApiOrdersRestoreLineItemsRoute: typeof ApiOrdersRestoreLineItemsRoute
@@ -720,6 +734,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOrdersItemsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/orders/external-order-intake-status': {
+      id: '/api/orders/external-order-intake-status'
+      path: '/api/orders/external-order-intake-status'
+      fullPath: '/api/orders/external-order-intake-status'
+      preLoaderRoute: typeof ApiOrdersExternalOrderIntakeStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/orders/external-order-intake': {
       id: '/api/orders/external-order-intake'
       path: '/api/orders/external-order-intake'
@@ -792,6 +813,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthEnsureSignupProfileRoute: ApiAuthEnsureSignupProfileRoute,
   ApiFinanceUnlockRoute: ApiFinanceUnlockRoute,
   ApiOrdersExternalOrderIntakeRoute: ApiOrdersExternalOrderIntakeRoute,
+  ApiOrdersExternalOrderIntakeStatusRoute:
+    ApiOrdersExternalOrderIntakeStatusRoute,
   ApiOrdersItemsRoute: ApiOrdersItemsRoute,
   ApiOrdersResetAllRoute: ApiOrdersResetAllRoute,
   ApiOrdersRestoreLineItemsRoute: ApiOrdersRestoreLineItemsRoute,
