@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUser, type AppRole } from "@/hooks/use-user";
+import { OrderIntakeSection } from "@/components/settings/order-intake-section";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/settings")({
