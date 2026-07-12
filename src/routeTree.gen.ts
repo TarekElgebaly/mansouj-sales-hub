@@ -27,6 +27,7 @@ import { Route as ApiShopifySyncProductsRouteImport } from './routes/api/shopify
 import { Route as ApiShopifySyncOrdersRouteImport } from './routes/api/shopify/sync-orders'
 import { Route as ApiShopifySyncInventoryCostRouteImport } from './routes/api/shopify/sync-inventory-cost'
 import { Route as ApiShopifyResetAndSync2026OrdersRouteImport } from './routes/api/shopify/reset-and-sync-2026-orders'
+import { Route as ApiShopifyRepairUnknownCustomersRouteImport } from './routes/api/shopify/repair-unknown-customers'
 import { Route as ApiShopifyRepairMissingOrderLineItemsRouteImport } from './routes/api/shopify/repair-missing-order-line-items'
 import { Route as ApiShopifyRefreshOrderItemProductDataRouteImport } from './routes/api/shopify/refresh-order-item-product-data'
 import { Route as ApiShopifyRefreshInventorySourceOfTruthRouteImport } from './routes/api/shopify/refresh-inventory-source-of-truth'
@@ -134,6 +135,12 @@ const ApiShopifyResetAndSync2026OrdersRoute =
   ApiShopifyResetAndSync2026OrdersRouteImport.update({
     id: '/api/shopify/reset-and-sync-2026-orders',
     path: '/api/shopify/reset-and-sync-2026-orders',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiShopifyRepairUnknownCustomersRoute =
+  ApiShopifyRepairUnknownCustomersRouteImport.update({
+    id: '/api/shopify/repair-unknown-customers',
+    path: '/api/shopify/repair-unknown-customers',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiShopifyRepairMissingOrderLineItemsRoute =
@@ -255,6 +262,7 @@ export interface FileRoutesByFullPath {
   '/api/shopify/refresh-inventory-source-of-truth': typeof ApiShopifyRefreshInventorySourceOfTruthRoute
   '/api/shopify/refresh-order-item-product-data': typeof ApiShopifyRefreshOrderItemProductDataRoute
   '/api/shopify/repair-missing-order-line-items': typeof ApiShopifyRepairMissingOrderLineItemsRoute
+  '/api/shopify/repair-unknown-customers': typeof ApiShopifyRepairUnknownCustomersRoute
   '/api/shopify/reset-and-sync-2026-orders': typeof ApiShopifyResetAndSync2026OrdersRoute
   '/api/shopify/sync-inventory-cost': typeof ApiShopifySyncInventoryCostRoute
   '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
@@ -290,6 +298,7 @@ export interface FileRoutesByTo {
   '/api/shopify/refresh-inventory-source-of-truth': typeof ApiShopifyRefreshInventorySourceOfTruthRoute
   '/api/shopify/refresh-order-item-product-data': typeof ApiShopifyRefreshOrderItemProductDataRoute
   '/api/shopify/repair-missing-order-line-items': typeof ApiShopifyRepairMissingOrderLineItemsRoute
+  '/api/shopify/repair-unknown-customers': typeof ApiShopifyRepairUnknownCustomersRoute
   '/api/shopify/reset-and-sync-2026-orders': typeof ApiShopifyResetAndSync2026OrdersRoute
   '/api/shopify/sync-inventory-cost': typeof ApiShopifySyncInventoryCostRoute
   '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
@@ -327,6 +336,7 @@ export interface FileRoutesById {
   '/api/shopify/refresh-inventory-source-of-truth': typeof ApiShopifyRefreshInventorySourceOfTruthRoute
   '/api/shopify/refresh-order-item-product-data': typeof ApiShopifyRefreshOrderItemProductDataRoute
   '/api/shopify/repair-missing-order-line-items': typeof ApiShopifyRepairMissingOrderLineItemsRoute
+  '/api/shopify/repair-unknown-customers': typeof ApiShopifyRepairUnknownCustomersRoute
   '/api/shopify/reset-and-sync-2026-orders': typeof ApiShopifyResetAndSync2026OrdersRoute
   '/api/shopify/sync-inventory-cost': typeof ApiShopifySyncInventoryCostRoute
   '/api/shopify/sync-orders': typeof ApiShopifySyncOrdersRoute
@@ -364,6 +374,7 @@ export interface FileRouteTypes {
     | '/api/shopify/refresh-inventory-source-of-truth'
     | '/api/shopify/refresh-order-item-product-data'
     | '/api/shopify/repair-missing-order-line-items'
+    | '/api/shopify/repair-unknown-customers'
     | '/api/shopify/reset-and-sync-2026-orders'
     | '/api/shopify/sync-inventory-cost'
     | '/api/shopify/sync-orders'
@@ -399,6 +410,7 @@ export interface FileRouteTypes {
     | '/api/shopify/refresh-inventory-source-of-truth'
     | '/api/shopify/refresh-order-item-product-data'
     | '/api/shopify/repair-missing-order-line-items'
+    | '/api/shopify/repair-unknown-customers'
     | '/api/shopify/reset-and-sync-2026-orders'
     | '/api/shopify/sync-inventory-cost'
     | '/api/shopify/sync-orders'
@@ -435,6 +447,7 @@ export interface FileRouteTypes {
     | '/api/shopify/refresh-inventory-source-of-truth'
     | '/api/shopify/refresh-order-item-product-data'
     | '/api/shopify/repair-missing-order-line-items'
+    | '/api/shopify/repair-unknown-customers'
     | '/api/shopify/reset-and-sync-2026-orders'
     | '/api/shopify/sync-inventory-cost'
     | '/api/shopify/sync-orders'
@@ -463,6 +476,7 @@ export interface RootRouteChildren {
   ApiShopifyRefreshInventorySourceOfTruthRoute: typeof ApiShopifyRefreshInventorySourceOfTruthRoute
   ApiShopifyRefreshOrderItemProductDataRoute: typeof ApiShopifyRefreshOrderItemProductDataRoute
   ApiShopifyRepairMissingOrderLineItemsRoute: typeof ApiShopifyRepairMissingOrderLineItemsRoute
+  ApiShopifyRepairUnknownCustomersRoute: typeof ApiShopifyRepairUnknownCustomersRoute
   ApiShopifyResetAndSync2026OrdersRoute: typeof ApiShopifyResetAndSync2026OrdersRoute
   ApiShopifySyncInventoryCostRoute: typeof ApiShopifySyncInventoryCostRoute
   ApiShopifySyncOrdersRoute: typeof ApiShopifySyncOrdersRoute
@@ -599,6 +613,13 @@ declare module '@tanstack/react-router' {
       path: '/api/shopify/reset-and-sync-2026-orders'
       fullPath: '/api/shopify/reset-and-sync-2026-orders'
       preLoaderRoute: typeof ApiShopifyResetAndSync2026OrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/shopify/repair-unknown-customers': {
+      id: '/api/shopify/repair-unknown-customers'
+      path: '/api/shopify/repair-unknown-customers'
+      fullPath: '/api/shopify/repair-unknown-customers'
+      preLoaderRoute: typeof ApiShopifyRepairUnknownCustomersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/shopify/repair-missing-order-line-items': {
@@ -766,6 +787,7 @@ const rootRouteChildren: RootRouteChildren = {
     ApiShopifyRefreshOrderItemProductDataRoute,
   ApiShopifyRepairMissingOrderLineItemsRoute:
     ApiShopifyRepairMissingOrderLineItemsRoute,
+  ApiShopifyRepairUnknownCustomersRoute: ApiShopifyRepairUnknownCustomersRoute,
   ApiShopifyResetAndSync2026OrdersRoute: ApiShopifyResetAndSync2026OrdersRoute,
   ApiShopifySyncInventoryCostRoute: ApiShopifySyncInventoryCostRoute,
   ApiShopifySyncOrdersRoute: ApiShopifySyncOrdersRoute,

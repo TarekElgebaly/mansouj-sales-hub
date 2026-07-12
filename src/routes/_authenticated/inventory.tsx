@@ -397,12 +397,22 @@ function InventoryPage() {
     queryKey: ["shopify-inventory-report"],
     queryFn: async () => {
       const [variantsResult, inventoryResult, localInventoryRows] = await Promise.all([
-        (supabase as any)
-          .from("shopify_variants")
-          .select(
-            "id,shopify_variant_id,shopify_product_id,sku,barcode,title,option1,option2,option3,price,inventory_item_id,inventory_quantity,raw,shopify_products(title,product_type,status,image,raw)",
-          )
-          .order("sku", { ascending: true }),
+        (async () => {
+          const select =
+            "id,shopify_variant_id,shopify_product_id,sku,barcode,title,option1,option2,option3,price,inventory_item_id,inventory_quantity,raw,is_shopify_stale,shopify_products(title,product_type,status,image,raw,is_shopify_stale)";
+          const withStale = await (supabase as any)
+            .from("shopify_variants")
+            .select(select)
+            .eq("is_shopify_stale", false)
+            .order("sku", { ascending: true });
+          if (!withStale.error) return withStale;
+          return (supabase as any)
+            .from("shopify_variants")
+            .select(
+              "id,shopify_variant_id,shopify_product_id,sku,barcode,title,option1,option2,option3,price,inventory_item_id,inventory_quantity,raw,shopify_products(title,product_type,status,image,raw)",
+            )
+            .order("sku", { ascending: true });
+        })(),
         (supabase as any)
           .from("shopify_inventory_items")
           .select("inventory_item_id,unit_cost_amount,tracked"),
@@ -461,7 +471,9 @@ function InventoryPage() {
       }
 
       const reportRows = variants.flatMap((variant): InventoryReportRow[] => {
+        if ((variant as any).is_shopify_stale) return [];
         const product = productRelation(variant.shopify_products);
+        if ((product as any)?.is_shopify_stale) return [];
         const media = mediaFromVariant(variant);
         const inventoryItemId = variant.inventory_item_id;
         const localInventory = localInventoryForVariant(variant, localInventoryIndexes);

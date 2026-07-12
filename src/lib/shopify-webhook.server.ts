@@ -30,6 +30,7 @@ type ShopifyAddress = {
   name?: string | null;
   first_name?: string | null;
   last_name?: string | null;
+  company?: string | null;
 };
 
 type ShopifyLineItem = {
@@ -55,8 +56,10 @@ type ShopifyCustomer = {
   id?: number | string | null;
   first_name?: string | null;
   last_name?: string | null;
+  name?: string | null;
   phone?: string | null;
   email?: string | null;
+  default_address?: ShopifyAddress | null;
 };
 
 export type ShopifyOrderPayload = {
@@ -81,6 +84,9 @@ export type ShopifyOrderPayload = {
   cancelled_at?: string | null;
   note?: string | null;
   tags?: string | null;
+  email?: string | null;
+  contact_email?: string | null;
+  phone?: string | null;
   customer?: ShopifyCustomer | null;
   shipping_address?: ShopifyAddress | null;
   billing_address?: ShopifyAddress | null;
@@ -639,37 +645,96 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     payload.name ?? (payload.order_number ? `#${payload.order_number}` : shopifyOrderId);
   const mappedOrderStatus = mapOrderStatus(payload);
   const shopifyDelivered = mappedOrderStatus === "Delivered";
-  const ship = payload.shipping_address ?? payload.billing_address ?? null;
+  const ship = payload.shipping_address ?? null;
+  const bill = payload.billing_address ?? null;
   const cust = payload.customer ?? null;
+  const custDefault = cust?.default_address ?? null;
+  const orderEmail = payload.email ?? payload.contact_email ?? cust?.email ?? null;
 
+  // Resolve customer name using ordered fallbacks:
+  //   Shopify customer > shipping address > billing address > customer default address > email > phone.
+  const nonEmpty = (value: string | null | undefined) => {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : null;
+  };
+  const nameCandidates: (string | null | undefined)[] = [
+    fullName([cust?.first_name, cust?.last_name]),
+    cust?.name,
+    fullName([ship?.first_name, ship?.last_name]),
+    ship?.name,
+    fullName([bill?.first_name, bill?.last_name]),
+    bill?.name,
+    fullName([custDefault?.first_name, custDefault?.last_name]),
+    custDefault?.name,
+    orderEmail,
+    ship?.phone ?? bill?.phone ?? cust?.phone ?? payload.phone ?? null,
+  ];
+  const resolvedName =
+    nameCandidates.map(nonEmpty).find((v) => v !== null) ?? null;
+
+  const phone =
+    nonEmpty(ship?.phone) ??
+    nonEmpty(bill?.phone) ??
+    nonEmpty(cust?.phone) ??
+    nonEmpty(custDefault?.phone) ??
+    nonEmpty(payload.phone) ??
+    null;
+  const city = nonEmpty(ship?.city) ?? nonEmpty(bill?.city) ?? nonEmpty(custDefault?.city) ?? null;
+  const area =
+    nonEmpty(ship?.province) ??
+    nonEmpty(bill?.province) ??
+    nonEmpty(custDefault?.province) ??
+    null;
+  const address =
+    nonEmpty(fullName([ship?.address1, ship?.address2])) ??
+    nonEmpty(fullName([bill?.address1, bill?.address2])) ??
+    nonEmpty(fullName([custDefault?.address1, custDefault?.address2])) ??
+    null;
+
+  const { data: existingOrder } = await supabaseAdmin
+    .from("orders")
+    .select(
+      "id,shipping_cost,packaging_cost,order_status,delivered,confirmation_status,internal_notes,customer_full_name,phone,city,area,full_address",
+    )
+    .eq("shopify_order_id", shopifyOrderId)
+    .maybeSingle();
+
+  // Preserve existing contact fields if the incoming payload resolved nothing useful.
+  const existingName = nonEmpty(existingOrder?.customer_full_name);
+  const existingNameIsReal = existingName && existingName.toLowerCase() !== "unknown";
   const customerName =
-    fullName([ship?.first_name, ship?.last_name]) ||
-    ship?.name ||
-    fullName([cust?.first_name, cust?.last_name]) ||
-    "Unknown";
-  const phone = ship?.phone ?? cust?.phone ?? null;
-  const city = ship?.city ?? null;
-  const area = ship?.province ?? null;
-  const address = fullName([ship?.address1, ship?.address2]) || null;
+    resolvedName ?? (existingNameIsReal ? (existingName as string) : "Unknown");
+  const finalPhone = phone ?? nonEmpty(existingOrder?.phone) ?? null;
+  const finalCity = city ?? nonEmpty(existingOrder?.city) ?? null;
+  const finalArea = area ?? nonEmpty(existingOrder?.area) ?? null;
+  const finalAddress = address ?? nonEmpty(existingOrder?.full_address) ?? null;
 
-  // Upsert customer by phone (best-effort dedupe)
+  // Upsert customer by phone (best-effort dedupe). Do not overwrite an
+  // existing customer's real name with a placeholder.
   let customerId: string | null = null;
-  if (phone) {
+  if (finalPhone) {
     const { data: existing } = await supabaseAdmin
       .from("customers")
-      .select("id")
-      .eq("phone", phone)
+      .select("id, full_name")
+      .eq("phone", finalPhone)
       .limit(1)
       .maybeSingle();
     if (existing?.id) {
       customerId = existing.id;
+      const existingCustomerName = nonEmpty(existing.full_name);
+      const nextCustomerName =
+        resolvedName ??
+        (existingCustomerName && existingCustomerName.toLowerCase() !== "unknown"
+          ? existingCustomerName
+          : "Unknown");
       await supabaseAdmin
         .from("customers")
         .update({
-          full_name: customerName,
-          city,
-          area,
-          full_address: address,
+          full_name: nextCustomerName,
+          city: finalCity,
+          area: finalArea,
+          full_address: finalAddress,
         })
         .eq("id", customerId);
     } else {
@@ -677,22 +742,16 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
         .from("customers")
         .insert({
           full_name: customerName,
-          phone,
-          city,
-          area,
-          full_address: address,
+          phone: finalPhone,
+          city: finalCity,
+          area: finalArea,
+          full_address: finalAddress,
         })
         .select("id")
         .single();
       customerId = created?.id ?? null;
     }
   }
-
-  const { data: existingOrder } = await supabaseAdmin
-    .from("orders")
-    .select("id,shipping_cost,packaging_cost,order_status,delivered,confirmation_status,internal_notes")
-    .eq("shopify_order_id", shopifyOrderId)
-    .maybeSingle();
 
   const preserveManualDelivered =
     !shopifyDelivered &&
@@ -735,11 +794,11 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     order_date: (payload.created_at ?? payload.processed_at ?? new Date().toISOString()).slice(0, 10),
     customer_id: customerId,
     customer_full_name: customerName,
-    phone: phone ?? "",
+    phone: finalPhone ?? "",
     second_phone: null,
-    city,
-    area,
-    full_address: address,
+    city: finalCity,
+    area: finalArea,
+    full_address: finalAddress,
     payment_gateway: payload.gateway ?? payload.payment_gateway_names?.[0] ?? null,
     confirmation_status: existingOrder?.confirmation_status ?? "Fresh Calls",
     order_status: orderStatus,

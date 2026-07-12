@@ -46,6 +46,7 @@ function OrdersPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [openNew, setOpenNew] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [repairing, setRepairing] = useState(false);
   const [restoringLineItems, setRestoringLineItems] = useState(false);
   const [syncResult, setSyncResult] = useState<{
     created: number;
@@ -96,6 +97,33 @@ function OrdersPage() {
       toast.error((e as Error).message);
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const repairUnknownCustomers = async () => {
+    setRepairing(true);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) { toast.error("Please sign in again."); return; }
+      const res = await fetch("/api/shopify/repair-unknown-customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) {
+        toast.error(json.error ?? "Repair failed");
+        return;
+      }
+      toast.success(
+        `Repair complete — ${json.updated ?? 0} updated, ${json.skipped ?? 0} skipped, ${json.failed ?? 0} failed (of ${json.candidates ?? 0} candidates)`,
+      );
+      qc.invalidateQueries({ queryKey: ["orders"] });
+      qc.invalidateQueries({ queryKey: ["orders-all"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setRepairing(false);
     }
   };
 
@@ -236,6 +264,18 @@ function OrdersPage() {
             <Button size="sm" variant="outline" onClick={pullShopify} disabled={syncing}>
               <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} />
               {syncing ? "Pulling..." : "Pull recent Shopify orders"}
+            </Button>
+          )}
+          {canOps && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={repairUnknownCustomers}
+              disabled={repairing}
+              title="Fetch each order flagged Unknown from Shopify and fill in missing customer name / phone / city / address"
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${repairing ? "animate-spin" : ""}`} />
+              {repairing ? "Repairing..." : "Repair unknown customers"}
             </Button>
           )}
           <Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-4 w-4 mr-1" />Export CSV</Button>

@@ -223,9 +223,17 @@ export const Route = createFileRoute("/api/shopify/sync-products")({
               firstApiResponseProductCount = products.length;
               rawShopifyResponseShapeSummary = responseShapeSummary(json);
             }
-            const productRows = products.map(productRow);
+            const productRows = products.map((product) => ({
+              ...productRow(product),
+              is_shopify_stale: false,
+              last_synced_at: startedAt,
+            }));
             const variantRows = products.flatMap((product) =>
-              (product.variants ?? []).map((variant) => variantRow(product, variant)),
+              (product.variants ?? []).map((variant) => ({
+                ...variantRow(product, variant),
+                is_shopify_stale: false,
+                last_synced_at: startedAt,
+              })),
             );
 
             const existingProducts = await existingIds(
@@ -272,6 +280,32 @@ export const Route = createFileRoute("/api/shopify/sync-products")({
             pageUrl = nextPageUrl(res.headers.get("link"));
             stoppedReason = pageUrl ? "next_page_found" : "shopify_no_next_page";
           }
+
+          // Mark rows that were not returned during this sync as stale so
+          // deleted Shopify products stop appearing in active inventory views.
+          let staleVariantsMarked = 0;
+          let staleProductsMarked = 0;
+          if (productsProcessed > 0) {
+            const staleVariants = await supabaseAdmin
+              .from("shopify_variants")
+              .update({ is_shopify_stale: true })
+              .or(`last_synced_at.is.null,last_synced_at.lt.${startedAt}`)
+              .eq("is_shopify_stale", false)
+              .select("shopify_variant_id");
+            staleVariantsMarked = staleVariants.data?.length ?? 0;
+
+            const staleProducts = await supabaseAdmin
+              .from("shopify_products")
+              .update({ is_shopify_stale: true })
+              .or(`last_synced_at.is.null,last_synced_at.lt.${startedAt}`)
+              .eq("is_shopify_stale", false)
+              .select("shopify_product_id");
+            staleProductsMarked = staleProducts.data?.length ?? 0;
+          }
+          (metadata as unknown as { __extra?: Record<string, unknown> }).__extra = {
+            stale_variants_marked: staleVariantsMarked,
+            stale_products_marked: staleProductsMarked,
+          };
 
           finishedAt = new Date().toISOString();
           const zeroProducts = productsProcessed === 0;
