@@ -151,53 +151,92 @@ export type Database = {
       }
       inventory: {
         Row: {
+          available_quantity: number | null
           barcode: string | null
           color: string | null
+          committed_quantity: number | null
           cost_price: number
           created_at: string
           current_inventory: number
           id: string
+          incoming_quantity: number | null
+          inventory_item_id: string | null
+          is_shopify_stale: boolean
           low_stock_threshold: number
+          on_hand_quantity: number | null
           product_images: Json
           product_name: string
           sale_price: number
+          shopify_product_id: string | null
+          shopify_product_status: string | null
+          shopify_product_type: string | null
+          shopify_raw: Json | null
+          shopify_synced_at: string | null
+          shopify_variant_id: string | null
           size: string | null
           sku: string
           status: string
+          unavailable_quantity: number | null
           updated_at: string
           variant_name: string | null
         }
         Insert: {
+          available_quantity?: number | null
           barcode?: string | null
           color?: string | null
+          committed_quantity?: number | null
           cost_price?: number
           created_at?: string
           current_inventory?: number
           id?: string
+          incoming_quantity?: number | null
+          inventory_item_id?: string | null
+          is_shopify_stale?: boolean
           low_stock_threshold?: number
+          on_hand_quantity?: number | null
           product_images?: Json
           product_name: string
           sale_price?: number
+          shopify_product_id?: string | null
+          shopify_product_status?: string | null
+          shopify_product_type?: string | null
+          shopify_raw?: Json | null
+          shopify_synced_at?: string | null
+          shopify_variant_id?: string | null
           size?: string | null
           sku: string
           status?: string
+          unavailable_quantity?: number | null
           updated_at?: string
           variant_name?: string | null
         }
         Update: {
+          available_quantity?: number | null
           barcode?: string | null
           color?: string | null
+          committed_quantity?: number | null
           cost_price?: number
           created_at?: string
           current_inventory?: number
           id?: string
+          incoming_quantity?: number | null
+          inventory_item_id?: string | null
+          is_shopify_stale?: boolean
           low_stock_threshold?: number
+          on_hand_quantity?: number | null
           product_images?: Json
           product_name?: string
           sale_price?: number
+          shopify_product_id?: string | null
+          shopify_product_status?: string | null
+          shopify_product_type?: string | null
+          shopify_raw?: Json | null
+          shopify_synced_at?: string | null
+          shopify_variant_id?: string | null
           size?: string | null
           sku?: string
           status?: string
+          unavailable_quantity?: number | null
           updated_at?: string
           variant_name?: string | null
         }
@@ -640,6 +679,8 @@ export type Database = {
           handle: string | null
           id: string
           image: Json | null
+          is_shopify_stale: boolean
+          last_synced_at: string | null
           product_type: string | null
           raw: Json
           shopify_created_at: string | null
@@ -655,6 +696,8 @@ export type Database = {
           handle?: string | null
           id?: string
           image?: Json | null
+          is_shopify_stale?: boolean
+          last_synced_at?: string | null
           product_type?: string | null
           raw?: Json
           shopify_created_at?: string | null
@@ -670,6 +713,8 @@ export type Database = {
           handle?: string | null
           id?: string
           image?: Json | null
+          is_shopify_stale?: boolean
+          last_synced_at?: string | null
           product_type?: string | null
           raw?: Json
           shopify_created_at?: string | null
@@ -852,6 +897,8 @@ export type Database = {
           id: string
           inventory_item_id: string | null
           inventory_quantity: number | null
+          is_shopify_stale: boolean
+          last_synced_at: string | null
           option1: string | null
           option2: string | null
           option3: string | null
@@ -873,6 +920,8 @@ export type Database = {
           id?: string
           inventory_item_id?: string | null
           inventory_quantity?: number | null
+          is_shopify_stale?: boolean
+          last_synced_at?: string | null
           option1?: string | null
           option2?: string | null
           option3?: string | null
@@ -894,6 +943,8 @@ export type Database = {
           id?: string
           inventory_item_id?: string | null
           inventory_quantity?: number | null
+          is_shopify_stale?: boolean
+          last_synced_at?: string | null
           option1?: string | null
           option2?: string | null
           option3?: string | null
