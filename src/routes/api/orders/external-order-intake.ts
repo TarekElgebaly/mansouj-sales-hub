@@ -159,16 +159,15 @@ export const Route = createFileRoute("/api/orders/external-order-intake")({
           }
 
           // Find the order
-          let orderRow:
-            | {
-                id: string;
-                customer_full_name: string | null;
-                phone: string | null;
-                city: string | null;
-                area: string | null;
-                full_address: string | null;
-              }
-            | null = null;
+          type OrderRow = {
+            id: string;
+            customer_full_name: string | null;
+            phone: string | null;
+            city: string | null;
+            area: string | null;
+            full_address: string | null;
+          };
+          let orderRow: OrderRow | null = null;
 
           const selectCols = "id,customer_full_name,phone,city,area,full_address";
 
@@ -178,14 +177,14 @@ export const Route = createFileRoute("/api/orders/external-order-intake")({
               .select(selectCols)
               .eq("order_number", orderNumberNorm.withHash)
               .maybeSingle();
-            if (data) orderRow = data as typeof orderRow;
+            if (data) orderRow = data as unknown as OrderRow;
             if (!orderRow) {
               const { data: d2 } = await supabaseAdmin
                 .from("orders")
                 .select(selectCols)
                 .eq("order_number", orderNumberNorm.noHash)
                 .maybeSingle();
-              if (d2) orderRow = d2 as typeof orderRow;
+              if (d2) orderRow = d2 as unknown as OrderRow;
             }
           }
           if (!orderRow && shopifyOrderId) {
@@ -194,7 +193,7 @@ export const Route = createFileRoute("/api/orders/external-order-intake")({
               .select(selectCols)
               .eq("shopify_order_id", shopifyOrderId)
               .maybeSingle();
-            if (data) orderRow = data as typeof orderRow;
+            if (data) orderRow = data as unknown as OrderRow;
           }
 
           if (!orderRow) {
