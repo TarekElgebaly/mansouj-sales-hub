@@ -134,6 +134,11 @@ type RemovedOrderItemDebug = {
   reason: "removed_from_shopify_order" | "current_quantity_zero";
 };
 
+export type CustomerNameOutcome =
+  | "preserved_existing"
+  | "repaired_from_shopify"
+  | "still_unknown";
+
 export type ShopifyOrderProcessResult = {
   orderId: string;
   shopifyOrderId: string;
@@ -147,6 +152,9 @@ export type ShopifyOrderProcessResult = {
   order_items_missing_cost: number;
   affected_orders_recalculated: number;
   stale_order_item_examples: RemovedOrderItemDebug[];
+  customer_name_outcome: CustomerNameOutcome;
+  contact_fields_preserved: boolean;
+  contact_fields_filled_from_shopify: string[];
 };
 
 function fullName(parts: Array<string | null | undefined>): string {
