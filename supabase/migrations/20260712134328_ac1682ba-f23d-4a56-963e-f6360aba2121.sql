@@ -1,0 +1,1 @@
+DELETE FROM public.order_intake_logs WHERE order_number = '#TEST-PENDING-001';
