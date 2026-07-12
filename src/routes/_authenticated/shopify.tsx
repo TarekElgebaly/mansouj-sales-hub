@@ -393,6 +393,12 @@ function ShopifyPage() {
     total_items_cost_after_recalc: number;
   } | null>(null);
 
+  const [dailyInventoryRunning, setDailyInventoryRunning] = useState(false);
+  const [dailyInventoryResult, setDailyInventoryResult] =
+    useState<DailyInventorySyncResult | null>(null);
+  const [dailyInventoryError, setDailyInventoryError] = useState<string | null>(null);
+  const [lastFinanceRecalcAt, setLastFinanceRecalcAt] = useState<string | null>(null);
+
   const authHeader = async () => {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
