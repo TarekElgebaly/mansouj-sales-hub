@@ -708,15 +708,71 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     .eq("shopify_order_id", shopifyOrderId)
     .maybeSingle();
 
-  // Preserve existing contact fields if the incoming payload resolved nothing useful.
+  // Existing local data ALWAYS wins over Shopify-resolved data for the 5 contact
+  // fields. Shopify's Admin API returns redacted/placeholder junk for protected
+  // customer fields on this store, which used to overwrite MESA-repaired values.
+  // We only use Shopify-resolved values to fill fields that are currently
+  // null/empty/"Unknown" locally.
   const existingName = nonEmpty(existingOrder?.customer_full_name);
-  const existingNameIsReal = existingName && existingName.toLowerCase() !== "unknown";
-  const customerName =
-    resolvedName ?? (existingNameIsReal ? (existingName as string) : "Unknown");
-  const finalPhone = phone ?? nonEmpty(existingOrder?.phone) ?? null;
-  const finalCity = city ?? nonEmpty(existingOrder?.city) ?? null;
-  const finalArea = area ?? nonEmpty(existingOrder?.area) ?? null;
-  const finalAddress = address ?? nonEmpty(existingOrder?.full_address) ?? null;
+  const existingNameIsReal = !!existingName && existingName.toLowerCase() !== "unknown";
+  const existingPhone = nonEmpty(existingOrder?.phone);
+  const existingCity = nonEmpty(existingOrder?.city);
+  const existingArea = nonEmpty(existingOrder?.area);
+  const existingAddress = nonEmpty(existingOrder?.full_address);
+
+  const contactFieldsFilledFromShopify: string[] = [];
+  let contactFieldsPreserved = false;
+
+  let customerName: string;
+  let customerNameOutcome: CustomerNameOutcome;
+  if (existingNameIsReal) {
+    customerName = existingName as string;
+    customerNameOutcome = "preserved_existing";
+    contactFieldsPreserved = true;
+  } else if (resolvedName) {
+    customerName = resolvedName;
+    customerNameOutcome = "repaired_from_shopify";
+    contactFieldsFilledFromShopify.push("customer_full_name");
+  } else {
+    customerName = "Unknown";
+    customerNameOutcome = "still_unknown";
+  }
+
+  let finalPhone: string | null;
+  if (existingPhone) {
+    finalPhone = existingPhone;
+    contactFieldsPreserved = true;
+  } else {
+    finalPhone = phone ?? null;
+    if (finalPhone) contactFieldsFilledFromShopify.push("phone");
+  }
+
+  let finalCity: string | null;
+  if (existingCity) {
+    finalCity = existingCity;
+    contactFieldsPreserved = true;
+  } else {
+    finalCity = city ?? null;
+    if (finalCity) contactFieldsFilledFromShopify.push("city");
+  }
+
+  let finalArea: string | null;
+  if (existingArea) {
+    finalArea = existingArea;
+    contactFieldsPreserved = true;
+  } else {
+    finalArea = area ?? null;
+    if (finalArea) contactFieldsFilledFromShopify.push("area");
+  }
+
+  let finalAddress: string | null;
+  if (existingAddress) {
+    finalAddress = existingAddress;
+    contactFieldsPreserved = true;
+  } else {
+    finalAddress = address ?? null;
+    if (finalAddress) contactFieldsFilledFromShopify.push("full_address");
+  }
 
   // Upsert customer by phone (best-effort dedupe). Do not overwrite an
   // existing customer's real name with a placeholder.
