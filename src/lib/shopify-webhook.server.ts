@@ -30,6 +30,7 @@ type ShopifyAddress = {
   name?: string | null;
   first_name?: string | null;
   last_name?: string | null;
+  company?: string | null;
 };
 
 type ShopifyLineItem = {
@@ -55,8 +56,10 @@ type ShopifyCustomer = {
   id?: number | string | null;
   first_name?: string | null;
   last_name?: string | null;
+  name?: string | null;
   phone?: string | null;
   email?: string | null;
+  default_address?: ShopifyAddress | null;
 };
 
 export type ShopifyOrderPayload = {
