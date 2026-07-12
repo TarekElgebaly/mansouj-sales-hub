@@ -84,6 +84,9 @@ export type ShopifyOrderPayload = {
   cancelled_at?: string | null;
   note?: string | null;
   tags?: string | null;
+  email?: string | null;
+  contact_email?: string | null;
+  phone?: string | null;
   customer?: ShopifyCustomer | null;
   shipping_address?: ShopifyAddress | null;
   billing_address?: ShopifyAddress | null;
