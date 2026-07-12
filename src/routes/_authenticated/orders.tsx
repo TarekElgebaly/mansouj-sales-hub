@@ -266,6 +266,18 @@ function OrdersPage() {
               {syncing ? "Pulling..." : "Pull recent Shopify orders"}
             </Button>
           )}
+          {canOps && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={repairUnknownCustomers}
+              disabled={repairing}
+              title="Fetch each order flagged Unknown from Shopify and fill in missing customer name / phone / city / address"
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${repairing ? "animate-spin" : ""}`} />
+              {repairing ? "Repairing..." : "Repair unknown customers"}
+            </Button>
+          )}
           <Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-4 w-4 mr-1" />Export CSV</Button>
         </div>
       }>
