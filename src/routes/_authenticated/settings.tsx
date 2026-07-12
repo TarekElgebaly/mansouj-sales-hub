@@ -27,6 +27,7 @@ function SettingsPage() {
   const [grantRole, setGrantRole] = useState<AppRole>("operations");
 
   const isAdmin = hasRole("admin");
+  const canSeeIntake = isAdmin || hasRole("operations");
 
   const { data: members } = useQuery({
     queryKey: ["members"],
