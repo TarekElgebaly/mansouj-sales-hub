@@ -836,6 +836,7 @@ function ShopifyPage() {
         mismatch_reasons: json.mismatch_reasons ?? {},
       };
       setForceCostResult(result);
+      setLastFinanceRecalcAt(new Date().toISOString());
       if (result.status === "partial") {
         toast.warning(
           `Force update finished with ${result.failed_count} failures: ${result.items_updated} items updated.`,
