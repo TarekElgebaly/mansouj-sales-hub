@@ -610,6 +610,15 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             } as never)
             .eq("id", 1);
 
+          let pendingIntake: PendingIntakeSummary | null = null;
+          if (status === "success" || status === "partial") {
+            try {
+              pendingIntake = await applyPendingIntake(supabaseAdmin, { limit: 200 });
+            } catch (e) {
+              console.error("[sync-orders] applyPendingIntake failed", e);
+            }
+          }
+
           return Response.json({
             ok: true,
             mode,
