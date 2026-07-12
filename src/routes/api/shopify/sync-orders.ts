@@ -289,6 +289,8 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             mode?: unknown;
             limit?: unknown;
             since?: string;
+            date_from?: unknown;
+            date_to?: unknown;
           };
           requestedMode = body.mode ?? "incremental";
           const parsedMode = parseSyncMode(body.mode);
@@ -299,7 +301,30 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             );
           }
           mode = parsedMode;
-          syncType = mode === "full_backfill" ? "orders_full_backfill" : "orders_incremental";
+          if (mode === "date_range") {
+            const from = parseIsoDate(body.date_from);
+            const to = parseIsoDate(body.date_to);
+            if (!from || !to) {
+              return Response.json(
+                { ok: false, error: "date_from and date_to (YYYY-MM-DD) are required for date_range." },
+                { status: 400 },
+              );
+            }
+            if (from > to) {
+              return Response.json(
+                { ok: false, error: "date_from must be on or before date_to." },
+                { status: 400 },
+              );
+            }
+            dateFrom = from;
+            dateTo = to;
+          }
+          syncType =
+            mode === "full_backfill"
+              ? "orders_full_backfill"
+              : mode === "date_range"
+                ? "orders_date_range"
+                : "orders_incremental";
 
           apiVersion = getShopifyApiVersion();
           domain = normalizeShopDomain(process.env.SHOPIFY_SHOP_DOMAIN || "");
