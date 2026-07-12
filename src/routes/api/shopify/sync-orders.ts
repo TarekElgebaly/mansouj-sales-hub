@@ -726,6 +726,11 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             latest_imported_order_number: latestImportedOrderLabel,
             latest_shopify_order_number: latestShopifyOrderLabel,
             stopped_reason: stoppedReason,
+            statuses_updated: statusesUpdated,
+            cancelled_orders_updated: cancelledOrdersUpdated,
+            fulfillment_updates: fulfillmentUpdates,
+            shopify_orders_found: shopifyOrdersFound,
+            date_range_used: mode === "date_range" && dateFrom && dateTo ? { from: dateFrom, to: dateTo } : null,
             errors,
             pending_intake: pendingIntake,
           });
