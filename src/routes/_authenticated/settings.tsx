@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUser, type AppRole } from "@/hooks/use-user";
+import { OrderIntakeSection } from "@/components/settings/order-intake-section";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -26,6 +27,7 @@ function SettingsPage() {
   const [grantRole, setGrantRole] = useState<AppRole>("operations");
 
   const isAdmin = hasRole("admin");
+  const canSeeIntake = isAdmin || hasRole("operations");
 
   const { data: members } = useQuery({
     queryKey: ["members"],
@@ -128,6 +130,7 @@ function SettingsPage() {
           </Table>
         </CardContent>
       </Card>
+      {canSeeIntake && <OrderIntakeSection />}
     </AppShell>
   );
 }

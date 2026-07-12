@@ -307,6 +307,56 @@ export type Database = {
           },
         ]
       }
+      order_intake_logs: {
+        Row: {
+          error_message: string | null
+          id: string
+          matched_order_id: string | null
+          message_id: string | null
+          order_number: string | null
+          payload_hash: string | null
+          raw_payload: Json | null
+          received_at: string
+          repaired_fields: Json
+          source: string | null
+          status: string
+        }
+        Insert: {
+          error_message?: string | null
+          id?: string
+          matched_order_id?: string | null
+          message_id?: string | null
+          order_number?: string | null
+          payload_hash?: string | null
+          raw_payload?: Json | null
+          received_at?: string
+          repaired_fields?: Json
+          source?: string | null
+          status: string
+        }
+        Update: {
+          error_message?: string | null
+          id?: string
+          matched_order_id?: string | null
+          message_id?: string | null
+          order_number?: string | null
+          payload_hash?: string | null
+          raw_payload?: Json | null
+          received_at?: string
+          repaired_fields?: Json
+          source?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_intake_logs_matched_order_id_fkey"
+            columns: ["matched_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           color: string | null
