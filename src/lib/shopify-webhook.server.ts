@@ -155,6 +155,9 @@ export type ShopifyOrderProcessResult = {
   customer_name_outcome: CustomerNameOutcome;
   contact_fields_preserved: boolean;
   contact_fields_filled_from_shopify: string[];
+  status_changed: boolean;
+  cancelled_now: boolean;
+  fulfillment_changed: boolean;
 };
 
 function fullName(parts: Array<string | null | undefined>): string {
