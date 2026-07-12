@@ -24,8 +24,80 @@ import { OrderDetail } from "@/components/order-detail";
 import { saveOrderCosts } from "@/lib/order-costs";
 import { calculatePackagingCost } from "@/lib/packaging-cost";
 import { DateScopeFilter } from "@/components/date-scope-filter";
-import { createDefaultDateScope, dateInScope, getDateScopeRange } from "@/lib/date-scope";
+import { createDefaultDateScope, dateInScope, getDateScopeRange, MONTHS } from "@/lib/date-scope";
 import { calculateKashierFees } from "@/lib/kashier-fees";
+
+type SyncResult = {
+  mode?: string;
+  status?: string;
+  created: number;
+  updated: number;
+  failed: number;
+  order_items_processed: number;
+  order_items_inserted: number;
+  order_items_updated: number;
+  stale_order_items_removed: number;
+  affected_orders_recalculated: number;
+  statuses_updated: number;
+  cancelled_orders_updated: number;
+  fulfillment_updates: number;
+  customer_fields_preserved: number;
+  customer_fields_repaired_from_shopify: number;
+  customer_fields_repaired_from_external_intake: number;
+  pending_intake_rows_applied: number;
+  still_unknown_count: number | null;
+  shopify_orders_found?: number;
+  date_range_used?: { from: string; to: string } | null;
+  finished_at: string;
+};
+
+type RangeMode = "today" | "yesterday" | "last7" | "last30" | "month" | "custom";
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const toIso = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const daysAgo = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d;
+};
+const fmtRangeLabel = (from: string, to: string) => {
+  const f = new Date(`${from}T00:00:00`);
+  const t = new Date(`${to}T00:00:00`);
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
+  return `${f.toLocaleDateString(undefined, opts)} – ${t.toLocaleDateString(undefined, opts)}`;
+};
+
+function computeRange(
+  mode: RangeMode,
+  monthValue: string,
+  yearValue: string,
+  customFrom: string,
+  customTo: string,
+): { from: string; to: string } | null {
+  const today = new Date();
+  if (mode === "today") return { from: toIso(today), to: toIso(today) };
+  if (mode === "yesterday") {
+    const y = daysAgo(1);
+    return { from: toIso(y), to: toIso(y) };
+  }
+  if (mode === "last7") return { from: toIso(daysAgo(6)), to: toIso(today) };
+  if (mode === "last30") return { from: toIso(daysAgo(29)), to: toIso(today) };
+  if (mode === "month") {
+    const y = Number(yearValue);
+    const m = Number(monthValue);
+    if (!Number.isFinite(y) || !Number.isFinite(m)) return null;
+    const first = new Date(y, m, 1);
+    const last = new Date(y, m + 1, 0);
+    return { from: toIso(first), to: toIso(last) };
+  }
+  if (mode === "custom") {
+    if (!customFrom || !customTo) return null;
+    return customFrom <= customTo
+      ? { from: customFrom, to: customTo }
+      : { from: customTo, to: customFrom };
+  }
+  return null;
+}
 
 export const Route = createFileRoute("/_authenticated/orders")({
   head: () => ({ meta: [{ title: "Orders — Mansouj" }] }),
