@@ -950,5 +950,8 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     order_items_missing_cost: currentItems.length - withCost,
     affected_orders_recalculated: 1,
     stale_order_item_examples: [...staleExamples, ...zeroExamples].slice(0, 10),
+    customer_name_outcome: customerNameOutcome,
+    contact_fields_preserved: contactFieldsPreserved,
+    contact_fields_filled_from_shopify: contactFieldsFilledFromShopify,
   } satisfies ShopifyOrderProcessResult;
 }
