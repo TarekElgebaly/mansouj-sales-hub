@@ -311,6 +311,7 @@ export type Database = {
         Row: {
           error_message: string | null
           id: string
+          last_retry_at: string | null
           matched_order_id: string | null
           message_id: string | null
           order_number: string | null
@@ -318,12 +319,14 @@ export type Database = {
           raw_payload: Json | null
           received_at: string
           repaired_fields: Json
+          shopify_order_id: string | null
           source: string | null
           status: string
         }
         Insert: {
           error_message?: string | null
           id?: string
+          last_retry_at?: string | null
           matched_order_id?: string | null
           message_id?: string | null
           order_number?: string | null
@@ -331,12 +334,14 @@ export type Database = {
           raw_payload?: Json | null
           received_at?: string
           repaired_fields?: Json
+          shopify_order_id?: string | null
           source?: string | null
           status: string
         }
         Update: {
           error_message?: string | null
           id?: string
+          last_retry_at?: string | null
           matched_order_id?: string | null
           message_id?: string | null
           order_number?: string | null
@@ -344,6 +349,7 @@ export type Database = {
           raw_payload?: Json | null
           received_at?: string
           repaired_fields?: Json
+          shopify_order_id?: string | null
           source?: string | null
           status?: string
         }

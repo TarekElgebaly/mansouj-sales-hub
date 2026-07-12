@@ -8,6 +8,7 @@ import {
   validateShopDomain,
 } from "@/lib/shopify-auth.server";
 import { requireRoles } from "@/lib/route-auth.server";
+import { applyPendingIntake, type PendingIntakeSummary } from "@/lib/order-intake.server";
 
 type SyncMode = "incremental" | "full_backfill";
 type SyncStatus = "success" | "partial" | "error";
@@ -609,6 +610,15 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             } as never)
             .eq("id", 1);
 
+          let pendingIntake: PendingIntakeSummary | null = null;
+          if (status === "success" || status === "partial") {
+            try {
+              pendingIntake = await applyPendingIntake(supabaseAdmin, { limit: 200 });
+            } catch (e) {
+              console.error("[sync-orders] applyPendingIntake failed", e);
+            }
+          }
+
           return Response.json({
             ok: true,
             mode,
@@ -637,6 +647,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             latest_shopify_order_number: latestShopifyOrderLabel,
             stopped_reason: stoppedReason,
             errors,
+            pending_intake: pendingIntake,
           });
         } catch (outer) {
           finishedAt = new Date().toISOString();
