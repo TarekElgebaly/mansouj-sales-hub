@@ -46,6 +46,7 @@ function OrdersPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [openNew, setOpenNew] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [repairing, setRepairing] = useState(false);
   const [restoringLineItems, setRestoringLineItems] = useState(false);
   const [syncResult, setSyncResult] = useState<{
     created: number;
