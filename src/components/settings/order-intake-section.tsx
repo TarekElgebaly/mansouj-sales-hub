@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -17,13 +17,11 @@ type IntakeLog = {
   error_message: string | null;
 };
 
-const SUCCESS_STATUSES = new Set(["repaired", "matched_no_changes", "duplicate"]);
-const FAIL_STATUSES = new Set(["error", "not_found"]);
-
 function statusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
   if (status === "repaired") return "default";
   if (status === "matched_no_changes" || status === "duplicate") return "secondary";
-  if (FAIL_STATUSES.has(status)) return "destructive";
+  if (status === "pending_not_found") return "outline";
+  if (status === "error" || status === "not_found") return "destructive";
   return "outline";
 }
 
@@ -37,6 +35,8 @@ function fmtDate(v: string | null | undefined) {
 }
 
 export function OrderIntakeSection() {
+  const queryClient = useQueryClient();
+  const [applying, setApplying] = useState(false);
   const webhookUrl = useMemo(
     () =>
       typeof window !== "undefined"
@@ -78,28 +78,32 @@ export function OrderIntakeSection() {
   const { data: stats } = useQuery({
     queryKey: ["order-intake-stats"],
     queryFn: async () => {
-      const { data: lastSuccess } = await supabase
-        .from("order_intake_logs")
-        .select("received_at")
-        .in("status", ["repaired", "matched_no_changes", "duplicate"])
-        .order("received_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const { data: lastFail } = await supabase
-        .from("order_intake_logs")
-        .select("received_at")
-        .in("status", ["error", "not_found"])
-        .order("received_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const { count } = await supabase
-        .from("order_intake_logs")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "repaired");
+      const [pending, repaired, notFound, lastRetry] = await Promise.all([
+        supabase
+          .from("order_intake_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pending_not_found"),
+        supabase
+          .from("order_intake_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "repaired"),
+        supabase
+          .from("order_intake_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "not_found"),
+        supabase
+          .from("order_intake_logs")
+          .select("last_retry_at")
+          .not("last_retry_at", "is", null)
+          .order("last_retry_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
       return {
-        lastSuccess: (lastSuccess?.received_at as string | undefined) ?? null,
-        lastFail: (lastFail?.received_at as string | undefined) ?? null,
-        repairedCount: count ?? 0,
+        pendingCount: pending.count ?? 0,
+        repairedCount: repaired.count ?? 0,
+        notFoundCount: notFound.count ?? 0,
+        lastRetryAt: (lastRetry.data?.last_retry_at as string | undefined) ?? null,
       };
     },
     refetchInterval: 30_000,
@@ -113,6 +117,48 @@ export function OrderIntakeSection() {
       toast.success("Webhook URL copied");
     } catch {
       toast.error("Copy failed");
+    }
+  };
+
+  const applyPending = async () => {
+    setApplying(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const res = await fetch("/api/orders/apply-pending-intake", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ limit: 200 }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        attempted?: number;
+        repaired?: number;
+        matched_no_changes?: number;
+        still_pending?: number;
+        errors?: number;
+      };
+      if (!res.ok || !json.ok) {
+        toast.error(json.error ?? "Failed to apply pending intake");
+      } else {
+        toast.success(
+          `Repaired ${json.repaired ?? 0}, matched no-changes ${json.matched_no_changes ?? 0}, still pending ${json.still_pending ?? 0}${json.errors ? `, errors ${json.errors}` : ""}`,
+        );
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["order-intake-stats"] }),
+        queryClient.invalidateQueries({ queryKey: ["order-intake-logs"] }),
+      ]);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to apply pending intake");
+    } finally {
+      setApplying(false);
     }
   };
 
@@ -142,26 +188,31 @@ export function OrderIntakeSection() {
           </p>
         </div>
 
+        <div className="flex items-center gap-3">
+          <Badge variant={status?.secretConfigured ? "default" : "destructive"}>
+            Secret {status?.secretConfigured ? "configured" : "missing"}
+          </Badge>
+          <Button size="sm" onClick={applyPending} disabled={applying}>
+            {applying ? "Applying…" : "Apply Pending Intake Data"}
+          </Button>
+        </div>
+
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div>
-            <div className="text-xs text-muted-foreground">Secret configured</div>
-            <div className="mt-1">
-              <Badge variant={status?.secretConfigured ? "default" : "destructive"}>
-                {status?.secretConfigured ? "Yes" : "No"}
-              </Badge>
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">Last successful intake</div>
-            <div className="text-sm">{fmtDate(stats?.lastSuccess)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">Last failed intake</div>
-            <div className="text-sm">{fmtDate(stats?.lastFail)}</div>
+            <div className="text-xs text-muted-foreground">Pending intake</div>
+            <div className="text-sm font-medium">{stats?.pendingCount ?? 0}</div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground">Orders repaired</div>
             <div className="text-sm font-medium">{stats?.repairedCount ?? 0}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Not found (legacy)</div>
+            <div className="text-sm font-medium">{stats?.notFoundCount ?? 0}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Last pending retry</div>
+            <div className="text-sm">{fmtDate(stats?.lastRetryAt)}</div>
           </div>
         </div>
 
