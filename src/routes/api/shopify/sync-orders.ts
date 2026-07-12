@@ -502,6 +502,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             pagesFetched++;
             const json = (await res.json()) as ShopifyOrdersResponse;
             const orders = json.orders ?? [];
+            shopifyOrdersFound += orders.length;
             const shopifyIds = orders.map((order) => String(order.id));
             const existingSet = new Set<string>();
 
