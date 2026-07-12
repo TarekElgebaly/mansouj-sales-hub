@@ -8,6 +8,7 @@ import {
   validateShopDomain,
 } from "@/lib/shopify-auth.server";
 import { requireRoles } from "@/lib/route-auth.server";
+import { applyPendingIntake, type PendingIntakeSummary } from "@/lib/order-intake.server";
 
 type SyncMode = "incremental" | "full_backfill";
 type SyncStatus = "success" | "partial" | "error";
