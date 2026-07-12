@@ -1631,7 +1631,13 @@ function ShopifyPage() {
               </CardContent>
             </Card>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <details className="rounded-md border bg-muted/20 p-3">
+              <summary className="cursor-pointer text-base font-medium">Advanced Tools</summary>
+              <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                These tools are for debugging or one-time repairs. Daily use should only use the
+                two buttons above.
+              </div>
+              <div className="mt-3 grid gap-4 md:grid-cols-2">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
