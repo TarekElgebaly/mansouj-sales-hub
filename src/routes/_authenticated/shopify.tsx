@@ -997,11 +997,6 @@ function ShopifyPage() {
     }
   };
 
-  const runFinanceCostsRecalc = async () => {
-    if (!window.confirm(RECALCULATE_FINANCE_COSTS_CONFIRMATION_MESSAGE)) return;
-    await forceUpdateOrderItemCosts();
-  };
-
   const recalculateOrderCosts = async () => {
     setRecalcingOrderCosts(true);
     setRecalcResult(null);
