@@ -912,6 +912,96 @@ function ShopifyPage() {
     }
   };
 
+  const runDailyInventorySync = async () => {
+    setDailyInventoryRunning(true);
+    setDailyInventoryResult(null);
+    setDailyInventoryError(null);
+    try {
+      const headers = { ...(await authHeader()), "Content-Type": "application/json" };
+      toast.info("Syncing products from Shopify…");
+      const prodRes = await fetch("/api/shopify/sync-products", { method: "POST", headers });
+      const prodJson = await prodRes.json().catch(() => ({}));
+      if (!prodRes.ok || !prodJson.ok) {
+        throw new Error(prodJson.error ?? "Shopify products sync failed.");
+      }
+      setProductSyncResult({
+        status: prodJson.status ?? "success",
+        message: prodJson.message ?? null,
+        products_processed: prodJson.products_processed ?? 0,
+        products_created: prodJson.products_created ?? 0,
+        products_updated: prodJson.products_updated ?? 0,
+        variants_processed: prodJson.variants_processed ?? 0,
+        variants_created: prodJson.variants_created ?? 0,
+        variants_updated: prodJson.variants_updated ?? 0,
+        failed_count: prodJson.failed_count ?? 0,
+        pages_fetched: prodJson.pages_fetched ?? 0,
+        shop_domain_used: prodJson.shop_domain_used ?? null,
+        api_version_used: prodJson.api_version_used ?? null,
+        api_method_used: prodJson.api_method_used ?? null,
+        first_api_response_product_count: prodJson.first_api_response_product_count ?? null,
+        stopped_reason: prodJson.stopped_reason ?? null,
+        raw_shopify_response_shape_summary: prodJson.raw_shopify_response_shape_summary ?? null,
+      });
+
+      toast.info("Syncing inventory levels and costs from Shopify…");
+      const invRes = await fetch("/api/shopify/sync-inventory-cost", { method: "POST", headers });
+      const invJson = await invRes.json().catch(() => ({}));
+      if (!invRes.ok || !invJson.ok) {
+        throw new Error(invJson.error ?? "Shopify inventory and cost sync failed.");
+      }
+      setInventoryCostSyncResult({
+        inventory_items_processed: invJson.inventory_items_processed ?? 0,
+        inventory_items_with_cost: invJson.inventory_items_with_cost ?? 0,
+        inventory_items_missing_cost: invJson.inventory_items_missing_cost ?? 0,
+        locations_processed: invJson.locations_processed ?? 0,
+        inventory_levels_processed: invJson.inventory_levels_processed ?? 0,
+        inventory_levels_with_on_hand: invJson.inventory_levels_with_on_hand ?? 0,
+        inventory_levels_missing_on_hand: invJson.inventory_levels_missing_on_hand ?? 0,
+        on_hand_quantity_source: invJson.on_hand_quantity_source ?? null,
+        on_hand_fallback_used: Boolean(invJson.on_hand_fallback_used),
+        variant_on_hand_quantities_processed: invJson.variant_on_hand_quantities_processed ?? 0,
+        variant_on_hand_quantities_updated: invJson.variant_on_hand_quantities_updated ?? 0,
+        variant_on_hand_quantity_fallbacks: invJson.variant_on_hand_quantity_fallbacks ?? 0,
+        failed_count: invJson.failed_count ?? 0,
+        pages_fetched: invJson.pages_fetched ?? 0,
+      });
+
+      const merged: DailyInventorySyncResult = {
+        products_processed: prodJson.products_processed ?? 0,
+        variants_processed: prodJson.variants_processed ?? 0,
+        inventory_rows_created:
+          (prodJson.products_created ?? 0) + (prodJson.variants_created ?? 0),
+        inventory_rows_updated:
+          (prodJson.products_updated ?? 0) +
+          (prodJson.variants_updated ?? 0) +
+          (invJson.variant_on_hand_quantities_updated ?? 0),
+        rows_marked_stale: null,
+        missing_cost_count: invJson.inventory_items_missing_cost ?? 0,
+        missing_sale_price_count: null,
+        duplicate_skus_found: null,
+        failed_count: (prodJson.failed_count ?? 0) + (invJson.failed_count ?? 0),
+        last_synced_at: new Date().toISOString(),
+      };
+      setDailyInventoryResult(merged);
+      toast.success(
+        `Inventory synced: ${merged.products_processed} products, ${merged.variants_processed} variants.`,
+      );
+      await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
+      await qc.invalidateQueries({ queryKey: ["shopify-inventory-report"] });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setDailyInventoryError(message);
+      toast.error(message);
+    } finally {
+      setDailyInventoryRunning(false);
+    }
+  };
+
+  const runFinanceCostsRecalc = async () => {
+    if (!window.confirm(RECALCULATE_FINANCE_COSTS_CONFIRMATION_MESSAGE)) return;
+    await forceUpdateOrderItemCosts();
+  };
+
   const recalculateOrderCosts = async () => {
     setRecalcingOrderCosts(true);
     setRecalcResult(null);
