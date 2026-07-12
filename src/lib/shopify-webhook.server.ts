@@ -969,5 +969,8 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
     customer_name_outcome: customerNameOutcome,
     contact_fields_preserved: contactFieldsPreserved,
     contact_fields_filled_from_shopify: contactFieldsFilledFromShopify,
+    status_changed: statusChanged,
+    cancelled_now: cancelledNow,
+    fulfillment_changed: fulfillmentChanged,
   } satisfies ShopifyOrderProcessResult;
 }
