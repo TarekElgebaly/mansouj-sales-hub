@@ -625,6 +625,21 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             }
           }
 
+          let stillUnknownCount: number | null = null;
+          try {
+            const { count } = await (supabaseAdmin as any)
+              .from("orders")
+              .select("id", { count: "exact", head: true })
+              .or(
+                "customer_full_name.is.null,customer_full_name.eq.,customer_full_name.ilike.unknown",
+              );
+            stillUnknownCount = typeof count === "number" ? count : null;
+          } catch (e) {
+            console.error("[sync-orders] still_unknown_count query failed", e);
+          }
+
+          const pendingRepaired = pendingIntake?.repaired ?? 0;
+
           return Response.json({
             ok: true,
             mode,
@@ -635,6 +650,12 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             failed: failedCount,
             records_processed: recordsProcessed,
             orders_processed: recordsProcessed,
+            orders_synced: recordsProcessed,
+            customer_fields_preserved: customerFieldsPreserved,
+            customer_fields_repaired_from_shopify: customerFieldsRepairedFromShopify,
+            customer_fields_repaired_from_external_intake: pendingRepaired,
+            pending_intake_rows_applied: pendingRepaired,
+            still_unknown_count: stillUnknownCount,
             order_items_processed: orderItemsProcessed,
             order_items_inserted: orderItemsInserted,
             order_items_updated: orderItemsUpdated,
