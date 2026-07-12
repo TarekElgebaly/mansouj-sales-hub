@@ -265,6 +265,13 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
           shop_domain: domain || null,
           api_version: apiVersion || null,
           per_page: perPage,
+          statuses_updated: statusesUpdated,
+          cancelled_orders_updated: cancelledOrdersUpdated,
+          fulfillment_updates: fulfillmentUpdates,
+          customer_fields_preserved: customerFieldsPreserved,
+          customer_fields_repaired_from_shopify: customerFieldsRepairedFromShopify,
+          shopify_orders_found: shopifyOrdersFound,
+          date_range_used: mode === "date_range" && dateFrom && dateTo ? { from: dateFrom, to: dateTo } : null,
           ...extra,
         });
 
