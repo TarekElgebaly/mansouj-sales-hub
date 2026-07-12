@@ -1656,7 +1656,7 @@ function ShopifyPage() {
                     <RefreshCw
                       className={`mr-2 h-4 w-4 ${syncingProducts ? "animate-spin" : ""}`}
                     />
-                    Sync Products
+                    Sync Products Only
                   </Button>
                   {!canOps && (
                     <p className="text-sm text-muted-foreground">
