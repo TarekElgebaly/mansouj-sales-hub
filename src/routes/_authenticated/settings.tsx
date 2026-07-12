@@ -130,6 +130,7 @@ function SettingsPage() {
           </Table>
         </CardContent>
       </Card>
+      {canSeeIntake && <OrderIntakeSection />}
     </AppShell>
   );
 }
