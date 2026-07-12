@@ -10,7 +10,7 @@ import {
 import { requireRoles } from "@/lib/route-auth.server";
 import { applyPendingIntake, type PendingIntakeSummary } from "@/lib/order-intake.server";
 
-type SyncMode = "incremental" | "full_backfill";
+type SyncMode = "incremental" | "full_backfill" | "date_range";
 type SyncStatus = "success" | "partial" | "error";
 type SyncSettings = {
   last_successful_orders_sync_at?: string | null;
