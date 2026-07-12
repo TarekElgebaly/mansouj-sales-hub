@@ -647,6 +647,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             latest_shopify_order_number: latestShopifyOrderLabel,
             stopped_reason: stoppedReason,
             errors,
+            pending_intake: pendingIntake,
           });
         } catch (outer) {
           finishedAt = new Date().toISOString();
