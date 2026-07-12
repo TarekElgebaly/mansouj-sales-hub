@@ -514,6 +514,10 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
                 orderItemsWithCost += result.processResult.order_items_with_cost;
                 orderItemsMissingCost += result.processResult.order_items_missing_cost;
                 affectedOrdersRecalculated += result.processResult.affected_orders_recalculated;
+                if (result.processResult.contact_fields_preserved) customerFieldsPreserved++;
+                if (result.processResult.contact_fields_filled_from_shopify.length > 0) {
+                  customerFieldsRepairedFromShopify++;
+                }
                 for (const example of result.processResult.stale_order_item_examples) {
                   if (staleOrderItemExamples.length >= 10) break;
                   staleOrderItemExamples.push(example);
