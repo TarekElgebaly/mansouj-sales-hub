@@ -830,6 +830,19 @@ export async function processShopifyOrder(payload: ShopifyOrderPayload) {
   const orderStatus = preserveManualDelivered ? "Delivered" : mappedOrderStatus;
   const isCancelled = orderStatus === "Cancelled";
 
+  const previousOrderStatus = existingOrder?.order_status ?? null;
+  const previousDelivered = existingOrder?.delivered ?? null;
+  const statusChanged = existingOrder != null && previousOrderStatus !== orderStatus;
+  const cancelledNow =
+    existingOrder != null && previousOrderStatus !== "Cancelled" && orderStatus === "Cancelled";
+  const fulfillmentBucket = (s: string | null) =>
+    s === "Shipped" || s === "Delivered" || s === "Ready" ? s : "Other";
+  const fulfillmentChanged =
+    existingOrder != null &&
+    (fulfillmentBucket(previousOrderStatus) !== fulfillmentBucket(orderStatus) ||
+      previousDelivered !== (orderStatus === "Delivered"));
+
+
   const { currentItems, zeroSkipped, zeroExamples } = prepareLineItems(
     payload,
     orderNumber,
