@@ -1861,7 +1861,7 @@ function ShopifyPage() {
                       <RefreshCw
                         className={`mr-2 h-4 w-4 ${syncingInventoryCost ? "animate-spin" : ""}`}
                       />
-                      Sync Inventory from Shopify
+                      Sync Inventory &amp; Cost Only
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
