@@ -268,6 +268,24 @@ const FORCE_UPDATE_COSTS_CONFIRMATION_MESSAGE =
   "This will overwrite existing local order item costs with the latest synced Shopify costs. It will NOT change Shopify, selling price, shipping cost, packaging cost, statuses, notes, or customer data. Continue?";
 const REFRESH_PRODUCT_DATA_CONFIRMATION_MESSAGE =
   "This will refresh local order item SKU, product title, variant title, barcode, and product type from the latest synced Shopify product data. It will NOT change quantities, selling prices, costs, shipping, packaging, statuses, notes, or Shopify data. Continue?";
+const RECALCULATE_FINANCE_COSTS_CONFIRMATION_MESSAGE =
+  "This will overwrite existing local order item costs with the latest synced Shopify costs so order profits reflect the current cost per item. It will NOT change Shopify, selling price, shipping cost, packaging cost, Kashier fees, statuses, notes, or customer data. Continue?";
+const DAILY_INVENTORY_NOTE_TEXT =
+  `Daily inventory update: Click "Sync Inventory from Shopify" after changing products, variants, quantities, prices, costs, SKUs, images, or product status in Shopify.
+Important: If Cost per item was changed and you want existing order profits to update, click "Recalculate Finance Costs" manually after syncing inventory. Keep these two actions separate.`;
+
+type DailyInventorySyncResult = {
+  products_processed: number;
+  variants_processed: number;
+  inventory_rows_created: number;
+  inventory_rows_updated: number;
+  rows_marked_stale: number | null;
+  missing_cost_count: number;
+  missing_sale_price_count: number | null;
+  duplicate_skus_found: number | null;
+  failed_count: number;
+  last_synced_at: string;
+};
 
 function csvEscape(v: string | number | null | undefined): string {
   if (v === null || v === undefined) return "";
@@ -374,6 +392,12 @@ function ShopifyPage() {
     affected_orders_recalculated: number;
     total_items_cost_after_recalc: number;
   } | null>(null);
+
+  const [dailyInventoryRunning, setDailyInventoryRunning] = useState(false);
+  const [dailyInventoryResult, setDailyInventoryResult] =
+    useState<DailyInventorySyncResult | null>(null);
+  const [dailyInventoryError, setDailyInventoryError] = useState<string | null>(null);
+  const [lastFinanceRecalcAt, setLastFinanceRecalcAt] = useState<string | null>(null);
 
   const authHeader = async () => {
     const { data } = await supabase.auth.getSession();
@@ -812,6 +836,7 @@ function ShopifyPage() {
         mismatch_reasons: json.mismatch_reasons ?? {},
       };
       setForceCostResult(result);
+      setLastFinanceRecalcAt(new Date().toISOString());
       if (result.status === "partial") {
         toast.warning(
           `Force update finished with ${result.failed_count} failures: ${result.items_updated} items updated.`,
@@ -884,6 +909,91 @@ function ShopifyPage() {
       toast.error(message);
     } finally {
       setRefreshingProductData(false);
+    }
+  };
+
+  const runDailyInventorySync = async () => {
+    setDailyInventoryRunning(true);
+    setDailyInventoryResult(null);
+    setDailyInventoryError(null);
+    try {
+      const headers = { ...(await authHeader()), "Content-Type": "application/json" };
+      toast.info("Syncing products from Shopify…");
+      const prodRes = await fetch("/api/shopify/sync-products", { method: "POST", headers });
+      const prodJson = await prodRes.json().catch(() => ({}));
+      if (!prodRes.ok || !prodJson.ok) {
+        throw new Error(prodJson.error ?? "Shopify products sync failed.");
+      }
+      setProductSyncResult({
+        status: prodJson.status ?? "success",
+        message: prodJson.message ?? null,
+        products_processed: prodJson.products_processed ?? 0,
+        products_created: prodJson.products_created ?? 0,
+        products_updated: prodJson.products_updated ?? 0,
+        variants_processed: prodJson.variants_processed ?? 0,
+        variants_created: prodJson.variants_created ?? 0,
+        variants_updated: prodJson.variants_updated ?? 0,
+        failed_count: prodJson.failed_count ?? 0,
+        pages_fetched: prodJson.pages_fetched ?? 0,
+        shop_domain_used: prodJson.shop_domain_used ?? null,
+        api_version_used: prodJson.api_version_used ?? null,
+        api_method_used: prodJson.api_method_used ?? null,
+        first_api_response_product_count: prodJson.first_api_response_product_count ?? null,
+        stopped_reason: prodJson.stopped_reason ?? null,
+        raw_shopify_response_shape_summary: prodJson.raw_shopify_response_shape_summary ?? null,
+      });
+
+      toast.info("Syncing inventory levels and costs from Shopify…");
+      const invRes = await fetch("/api/shopify/sync-inventory-cost", { method: "POST", headers });
+      const invJson = await invRes.json().catch(() => ({}));
+      if (!invRes.ok || !invJson.ok) {
+        throw new Error(invJson.error ?? "Shopify inventory and cost sync failed.");
+      }
+      setInventoryCostSyncResult({
+        inventory_items_processed: invJson.inventory_items_processed ?? 0,
+        inventory_items_with_cost: invJson.inventory_items_with_cost ?? 0,
+        inventory_items_missing_cost: invJson.inventory_items_missing_cost ?? 0,
+        locations_processed: invJson.locations_processed ?? 0,
+        inventory_levels_processed: invJson.inventory_levels_processed ?? 0,
+        inventory_levels_with_on_hand: invJson.inventory_levels_with_on_hand ?? 0,
+        inventory_levels_missing_on_hand: invJson.inventory_levels_missing_on_hand ?? 0,
+        on_hand_quantity_source: invJson.on_hand_quantity_source ?? null,
+        on_hand_fallback_used: Boolean(invJson.on_hand_fallback_used),
+        variant_on_hand_quantities_processed: invJson.variant_on_hand_quantities_processed ?? 0,
+        variant_on_hand_quantities_updated: invJson.variant_on_hand_quantities_updated ?? 0,
+        variant_on_hand_quantity_fallbacks: invJson.variant_on_hand_quantity_fallbacks ?? 0,
+        failed_count: invJson.failed_count ?? 0,
+        pages_fetched: invJson.pages_fetched ?? 0,
+      });
+
+      const merged: DailyInventorySyncResult = {
+        products_processed: prodJson.products_processed ?? 0,
+        variants_processed: prodJson.variants_processed ?? 0,
+        inventory_rows_created:
+          (prodJson.products_created ?? 0) + (prodJson.variants_created ?? 0),
+        inventory_rows_updated:
+          (prodJson.products_updated ?? 0) +
+          (prodJson.variants_updated ?? 0) +
+          (invJson.variant_on_hand_quantities_updated ?? 0),
+        rows_marked_stale: null,
+        missing_cost_count: invJson.inventory_items_missing_cost ?? 0,
+        missing_sale_price_count: null,
+        duplicate_skus_found: null,
+        failed_count: (prodJson.failed_count ?? 0) + (invJson.failed_count ?? 0),
+        last_synced_at: new Date().toISOString(),
+      };
+      setDailyInventoryResult(merged);
+      toast.success(
+        `Inventory synced: ${merged.products_processed} products, ${merged.variants_processed} variants.`,
+      );
+      await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
+      await qc.invalidateQueries({ queryKey: ["shopify-inventory-report"] });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setDailyInventoryError(message);
+      toast.error(message);
+    } finally {
+      setDailyInventoryRunning(false);
     }
   };
 
@@ -1045,6 +1155,154 @@ function ShopifyPage() {
           </Card>
         ) : (
           <>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Warehouse className="h-5 w-5" />
+                  Inventory Daily Workflow
+                </CardTitle>
+                <CardDescription>
+                  Two primary buttons for daily inventory management. Run these — nothing else — for
+                  routine Shopify updates.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={runDailyInventorySync}
+                    disabled={
+                      !canOps ||
+                      dailyInventoryRunning ||
+                      syncingProducts ||
+                      syncingInventoryCost ||
+                      refreshingInventorySource ||
+                      reconcilingInventory
+                    }
+                  >
+                    <RefreshCw
+                      className={`mr-2 h-4 w-4 ${dailyInventoryRunning ? "animate-spin" : ""}`}
+                    />
+                    Sync Inventory from Shopify
+                  </Button>
+                  <Button
+                    onClick={forceUpdateOrderItemCosts}
+                    disabled={!canOps || forcingCostUpdate}
+                    variant="secondary"
+                  >
+                    <RefreshCw
+                      className={`mr-2 h-4 w-4 ${forcingCostUpdate ? "animate-spin" : ""}`}
+                    />
+                    Recalculate Finance Costs
+                  </Button>
+                </div>
+                {!canOps && (
+                  <p className="text-sm text-muted-foreground">
+                    Admin or operations access is required.
+                  </p>
+                )}
+                <div className="whitespace-pre-line rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                  {DAILY_INVENTORY_NOTE_TEXT}
+                </div>
+                {dailyInventoryError && (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                    {dailyInventoryError}
+                  </div>
+                )}
+                {dailyInventoryResult && (
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Sync Inventory from Shopify — result</div>
+                    <div className="grid gap-3 rounded-md border bg-muted/30 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <StatusItem
+                        label="Products processed"
+                        value={String(dailyInventoryResult.products_processed)}
+                      />
+                      <StatusItem
+                        label="Variants processed"
+                        value={String(dailyInventoryResult.variants_processed)}
+                      />
+                      <StatusItem
+                        label="Inventory rows created"
+                        value={String(dailyInventoryResult.inventory_rows_created)}
+                      />
+                      <StatusItem
+                        label="Inventory rows updated"
+                        value={String(dailyInventoryResult.inventory_rows_updated)}
+                      />
+                      <StatusItem
+                        label="Rows marked stale"
+                        value={
+                          dailyInventoryResult.rows_marked_stale === null
+                            ? "—"
+                            : String(dailyInventoryResult.rows_marked_stale)
+                        }
+                      />
+                      <StatusItem
+                        label="Missing cost count"
+                        value={String(dailyInventoryResult.missing_cost_count)}
+                      />
+                      <StatusItem
+                        label="Missing sale price count"
+                        value={
+                          dailyInventoryResult.missing_sale_price_count === null
+                            ? "—"
+                            : String(dailyInventoryResult.missing_sale_price_count)
+                        }
+                      />
+                      <StatusItem
+                        label="Duplicate Shopify SKUs"
+                        value={
+                          dailyInventoryResult.duplicate_skus_found === null
+                            ? "—"
+                            : String(dailyInventoryResult.duplicate_skus_found)
+                        }
+                      />
+                      <StatusItem
+                        label="Failed"
+                        value={String(dailyInventoryResult.failed_count)}
+                      />
+                      <StatusItem
+                        label="Last synced"
+                        value={fmtDateTime(dailyInventoryResult.last_synced_at)}
+                      />
+                    </div>
+                  </div>
+                )}
+                {forceCostResult && (
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">
+                      Recalculate Finance Costs — result
+                    </div>
+                    <div className="grid gap-3 rounded-md border bg-muted/30 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                      <StatusItem
+                        label="Orders checked"
+                        value={String(forceCostResult.orders_recalculated)}
+                      />
+                      <StatusItem
+                        label="Order items recalculated"
+                        value={String(forceCostResult.items_updated)}
+                      />
+                      <StatusItem
+                        label="Orders updated"
+                        value={String(forceCostResult.orders_recalculated)}
+                      />
+                      <StatusItem
+                        label="Missing cost items"
+                        value={String(forceCostResult.missing_cost)}
+                      />
+                      <StatusItem
+                        label="Failed"
+                        value={String(forceCostResult.failed_count)}
+                      />
+                      <StatusItem
+                        label="Last recalculated"
+                        value={fmtDateTime(lastFinanceRecalcAt)}
+                      />
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
@@ -1373,7 +1631,13 @@ function ShopifyPage() {
               </CardContent>
             </Card>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <details className="rounded-md border bg-muted/20 p-3">
+              <summary className="cursor-pointer text-base font-medium">Advanced Tools</summary>
+              <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                These tools are for debugging or one-time repairs. Daily use should only use the
+                two buttons above.
+              </div>
+              <div className="mt-3 grid gap-4 md:grid-cols-2">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
@@ -1392,7 +1656,7 @@ function ShopifyPage() {
                     <RefreshCw
                       className={`mr-2 h-4 w-4 ${syncingProducts ? "animate-spin" : ""}`}
                     />
-                    Sync Products
+                    Sync Products Only
                   </Button>
                   {!canOps && (
                     <p className="text-sm text-muted-foreground">
@@ -1597,7 +1861,7 @@ function ShopifyPage() {
                       <RefreshCw
                         className={`mr-2 h-4 w-4 ${syncingInventoryCost ? "animate-spin" : ""}`}
                       />
-                      Sync Inventory from Shopify
+                      Sync Inventory &amp; Cost Only
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -2261,7 +2525,10 @@ function ShopifyPage() {
                   </div>
                 </CardContent>
               </Card>
+              </div>
+            </details>
 
+            <div className="grid gap-4 md:grid-cols-2">
               <SkuRemapSection />
               <AutoRemapSection />
               <UnmatchedSkuReportSection />
