@@ -158,7 +158,7 @@ export const Route = createFileRoute("/api/shopify/repair-unknown-customers")({
 
             const { error: upErr } = await supabaseAdmin
               .from("orders")
-              .update(patch)
+              .update(patch as never)
               .eq("id", row.id);
             if (upErr) {
               failed += 1;
