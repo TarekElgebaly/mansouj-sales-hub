@@ -416,6 +416,10 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
           url.searchParams.set("limit", String(perPage));
           url.searchParams.set("order", "updated_at asc");
           if (incrementalStart) url.searchParams.set("updated_at_min", incrementalStart);
+          if (mode === "date_range" && dateFrom && dateTo) {
+            url.searchParams.set("created_at_min", `${dateFrom}T00:00:00Z`);
+            url.searchParams.set("created_at_max", `${dateTo}T23:59:59Z`);
+          }
 
           const headers = {
             "X-Shopify-Access-Token": accessToken,
