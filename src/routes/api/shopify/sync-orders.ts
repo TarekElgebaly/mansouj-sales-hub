@@ -40,8 +40,15 @@ class ShopifyFetchError extends Error {
 
 function parseSyncMode(value: unknown): SyncMode | null {
   if (value == null || value === "") return "incremental";
-  if (value === "incremental" || value === "full_backfill") return value;
+  if (value === "incremental" || value === "full_backfill" || value === "date_range") return value;
   return null;
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function parseIsoDate(value: unknown): string | null {
+  if (typeof value !== "string" || !DATE_RE.test(value)) return null;
+  const d = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? null : value;
 }
 
 function validDate(value?: string | null) {
