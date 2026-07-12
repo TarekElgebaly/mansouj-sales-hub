@@ -561,6 +561,9 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
                 if (result.processResult.contact_fields_filled_from_shopify.length > 0) {
                   customerFieldsRepairedFromShopify++;
                 }
+                if (result.processResult.status_changed) statusesUpdated++;
+                if (result.processResult.cancelled_now) cancelledOrdersUpdated++;
+                if (result.processResult.fulfillment_changed) fulfillmentUpdates++;
                 for (const example of result.processResult.stale_order_item_examples) {
                   if (staleOrderItemExamples.length >= 10) break;
                   staleOrderItemExamples.push(example);
