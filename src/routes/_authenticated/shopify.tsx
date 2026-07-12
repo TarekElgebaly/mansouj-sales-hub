@@ -2525,7 +2525,10 @@ function ShopifyPage() {
                   </div>
                 </CardContent>
               </Card>
+              </div>
+            </details>
 
+            <div className="grid gap-4 md:grid-cols-2">
               <SkuRemapSection />
               <AutoRemapSection />
               <UnmatchedSkuReportSection />
