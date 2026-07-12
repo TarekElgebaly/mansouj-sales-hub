@@ -471,7 +471,9 @@ function InventoryPage() {
       }
 
       const reportRows = variants.flatMap((variant): InventoryReportRow[] => {
+        if ((variant as any).is_shopify_stale) return [];
         const product = productRelation(variant.shopify_products);
+        if ((product as any)?.is_shopify_stale) return [];
         const media = mediaFromVariant(variant);
         const inventoryItemId = variant.inventory_item_id;
         const localInventory = localInventoryForVariant(variant, localInventoryIndexes);
