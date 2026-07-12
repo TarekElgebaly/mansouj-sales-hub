@@ -518,7 +518,7 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
 
             const orderResults = await mapWithConcurrency(
               orders,
-              mode === "full_backfill" ? 8 : 4,
+              mode === "full_backfill" || mode === "date_range" ? 8 : 4,
               async (order) => {
                 const shopifyOrderId = String(order.id);
                 try {
