@@ -47,6 +47,7 @@ import { Route as ApiFinanceUnlockRouteImport } from './routes/api/finance/unloc
 import { Route as ApiAuthEnsureSignupProfileRouteImport } from './routes/api/auth/ensure-signup-profile'
 import { Route as ApiPublicShopifyWebhooksOrdersUpdatedRouteImport } from './routes/api/public/shopify/webhooks/orders-updated'
 import { Route as ApiPublicShopifyWebhooksOrdersCreateRouteImport } from './routes/api/public/shopify/webhooks/orders-create'
+import { Route as ApiPublicShopifyWebhooksOrdersCancelledRouteImport } from './routes/api/public/shopify/webhooks/orders-cancelled'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -256,6 +257,12 @@ const ApiPublicShopifyWebhooksOrdersCreateRoute =
     path: '/api/public/shopify/webhooks/orders-create',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicShopifyWebhooksOrdersCancelledRoute =
+  ApiPublicShopifyWebhooksOrdersCancelledRouteImport.update({
+    id: '/api/public/shopify/webhooks/orders-cancelled',
+    path: '/api/public/shopify/webhooks/orders-cancelled',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -293,6 +300,7 @@ export interface FileRoutesByFullPath {
   '/api/shopify/sync-products': typeof ApiShopifySyncProductsRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
   '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
+  '/api/public/shopify/webhooks/orders-cancelled': typeof ApiPublicShopifyWebhooksOrdersCancelledRoute
   '/api/public/shopify/webhooks/orders-create': typeof ApiPublicShopifyWebhooksOrdersCreateRoute
   '/api/public/shopify/webhooks/orders-updated': typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
 }
@@ -332,6 +340,7 @@ export interface FileRoutesByTo {
   '/api/shopify/sync-products': typeof ApiShopifySyncProductsRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
   '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
+  '/api/public/shopify/webhooks/orders-cancelled': typeof ApiPublicShopifyWebhooksOrdersCancelledRoute
   '/api/public/shopify/webhooks/orders-create': typeof ApiPublicShopifyWebhooksOrdersCreateRoute
   '/api/public/shopify/webhooks/orders-updated': typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
 }
@@ -373,6 +382,7 @@ export interface FileRoutesById {
   '/api/shopify/sync-products': typeof ApiShopifySyncProductsRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
   '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
+  '/api/public/shopify/webhooks/orders-cancelled': typeof ApiPublicShopifyWebhooksOrdersCancelledRoute
   '/api/public/shopify/webhooks/orders-create': typeof ApiPublicShopifyWebhooksOrdersCreateRoute
   '/api/public/shopify/webhooks/orders-updated': typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
 }
@@ -414,6 +424,7 @@ export interface FileRouteTypes {
     | '/api/shopify/sync-products'
     | '/api/shopify/sync-status'
     | '/api/shopify/test-connection'
+    | '/api/public/shopify/webhooks/orders-cancelled'
     | '/api/public/shopify/webhooks/orders-create'
     | '/api/public/shopify/webhooks/orders-updated'
   fileRoutesByTo: FileRoutesByTo
@@ -453,6 +464,7 @@ export interface FileRouteTypes {
     | '/api/shopify/sync-products'
     | '/api/shopify/sync-status'
     | '/api/shopify/test-connection'
+    | '/api/public/shopify/webhooks/orders-cancelled'
     | '/api/public/shopify/webhooks/orders-create'
     | '/api/public/shopify/webhooks/orders-updated'
   id:
@@ -493,6 +505,7 @@ export interface FileRouteTypes {
     | '/api/shopify/sync-products'
     | '/api/shopify/sync-status'
     | '/api/shopify/test-connection'
+    | '/api/public/shopify/webhooks/orders-cancelled'
     | '/api/public/shopify/webhooks/orders-create'
     | '/api/public/shopify/webhooks/orders-updated'
   fileRoutesById: FileRoutesById
@@ -525,6 +538,7 @@ export interface RootRouteChildren {
   ApiShopifySyncProductsRoute: typeof ApiShopifySyncProductsRoute
   ApiShopifySyncStatusRoute: typeof ApiShopifySyncStatusRoute
   ApiShopifyTestConnectionRoute: typeof ApiShopifyTestConnectionRoute
+  ApiPublicShopifyWebhooksOrdersCancelledRoute: typeof ApiPublicShopifyWebhooksOrdersCancelledRoute
   ApiPublicShopifyWebhooksOrdersCreateRoute: typeof ApiPublicShopifyWebhooksOrdersCreateRoute
   ApiPublicShopifyWebhooksOrdersUpdatedRoute: typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
 }
@@ -797,6 +811,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicShopifyWebhooksOrdersCreateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/shopify/webhooks/orders-cancelled': {
+      id: '/api/public/shopify/webhooks/orders-cancelled'
+      path: '/api/public/shopify/webhooks/orders-cancelled'
+      fullPath: '/api/public/shopify/webhooks/orders-cancelled'
+      preLoaderRoute: typeof ApiPublicShopifyWebhooksOrdersCancelledRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -861,6 +882,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiShopifySyncProductsRoute: ApiShopifySyncProductsRoute,
   ApiShopifySyncStatusRoute: ApiShopifySyncStatusRoute,
   ApiShopifyTestConnectionRoute: ApiShopifyTestConnectionRoute,
+  ApiPublicShopifyWebhooksOrdersCancelledRoute:
+    ApiPublicShopifyWebhooksOrdersCancelledRoute,
   ApiPublicShopifyWebhooksOrdersCreateRoute:
     ApiPublicShopifyWebhooksOrdersCreateRoute,
   ApiPublicShopifyWebhooksOrdersUpdatedRoute:
