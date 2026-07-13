@@ -516,60 +516,64 @@ export async function runRefreshInventoryFromSourceOfTruth(
             rowsUpdated++;
           }
 
-          stoppedReason = "marking_stale_local_inventory_rows";
-          const staleIds = hasInventorySourceColumns
-            ? localRows
-                .filter((row) => {
-                  if (row.shopify_variant_id) return !currentVariantIds.has(row.shopify_variant_id);
-                  if (row.inventory_item_id)
-                    return !currentInventoryItemIds.has(row.inventory_item_id);
-                  return false;
-                })
-                .map((row) => row.id)
-            : [];
+          if (!skipStaleMarking) {
+            stoppedReason = "marking_stale_local_inventory_rows";
+            const staleIds = hasInventorySourceColumns
+              ? localRows
+                  .filter((row) => {
+                    if (row.shopify_variant_id) return !currentVariantIds.has(row.shopify_variant_id);
+                    if (row.inventory_item_id)
+                      return !currentInventoryItemIds.has(row.inventory_item_id);
+                    return false;
+                  })
+                  .map((row) => row.id)
+              : [];
 
-          if (staleIds.length) {
-            const { error } = await supabaseAdmin
-              .from("inventory")
-              .update({
-                is_shopify_stale: true,
-                current_inventory: 0,
-                on_hand_quantity: 0,
-                available_quantity: 0,
-                committed_quantity: 0,
-                unavailable_quantity: 0,
-                incoming_quantity: 0,
-                shopify_synced_at: refreshedAt,
-              } as never)
-              .in("id", staleIds);
-            if (error) throw new Error(`Could not mark stale inventory rows: ${error.message}`);
-            staleRowsMarked = staleIds.length;
+            if (staleIds.length) {
+              const { error } = await supabaseAdmin
+                .from("inventory")
+                .update({
+                  is_shopify_stale: true,
+                  current_inventory: 0,
+                  on_hand_quantity: 0,
+                  available_quantity: 0,
+                  committed_quantity: 0,
+                  unavailable_quantity: 0,
+                  incoming_quantity: 0,
+                  shopify_synced_at: refreshedAt,
+                } as never)
+                .in("id", staleIds);
+              if (error) throw new Error(`Could not mark stale inventory rows: ${error.message}`);
+              staleRowsMarked = staleIds.length;
+            }
           }
 
           stoppedReason = "success";
           finishedAt = new Date().toISOString();
-          await updateShopifySyncSettings(supabaseAdmin, {
-            last_sync_at: finishedAt,
-            last_sync_mode: syncType,
-            last_sync_status: missingOnHandCount > 0 ? "partial" : "success",
-            last_error:
-              missingOnHandCount > 0
-                ? "Some Shopify inventory levels did not include on_hand quantity."
-                : null,
-            updated_at: finishedAt,
-          });
-          await saveShopifySyncRun(supabaseAdmin, {
-            syncType,
-            status: missingOnHandCount > 0 ? "partial" : "success",
-            startedAt,
-            finishedAt,
-            recordsProcessed: variantsProcessed,
-            createdCount: rowsCreated,
-            updatedCount: rowsUpdated + staleRowsMarked,
-            failedCount,
-            pagesFetched: 0,
-            metadata: metadata(),
-          });
+          if (!skipRunLog) {
+            await updateShopifySyncSettings(supabaseAdmin, {
+              last_sync_at: finishedAt,
+              last_sync_mode: syncType,
+              last_sync_status: missingOnHandCount > 0 ? "partial" : "success",
+              last_error:
+                missingOnHandCount > 0
+                  ? "Some Shopify inventory levels did not include on_hand quantity."
+                  : null,
+              updated_at: finishedAt,
+            });
+            await saveShopifySyncRun(supabaseAdmin, {
+              syncType,
+              status: missingOnHandCount > 0 ? "partial" : "success",
+              startedAt,
+              finishedAt,
+              recordsProcessed: variantsProcessed,
+              createdCount: rowsCreated,
+              updatedCount: rowsUpdated + staleRowsMarked,
+              failedCount,
+              pagesFetched: 0,
+              metadata: metadata(),
+            });
+          }
 
           return Response.json({
             ok: true,
@@ -586,35 +590,65 @@ export async function runRefreshInventoryFromSourceOfTruth(
             source: "synced_shopify_products_variants_inventory_levels",
             sku_remaps_used: false,
             shopify_write_calls: false,
+            filter_applied: Boolean(hasFilter),
           });
         } catch (error) {
           finishedAt = new Date().toISOString();
           failedCount = 1;
           const message = error instanceof Error ? error.message : String(error);
-          await updateShopifySyncSettings(supabaseAdmin, {
-            last_sync_at: finishedAt,
-            last_sync_mode: syncType,
-            last_sync_status: "error",
-            last_error: message,
-            updated_at: finishedAt,
-          }).catch(() => undefined);
-          await saveShopifySyncRun(supabaseAdmin, {
-            syncType,
-            status: "error",
-            startedAt,
-            finishedAt,
-            recordsProcessed: variantsProcessed,
-            createdCount: rowsCreated,
-            updatedCount: rowsUpdated + staleRowsMarked,
-            failedCount,
-            pagesFetched: 0,
-            errorMessage: message,
-            metadata: metadata(),
-          }).catch(() => undefined);
+          if (!skipRunLog) {
+            await updateShopifySyncSettings(supabaseAdmin, {
+              last_sync_at: finishedAt,
+              last_sync_mode: syncType,
+              last_sync_status: "error",
+              last_error: message,
+              updated_at: finishedAt,
+            }).catch(() => undefined);
+            await saveShopifySyncRun(supabaseAdmin, {
+              syncType,
+              status: "error",
+              startedAt,
+              finishedAt,
+              recordsProcessed: variantsProcessed,
+              createdCount: rowsCreated,
+              updatedCount: rowsUpdated + staleRowsMarked,
+              failedCount,
+              pagesFetched: 0,
+              errorMessage: message,
+              metadata: metadata(),
+            }).catch(() => undefined);
+          }
 
           return Response.json({ ok: false, error: message }, { status: 500 });
         }
+}
+
+export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-truth")({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const auth = await requireOpsUser(request);
+        if (!auth.ok) return auth.response;
+        const { supabaseAdmin } = auth;
+        let body: { variant_ids?: unknown; inventory_item_ids?: unknown } = {};
+        try {
+          const raw = await request.text();
+          if (raw.trim().length > 0) body = JSON.parse(raw);
+        } catch {
+          body = {};
+        }
+        const filterVariantIds = Array.isArray(body.variant_ids)
+          ? (body.variant_ids as unknown[]).map(String).filter(Boolean)
+          : null;
+        const filterInventoryItemIds = Array.isArray(body.inventory_item_ids)
+          ? (body.inventory_item_ids as unknown[]).map(String).filter(Boolean)
+          : null;
+        return runRefreshInventoryFromSourceOfTruth(supabaseAdmin, {
+          filterVariantIds,
+          filterInventoryItemIds,
+        });
       },
     },
   },
 });
+
