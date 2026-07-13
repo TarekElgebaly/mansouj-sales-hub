@@ -21,7 +21,7 @@ function collectVariantIds(payload: ShopifyOrderPayload): string[] {
   return out;
 }
 
-export const Route = createFileRoute("/api/public/shopify/webhooks/orders-updated")({
+export const Route = createFileRoute("/api/public/shopify/webhooks/orders-cancelled")({
   server: {
     handlers: {
       OPTIONS: async () => new Response(null, { status: 204, headers: CORS }),
@@ -40,19 +40,20 @@ export const Route = createFileRoute("/api/public/shopify/webhooks/orders-update
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
           const shopifyOrderId = payload.id != null ? String(payload.id) : null;
-          if (await isDuplicateWebhookDelivery(supabaseAdmin, webhookId, "orders/updated", shopifyOrderId)) {
+          if (await isDuplicateWebhookDelivery(supabaseAdmin, webhookId, "orders/cancelled", shopifyOrderId)) {
             return new Response(JSON.stringify({ ok: true, duplicate: true }), {
               status: 200,
               headers: { "Content-Type": "application/json", ...CORS },
             });
           }
 
+          // Order-shaped payload; reuse processShopifyOrder (respects field-preservation precedence).
           const result = await processShopifyOrder(payload);
 
           const variantIds = collectVariantIds(payload);
           const enqRes = await enqueueInventoryRefresh(supabaseAdmin, {
             variantIds,
-            sourceEventType: "orders/updated",
+            sourceEventType: "orders/cancelled",
             sourceOrderId: result.shopifyOrderId,
             sourceOrderNumber: payload.order_number ?? payload.name ?? null,
           });
@@ -64,7 +65,7 @@ export const Route = createFileRoute("/api/public/shopify/webhooks/orders-update
           });
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
-          console.error("[shopify webhook orders/updated]", msg);
+          console.error("[shopify webhook orders/cancelled]", msg);
           return new Response(JSON.stringify({ error: msg }), {
             status: 500,
             headers: { "Content-Type": "application/json", ...CORS },

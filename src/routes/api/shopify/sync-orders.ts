@@ -10,6 +10,10 @@ import {
 import { requireRoles } from "@/lib/route-auth.server";
 import { applyPendingIntake, type PendingIntakeSummary } from "@/lib/order-intake.server";
 import { repairMissingOrderLineItems } from "@/lib/repair-missing-order-line-items.server";
+import {
+  enqueueInventoryRefresh,
+  processInventoryRefreshQueue,
+} from "@/lib/inventory-refresh-queue.server";
 
 type SyncMode = "incremental" | "full_backfill" | "date_range";
 type SyncStatus = "success" | "partial" | "error";
@@ -230,6 +234,10 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
           reason: string;
         }> = [];
         const errors: string[] = [];
+        const touchedVariantIds = new Set<string>();
+        let inventoryItemsRefreshed = 0;
+        let inventoryRefreshFailures = 0;
+        let queueProcessingTimeMs = 0;
 
         const runMetadata = (extra: Record<string, unknown> = {}) => ({
           requested_mode: requestedMode ?? null,
@@ -576,6 +584,9 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
                 if (result.processResult.status_changed) statusesUpdated++;
                 if (result.processResult.cancelled_now) cancelledOrdersUpdated++;
                 if (result.processResult.fulfillment_changed) fulfillmentUpdates++;
+                for (const li of (result.order.line_items ?? []) as { variant_id?: unknown }[]) {
+                  if (li?.variant_id != null) touchedVariantIds.add(String(li.variant_id));
+                }
                 for (const example of result.processResult.stale_order_item_examples) {
                   if (staleOrderItemExamples.length >= 10) break;
                   staleOrderItemExamples.push(example);
@@ -656,6 +667,28 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
               );
             }
           }
+
+          // Enqueue and unconditionally flush inventory refresh (self-healing).
+          try {
+            if (touchedVariantIds.size > 0) {
+              await enqueueInventoryRefresh(supabaseAdmin, {
+                variantIds: Array.from(touchedVariantIds),
+                sourceEventType: `sync-orders:${mode}`,
+              });
+            }
+            const flushResult = await processInventoryRefreshQueue(supabaseAdmin, {
+              maxItems: mode === "incremental" ? 200 : 500,
+            });
+            inventoryItemsRefreshed = flushResult.inventory_items_refreshed;
+            inventoryRefreshFailures = flushResult.failures;
+            queueProcessingTimeMs = flushResult.duration_ms;
+          } catch (e) {
+            console.error("[sync-orders] inventory refresh queue failed", e);
+            errors.push(
+              `inventory-refresh-queue: ${e instanceof Error ? e.message : String(e)}`,
+            );
+          }
+
 
           finishedAt = new Date().toISOString();
           if (
@@ -775,6 +808,9 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             missing_order_line_items_checked: missingOrderLineItemsChecked,
             missing_order_line_items_repaired: missingOrderLineItemsRepaired,
             date_range_used: mode === "date_range" && dateFrom && dateTo ? { from: dateFrom, to: dateTo } : null,
+            inventory_items_refreshed: inventoryItemsRefreshed,
+            inventory_refresh_failures: inventoryRefreshFailures,
+            queue_processing_time_ms: queueProcessingTimeMs,
             errors,
             pending_intake: pendingIntake,
           });

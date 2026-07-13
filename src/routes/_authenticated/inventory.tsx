@@ -730,6 +730,13 @@ function InventoryPage() {
         )}
       </div>
 
+      <div className="mb-4 rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+        Inventory quantities update automatically after Shopify order activity. Use
+        &ldquo;Sync Inventory from Shopify&rdquo; only for product changes, new products/variants,
+        cost or price changes, SKU changes, image changes, product status changes, full
+        reconciliation, or manual recovery.
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6 mb-4">
         <SummaryCard label="Total SKUs" value={summary.totalSkus} />
         <SummaryCard label="On Hand Quantity" value={summary.totalOnHand} />

@@ -43,10 +43,15 @@ import { Route as ApiOrdersItemsRouteImport } from './routes/api/orders/items'
 import { Route as ApiOrdersExternalOrderIntakeStatusRouteImport } from './routes/api/orders/external-order-intake-status'
 import { Route as ApiOrdersExternalOrderIntakeRouteImport } from './routes/api/orders/external-order-intake'
 import { Route as ApiOrdersApplyPendingIntakeRouteImport } from './routes/api/orders/apply-pending-intake'
+import { Route as ApiInventoryRefreshFromOrderEventRouteImport } from './routes/api/inventory/refresh-from-order-event'
 import { Route as ApiFinanceUnlockRouteImport } from './routes/api/finance/unlock'
 import { Route as ApiAuthEnsureSignupProfileRouteImport } from './routes/api/auth/ensure-signup-profile'
+import { Route as ApiPublicInventoryFlushRefreshQueueRouteImport } from './routes/api/public/inventory/flush-refresh-queue'
 import { Route as ApiPublicShopifyWebhooksOrdersUpdatedRouteImport } from './routes/api/public/shopify/webhooks/orders-updated'
 import { Route as ApiPublicShopifyWebhooksOrdersCreateRouteImport } from './routes/api/public/shopify/webhooks/orders-create'
+import { Route as ApiPublicShopifyWebhooksOrdersCancelledRouteImport } from './routes/api/public/shopify/webhooks/orders-cancelled'
+import { Route as ApiPublicShopifyWebhooksFulfillmentsUpdateRouteImport } from './routes/api/public/shopify/webhooks/fulfillments-update'
+import { Route as ApiPublicShopifyWebhooksFulfillmentsCreateRouteImport } from './routes/api/public/shopify/webhooks/fulfillments-create'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -233,6 +238,12 @@ const ApiOrdersApplyPendingIntakeRoute =
     path: '/api/orders/apply-pending-intake',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiInventoryRefreshFromOrderEventRoute =
+  ApiInventoryRefreshFromOrderEventRouteImport.update({
+    id: '/api/inventory/refresh-from-order-event',
+    path: '/api/inventory/refresh-from-order-event',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiFinanceUnlockRoute = ApiFinanceUnlockRouteImport.update({
   id: '/api/finance/unlock',
   path: '/api/finance/unlock',
@@ -242,6 +253,12 @@ const ApiAuthEnsureSignupProfileRoute =
   ApiAuthEnsureSignupProfileRouteImport.update({
     id: '/api/auth/ensure-signup-profile',
     path: '/api/auth/ensure-signup-profile',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicInventoryFlushRefreshQueueRoute =
+  ApiPublicInventoryFlushRefreshQueueRouteImport.update({
+    id: '/api/public/inventory/flush-refresh-queue',
+    path: '/api/public/inventory/flush-refresh-queue',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicShopifyWebhooksOrdersUpdatedRoute =
@@ -254,6 +271,24 @@ const ApiPublicShopifyWebhooksOrdersCreateRoute =
   ApiPublicShopifyWebhooksOrdersCreateRouteImport.update({
     id: '/api/public/shopify/webhooks/orders-create',
     path: '/api/public/shopify/webhooks/orders-create',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicShopifyWebhooksOrdersCancelledRoute =
+  ApiPublicShopifyWebhooksOrdersCancelledRouteImport.update({
+    id: '/api/public/shopify/webhooks/orders-cancelled',
+    path: '/api/public/shopify/webhooks/orders-cancelled',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicShopifyWebhooksFulfillmentsUpdateRoute =
+  ApiPublicShopifyWebhooksFulfillmentsUpdateRouteImport.update({
+    id: '/api/public/shopify/webhooks/fulfillments-update',
+    path: '/api/public/shopify/webhooks/fulfillments-update',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicShopifyWebhooksFulfillmentsCreateRoute =
+  ApiPublicShopifyWebhooksFulfillmentsCreateRouteImport.update({
+    id: '/api/public/shopify/webhooks/fulfillments-create',
+    path: '/api/public/shopify/webhooks/fulfillments-create',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -271,6 +306,7 @@ export interface FileRoutesByFullPath {
   '/shopify': typeof AuthenticatedShopifyRoute
   '/api/auth/ensure-signup-profile': typeof ApiAuthEnsureSignupProfileRoute
   '/api/finance/unlock': typeof ApiFinanceUnlockRoute
+  '/api/inventory/refresh-from-order-event': typeof ApiInventoryRefreshFromOrderEventRoute
   '/api/orders/apply-pending-intake': typeof ApiOrdersApplyPendingIntakeRoute
   '/api/orders/external-order-intake': typeof ApiOrdersExternalOrderIntakeRoute
   '/api/orders/external-order-intake-status': typeof ApiOrdersExternalOrderIntakeStatusRoute
@@ -293,6 +329,10 @@ export interface FileRoutesByFullPath {
   '/api/shopify/sync-products': typeof ApiShopifySyncProductsRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
   '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
+  '/api/public/inventory/flush-refresh-queue': typeof ApiPublicInventoryFlushRefreshQueueRoute
+  '/api/public/shopify/webhooks/fulfillments-create': typeof ApiPublicShopifyWebhooksFulfillmentsCreateRoute
+  '/api/public/shopify/webhooks/fulfillments-update': typeof ApiPublicShopifyWebhooksFulfillmentsUpdateRoute
+  '/api/public/shopify/webhooks/orders-cancelled': typeof ApiPublicShopifyWebhooksOrdersCancelledRoute
   '/api/public/shopify/webhooks/orders-create': typeof ApiPublicShopifyWebhooksOrdersCreateRoute
   '/api/public/shopify/webhooks/orders-updated': typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
 }
@@ -310,6 +350,7 @@ export interface FileRoutesByTo {
   '/shopify': typeof AuthenticatedShopifyRoute
   '/api/auth/ensure-signup-profile': typeof ApiAuthEnsureSignupProfileRoute
   '/api/finance/unlock': typeof ApiFinanceUnlockRoute
+  '/api/inventory/refresh-from-order-event': typeof ApiInventoryRefreshFromOrderEventRoute
   '/api/orders/apply-pending-intake': typeof ApiOrdersApplyPendingIntakeRoute
   '/api/orders/external-order-intake': typeof ApiOrdersExternalOrderIntakeRoute
   '/api/orders/external-order-intake-status': typeof ApiOrdersExternalOrderIntakeStatusRoute
@@ -332,6 +373,10 @@ export interface FileRoutesByTo {
   '/api/shopify/sync-products': typeof ApiShopifySyncProductsRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
   '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
+  '/api/public/inventory/flush-refresh-queue': typeof ApiPublicInventoryFlushRefreshQueueRoute
+  '/api/public/shopify/webhooks/fulfillments-create': typeof ApiPublicShopifyWebhooksFulfillmentsCreateRoute
+  '/api/public/shopify/webhooks/fulfillments-update': typeof ApiPublicShopifyWebhooksFulfillmentsUpdateRoute
+  '/api/public/shopify/webhooks/orders-cancelled': typeof ApiPublicShopifyWebhooksOrdersCancelledRoute
   '/api/public/shopify/webhooks/orders-create': typeof ApiPublicShopifyWebhooksOrdersCreateRoute
   '/api/public/shopify/webhooks/orders-updated': typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
 }
@@ -351,6 +396,7 @@ export interface FileRoutesById {
   '/_authenticated/shopify': typeof AuthenticatedShopifyRoute
   '/api/auth/ensure-signup-profile': typeof ApiAuthEnsureSignupProfileRoute
   '/api/finance/unlock': typeof ApiFinanceUnlockRoute
+  '/api/inventory/refresh-from-order-event': typeof ApiInventoryRefreshFromOrderEventRoute
   '/api/orders/apply-pending-intake': typeof ApiOrdersApplyPendingIntakeRoute
   '/api/orders/external-order-intake': typeof ApiOrdersExternalOrderIntakeRoute
   '/api/orders/external-order-intake-status': typeof ApiOrdersExternalOrderIntakeStatusRoute
@@ -373,6 +419,10 @@ export interface FileRoutesById {
   '/api/shopify/sync-products': typeof ApiShopifySyncProductsRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
   '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
+  '/api/public/inventory/flush-refresh-queue': typeof ApiPublicInventoryFlushRefreshQueueRoute
+  '/api/public/shopify/webhooks/fulfillments-create': typeof ApiPublicShopifyWebhooksFulfillmentsCreateRoute
+  '/api/public/shopify/webhooks/fulfillments-update': typeof ApiPublicShopifyWebhooksFulfillmentsUpdateRoute
+  '/api/public/shopify/webhooks/orders-cancelled': typeof ApiPublicShopifyWebhooksOrdersCancelledRoute
   '/api/public/shopify/webhooks/orders-create': typeof ApiPublicShopifyWebhooksOrdersCreateRoute
   '/api/public/shopify/webhooks/orders-updated': typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
 }
@@ -392,6 +442,7 @@ export interface FileRouteTypes {
     | '/shopify'
     | '/api/auth/ensure-signup-profile'
     | '/api/finance/unlock'
+    | '/api/inventory/refresh-from-order-event'
     | '/api/orders/apply-pending-intake'
     | '/api/orders/external-order-intake'
     | '/api/orders/external-order-intake-status'
@@ -414,6 +465,10 @@ export interface FileRouteTypes {
     | '/api/shopify/sync-products'
     | '/api/shopify/sync-status'
     | '/api/shopify/test-connection'
+    | '/api/public/inventory/flush-refresh-queue'
+    | '/api/public/shopify/webhooks/fulfillments-create'
+    | '/api/public/shopify/webhooks/fulfillments-update'
+    | '/api/public/shopify/webhooks/orders-cancelled'
     | '/api/public/shopify/webhooks/orders-create'
     | '/api/public/shopify/webhooks/orders-updated'
   fileRoutesByTo: FileRoutesByTo
@@ -431,6 +486,7 @@ export interface FileRouteTypes {
     | '/shopify'
     | '/api/auth/ensure-signup-profile'
     | '/api/finance/unlock'
+    | '/api/inventory/refresh-from-order-event'
     | '/api/orders/apply-pending-intake'
     | '/api/orders/external-order-intake'
     | '/api/orders/external-order-intake-status'
@@ -453,6 +509,10 @@ export interface FileRouteTypes {
     | '/api/shopify/sync-products'
     | '/api/shopify/sync-status'
     | '/api/shopify/test-connection'
+    | '/api/public/inventory/flush-refresh-queue'
+    | '/api/public/shopify/webhooks/fulfillments-create'
+    | '/api/public/shopify/webhooks/fulfillments-update'
+    | '/api/public/shopify/webhooks/orders-cancelled'
     | '/api/public/shopify/webhooks/orders-create'
     | '/api/public/shopify/webhooks/orders-updated'
   id:
@@ -471,6 +531,7 @@ export interface FileRouteTypes {
     | '/_authenticated/shopify'
     | '/api/auth/ensure-signup-profile'
     | '/api/finance/unlock'
+    | '/api/inventory/refresh-from-order-event'
     | '/api/orders/apply-pending-intake'
     | '/api/orders/external-order-intake'
     | '/api/orders/external-order-intake-status'
@@ -493,6 +554,10 @@ export interface FileRouteTypes {
     | '/api/shopify/sync-products'
     | '/api/shopify/sync-status'
     | '/api/shopify/test-connection'
+    | '/api/public/inventory/flush-refresh-queue'
+    | '/api/public/shopify/webhooks/fulfillments-create'
+    | '/api/public/shopify/webhooks/fulfillments-update'
+    | '/api/public/shopify/webhooks/orders-cancelled'
     | '/api/public/shopify/webhooks/orders-create'
     | '/api/public/shopify/webhooks/orders-updated'
   fileRoutesById: FileRoutesById
@@ -503,6 +568,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ApiAuthEnsureSignupProfileRoute: typeof ApiAuthEnsureSignupProfileRoute
   ApiFinanceUnlockRoute: typeof ApiFinanceUnlockRoute
+  ApiInventoryRefreshFromOrderEventRoute: typeof ApiInventoryRefreshFromOrderEventRoute
   ApiOrdersApplyPendingIntakeRoute: typeof ApiOrdersApplyPendingIntakeRoute
   ApiOrdersExternalOrderIntakeRoute: typeof ApiOrdersExternalOrderIntakeRoute
   ApiOrdersExternalOrderIntakeStatusRoute: typeof ApiOrdersExternalOrderIntakeStatusRoute
@@ -525,6 +591,10 @@ export interface RootRouteChildren {
   ApiShopifySyncProductsRoute: typeof ApiShopifySyncProductsRoute
   ApiShopifySyncStatusRoute: typeof ApiShopifySyncStatusRoute
   ApiShopifyTestConnectionRoute: typeof ApiShopifyTestConnectionRoute
+  ApiPublicInventoryFlushRefreshQueueRoute: typeof ApiPublicInventoryFlushRefreshQueueRoute
+  ApiPublicShopifyWebhooksFulfillmentsCreateRoute: typeof ApiPublicShopifyWebhooksFulfillmentsCreateRoute
+  ApiPublicShopifyWebhooksFulfillmentsUpdateRoute: typeof ApiPublicShopifyWebhooksFulfillmentsUpdateRoute
+  ApiPublicShopifyWebhooksOrdersCancelledRoute: typeof ApiPublicShopifyWebhooksOrdersCancelledRoute
   ApiPublicShopifyWebhooksOrdersCreateRoute: typeof ApiPublicShopifyWebhooksOrdersCreateRoute
   ApiPublicShopifyWebhooksOrdersUpdatedRoute: typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
 }
@@ -769,6 +839,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOrdersApplyPendingIntakeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/inventory/refresh-from-order-event': {
+      id: '/api/inventory/refresh-from-order-event'
+      path: '/api/inventory/refresh-from-order-event'
+      fullPath: '/api/inventory/refresh-from-order-event'
+      preLoaderRoute: typeof ApiInventoryRefreshFromOrderEventRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/finance/unlock': {
       id: '/api/finance/unlock'
       path: '/api/finance/unlock'
@@ -783,6 +860,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthEnsureSignupProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/inventory/flush-refresh-queue': {
+      id: '/api/public/inventory/flush-refresh-queue'
+      path: '/api/public/inventory/flush-refresh-queue'
+      fullPath: '/api/public/inventory/flush-refresh-queue'
+      preLoaderRoute: typeof ApiPublicInventoryFlushRefreshQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/shopify/webhooks/orders-updated': {
       id: '/api/public/shopify/webhooks/orders-updated'
       path: '/api/public/shopify/webhooks/orders-updated'
@@ -795,6 +879,27 @@ declare module '@tanstack/react-router' {
       path: '/api/public/shopify/webhooks/orders-create'
       fullPath: '/api/public/shopify/webhooks/orders-create'
       preLoaderRoute: typeof ApiPublicShopifyWebhooksOrdersCreateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/shopify/webhooks/orders-cancelled': {
+      id: '/api/public/shopify/webhooks/orders-cancelled'
+      path: '/api/public/shopify/webhooks/orders-cancelled'
+      fullPath: '/api/public/shopify/webhooks/orders-cancelled'
+      preLoaderRoute: typeof ApiPublicShopifyWebhooksOrdersCancelledRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/shopify/webhooks/fulfillments-update': {
+      id: '/api/public/shopify/webhooks/fulfillments-update'
+      path: '/api/public/shopify/webhooks/fulfillments-update'
+      fullPath: '/api/public/shopify/webhooks/fulfillments-update'
+      preLoaderRoute: typeof ApiPublicShopifyWebhooksFulfillmentsUpdateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/shopify/webhooks/fulfillments-create': {
+      id: '/api/public/shopify/webhooks/fulfillments-create'
+      path: '/api/public/shopify/webhooks/fulfillments-create'
+      fullPath: '/api/public/shopify/webhooks/fulfillments-create'
+      preLoaderRoute: typeof ApiPublicShopifyWebhooksFulfillmentsCreateRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -833,6 +938,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ApiAuthEnsureSignupProfileRoute: ApiAuthEnsureSignupProfileRoute,
   ApiFinanceUnlockRoute: ApiFinanceUnlockRoute,
+  ApiInventoryRefreshFromOrderEventRoute:
+    ApiInventoryRefreshFromOrderEventRoute,
   ApiOrdersApplyPendingIntakeRoute: ApiOrdersApplyPendingIntakeRoute,
   ApiOrdersExternalOrderIntakeRoute: ApiOrdersExternalOrderIntakeRoute,
   ApiOrdersExternalOrderIntakeStatusRoute:
@@ -861,6 +968,14 @@ const rootRouteChildren: RootRouteChildren = {
   ApiShopifySyncProductsRoute: ApiShopifySyncProductsRoute,
   ApiShopifySyncStatusRoute: ApiShopifySyncStatusRoute,
   ApiShopifyTestConnectionRoute: ApiShopifyTestConnectionRoute,
+  ApiPublicInventoryFlushRefreshQueueRoute:
+    ApiPublicInventoryFlushRefreshQueueRoute,
+  ApiPublicShopifyWebhooksFulfillmentsCreateRoute:
+    ApiPublicShopifyWebhooksFulfillmentsCreateRoute,
+  ApiPublicShopifyWebhooksFulfillmentsUpdateRoute:
+    ApiPublicShopifyWebhooksFulfillmentsUpdateRoute,
+  ApiPublicShopifyWebhooksOrdersCancelledRoute:
+    ApiPublicShopifyWebhooksOrdersCancelledRoute,
   ApiPublicShopifyWebhooksOrdersCreateRoute:
     ApiPublicShopifyWebhooksOrdersCreateRoute,
   ApiPublicShopifyWebhooksOrdersUpdatedRoute:

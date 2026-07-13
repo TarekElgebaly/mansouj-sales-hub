@@ -1,11 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { processShopifyOrder, verifyShopifyHmac, type ShopifyOrderPayload } from "@/lib/shopify-webhook.server";
+import {
+  enqueueInventoryRefresh,
+  isDuplicateWebhookDelivery,
+  scheduleOpportunisticFlush,
+} from "@/lib/inventory-refresh-queue.server";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, X-Shopify-Hmac-Sha256, X-Shopify-Topic, X-Shopify-Shop-Domain",
+  "Access-Control-Allow-Headers": "Content-Type, X-Shopify-Hmac-Sha256, X-Shopify-Topic, X-Shopify-Shop-Domain, X-Shopify-Webhook-Id",
 };
+
+function collectVariantIds(payload: ShopifyOrderPayload): string[] {
+  const items = (payload as unknown as { line_items?: { variant_id?: unknown }[] }).line_items ?? [];
+  const out: string[] = [];
+  for (const li of items) {
+    if (li?.variant_id != null) out.push(String(li.variant_id));
+  }
+  return out;
+}
 
 export const Route = createFileRoute("/api/public/shopify/webhooks/orders-create")({
   server: {
@@ -22,15 +36,35 @@ export const Route = createFileRoute("/api/public/shopify/webhooks/orders-create
         }
         try {
           const payload = JSON.parse(raw) as ShopifyOrderPayload;
-          const result = await processShopifyOrder(payload);
+          const webhookId = request.headers.get("x-shopify-webhook-id");
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+          const shopifyOrderId = payload.id != null ? String(payload.id) : null;
+          if (await isDuplicateWebhookDelivery(supabaseAdmin, webhookId, "orders/create", shopifyOrderId)) {
+            return new Response(JSON.stringify({ ok: true, duplicate: true }), {
+              status: 200,
+              headers: { "Content-Type": "application/json", ...CORS },
+            });
+          }
+
+          const result = await processShopifyOrder(payload);
           await supabaseAdmin.from("migration_logs").insert({
             source: "shopify_webhook",
             kind: "orders/create",
             status: "ok",
             message: `order ${result.shopifyOrderId} upserted`,
           } as never).then(() => null, () => null);
-          return new Response(JSON.stringify({ ok: true, ...result }), {
+
+          const variantIds = collectVariantIds(payload);
+          const enqRes = await enqueueInventoryRefresh(supabaseAdmin, {
+            variantIds,
+            sourceEventType: "orders/create",
+            sourceOrderId: result.shopifyOrderId,
+            sourceOrderNumber: payload.order_number ?? payload.name ?? null,
+          });
+          scheduleOpportunisticFlush(supabaseAdmin);
+
+          return new Response(JSON.stringify({ ok: true, ...result, inventory_queue: enqRes }), {
             status: 200,
             headers: { "Content-Type": "application/json", ...CORS },
           });

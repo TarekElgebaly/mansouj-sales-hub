@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { processShopifyOrder, verifyShopifyHmac, type ShopifyOrderPayload } from "@/lib/shopify-webhook.server";
+import { verifyShopifyHmac } from "@/lib/shopify-webhook.server";
 import {
   enqueueInventoryRefresh,
   isDuplicateWebhookDelivery,
@@ -12,8 +12,18 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type, X-Shopify-Hmac-Sha256, X-Shopify-Topic, X-Shopify-Shop-Domain, X-Shopify-Webhook-Id",
 };
 
-function collectVariantIds(payload: ShopifyOrderPayload): string[] {
-  const items = (payload as unknown as { line_items?: { variant_id?: unknown }[] }).line_items ?? [];
+type FulfillmentPayload = {
+  id?: number | string | null;
+  order_id?: number | string | null;
+  status?: string | null;
+  tracking_number?: string | null;
+  tracking_url?: string | null;
+  tracking_company?: string | null;
+  line_items?: { variant_id?: unknown }[] | null;
+};
+
+function collectVariantIds(payload: FulfillmentPayload): string[] {
+  const items = payload.line_items ?? [];
   const out: string[] = [];
   for (const li of items) {
     if (li?.variant_id != null) out.push(String(li.variant_id));
@@ -21,7 +31,7 @@ function collectVariantIds(payload: ShopifyOrderPayload): string[] {
   return out;
 }
 
-export const Route = createFileRoute("/api/public/shopify/webhooks/orders-updated")({
+export const Route = createFileRoute("/api/public/shopify/webhooks/fulfillments-create")({
   server: {
     handlers: {
       OPTIONS: async () => new Response(null, { status: 204, headers: CORS }),
@@ -35,36 +45,33 @@ export const Route = createFileRoute("/api/public/shopify/webhooks/orders-update
           });
         }
         try {
-          const payload = JSON.parse(raw) as ShopifyOrderPayload;
+          const payload = JSON.parse(raw) as FulfillmentPayload;
           const webhookId = request.headers.get("x-shopify-webhook-id");
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-          const shopifyOrderId = payload.id != null ? String(payload.id) : null;
-          if (await isDuplicateWebhookDelivery(supabaseAdmin, webhookId, "orders/updated", shopifyOrderId)) {
+          const shopifyOrderId = payload.order_id != null ? String(payload.order_id) : null;
+          if (await isDuplicateWebhookDelivery(supabaseAdmin, webhookId, "fulfillments/create", shopifyOrderId)) {
             return new Response(JSON.stringify({ ok: true, duplicate: true }), {
               status: 200,
               headers: { "Content-Type": "application/json", ...CORS },
             });
           }
 
-          const result = await processShopifyOrder(payload);
-
           const variantIds = collectVariantIds(payload);
           const enqRes = await enqueueInventoryRefresh(supabaseAdmin, {
             variantIds,
-            sourceEventType: "orders/updated",
-            sourceOrderId: result.shopifyOrderId,
-            sourceOrderNumber: payload.order_number ?? payload.name ?? null,
+            sourceEventType: "fulfillments/create",
+            sourceOrderId: shopifyOrderId,
           });
           scheduleOpportunisticFlush(supabaseAdmin);
 
-          return new Response(JSON.stringify({ ok: true, ...result, inventory_queue: enqRes }), {
+          return new Response(JSON.stringify({ ok: true, inventory_queue: enqRes }), {
             status: 200,
             headers: { "Content-Type": "application/json", ...CORS },
           });
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
-          console.error("[shopify webhook orders/updated]", msg);
+          console.error("[shopify webhook fulfillments/create]", msg);
           return new Response(JSON.stringify({ error: msg }), {
             status: 500,
             headers: { "Content-Type": "application/json", ...CORS },
