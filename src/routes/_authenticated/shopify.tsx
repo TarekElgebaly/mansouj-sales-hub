@@ -382,16 +382,53 @@ function ShopifyPage() {
     updated: number;
     failed: number;
     order_items_processed: number;
-    order_items_with_cost: number;
-    order_items_missing_cost: number;
-    order_items_cost_assigned_by_variant_id: number;
-    order_items_cost_assigned_by_sku: number;
-    order_items_cost_assigned_by_sku_normalized: number;
-    order_items_cost_assigned_by_remap: number;
-    order_items_cost_preserved: number;
-    affected_orders_recalculated: number;
-    total_items_cost_after_recalc: number;
+    order_items_inserted: number;
+    order_items_updated: number;
+    statuses_updated: number;
+    missing_order_line_items_repaired: number;
+    customer_fields_preserved: number;
+    customer_fields_repaired_from_external_intake: number;
+    pending_intake_rows_applied: number;
+    still_unknown_count: number | null;
+    shopify_orders_found: number;
+    date_range_used: { from: string; to: string } | null;
+    finished_at: string;
   } | null>(null);
+
+  type RangeMode = "today" | "yesterday" | "last7" | "last30" | "month" | "custom";
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+  const toIso = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d; };
+  const nowDate = new Date();
+  const [rangeMode, setRangeMode] = useState<RangeMode>("last7");
+  const [rangeMonth, setRangeMonth] = useState(String(nowDate.getMonth()));
+  const [rangeYear, setRangeYear] = useState(String(nowDate.getFullYear()));
+  const [customFrom, setCustomFrom] = useState(toIso(daysAgo(6)));
+  const [customTo, setCustomTo] = useState(toIso(nowDate));
+  const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const yearsList: number[] = (() => {
+    const y = new Date().getFullYear();
+    const out: number[] = [];
+    for (let i = y - 5; i <= y + 1; i++) out.push(i);
+    return out;
+  })();
+  const resolvedRange: { from: string; to: string } | null = (() => {
+    if (rangeMode === "today") { const t = toIso(new Date()); return { from: t, to: t }; }
+    if (rangeMode === "yesterday") { const t = toIso(daysAgo(1)); return { from: t, to: t }; }
+    if (rangeMode === "last7") return { from: toIso(daysAgo(6)), to: toIso(new Date()) };
+    if (rangeMode === "last30") return { from: toIso(daysAgo(29)), to: toIso(new Date()) };
+    if (rangeMode === "month") {
+      const y = Number(rangeYear); const m = Number(rangeMonth);
+      if (!Number.isFinite(y) || !Number.isFinite(m)) return null;
+      const first = new Date(y, m, 1); const last = new Date(y, m + 1, 0);
+      return { from: toIso(first), to: toIso(last) };
+    }
+    if (rangeMode === "custom") {
+      if (!customFrom || !customTo) return null;
+      return customFrom <= customTo ? { from: customFrom, to: customTo } : { from: customTo, to: customFrom };
+    }
+    return null;
+  })();
 
   const [dailyInventoryRunning, setDailyInventoryRunning] = useState(false);
   const [dailyInventoryResult, setDailyInventoryResult] =
@@ -457,7 +494,8 @@ function ShopifyPage() {
     }
   };
 
-  const syncOrders = async (mode: "incremental" | "full_backfill") => {
+
+  const syncOrders = async (mode: "incremental" | "full_backfill" | "date_range") => {
     if (
       mode === "full_backfill" &&
       !window.confirm("This will import all historical Shopify orders and may take time. Continue?")
@@ -465,7 +503,13 @@ function ShopifyPage() {
       return;
     }
 
-    const setBusy = mode === "full_backfill" ? setSyncingBackfill : setSyncingRecent;
+    let body: Record<string, unknown> = { mode };
+    if (mode === "date_range") {
+      if (!resolvedRange) { toast.error("Please pick a valid date range."); return; }
+      body = { mode: "date_range", date_from: resolvedRange.from, date_to: resolvedRange.to };
+    }
+
+    const setBusy = mode === "incremental" ? setSyncingRecent : setSyncingBackfill;
     setBusy(true);
     try {
       const res = await fetch("/api/shopify/sync-orders", {
@@ -474,7 +518,7 @@ function ShopifyPage() {
           ...(await authHeader()),
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ mode }),
+        body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Shopify orders sync failed.");
@@ -485,19 +529,20 @@ function ShopifyPage() {
         updated: json.updated ?? 0,
         failed: json.failed ?? 0,
         order_items_processed: json.order_items_processed ?? 0,
-        order_items_with_cost: json.order_items_with_cost ?? 0,
-        order_items_missing_cost: json.order_items_missing_cost ?? 0,
-        order_items_cost_assigned_by_variant_id: json.order_items_cost_assigned_by_variant_id ?? 0,
-        order_items_cost_assigned_by_sku: json.order_items_cost_assigned_by_sku ?? 0,
-        order_items_cost_assigned_by_sku_normalized:
-          json.order_items_cost_assigned_by_sku_normalized ?? 0,
-        order_items_cost_assigned_by_remap: json.order_items_cost_assigned_by_remap ?? 0,
-        order_items_cost_preserved: json.order_items_cost_preserved ?? 0,
-        affected_orders_recalculated: json.affected_orders_recalculated ?? 0,
-        total_items_cost_after_recalc: Number(json.total_items_cost_after_recalc ?? 0),
+        order_items_inserted: json.order_items_inserted ?? 0,
+        order_items_updated: json.order_items_updated ?? 0,
+        statuses_updated: json.statuses_updated ?? 0,
+        missing_order_line_items_repaired: json.missing_order_line_items_repaired ?? 0,
+        customer_fields_preserved: json.customer_fields_preserved ?? 0,
+        customer_fields_repaired_from_external_intake: json.customer_fields_repaired_from_external_intake ?? 0,
+        pending_intake_rows_applied: json.pending_intake_rows_applied ?? 0,
+        still_unknown_count: json.still_unknown_count ?? null,
+        shopify_orders_found: json.shopify_orders_found ?? 0,
+        date_range_used: json.date_range_used ?? null,
+        finished_at: new Date().toISOString(),
       });
 
-      const message = `${mode === "full_backfill" ? "Full backfill" : "Recent orders sync"} finished: ${json.created ?? 0} new, ${json.updated ?? 0} updated · items with cost ${json.order_items_with_cost ?? 0}/${json.order_items_processed ?? 0}.`;
+      const message = `Sync finished: ${json.created ?? 0} new, ${json.updated ?? 0} updated.`;
       if (json.completion_warning) toast.warning(json.completion_warning);
       else if (json.status === "partial") toast.warning(message);
       else toast.success(message);
@@ -1349,287 +1394,127 @@ function ShopifyPage() {
                   Orders
                 </CardTitle>
                 <CardDescription>
-                  Recent sync uses the cursor and a small overlap. Full backfill imports all
-                  historical Shopify orders.
+                  Import or refresh all Shopify orders within a specific date range.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    onClick={() => syncOrders("incremental")}
-                    disabled={
-                      syncingRecent ||
-                      syncingBackfill ||
-                      resettingOrders ||
-                      resetSyncing2026 ||
-                      repairingMissingLineItems
-                    }
-                  >
-                    <RefreshCw className={`mr-2 h-4 w-4 ${syncingRecent ? "animate-spin" : ""}`} />
-                    Sync Recent Orders
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => syncOrders("full_backfill")}
-                    disabled={
-                      syncingRecent ||
-                      syncingBackfill ||
-                      resettingOrders ||
-                      resetSyncing2026 ||
-                      repairingMissingLineItems
-                    }
-                  >
-                    <RefreshCw
-                      className={`mr-2 h-4 w-4 ${syncingBackfill ? "animate-spin" : ""}`}
-                    />
-                    Full Backfill Orders
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={repairMissingOrderLineItems}
-                    disabled={
-                      syncingRecent ||
-                      syncingBackfill ||
-                      resettingOrders ||
-                      resetSyncing2026 ||
-                      repairingMissingLineItems
-                    }
-                  >
-                    <RefreshCw
-                      className={`mr-2 h-4 w-4 ${repairingMissingLineItems ? "animate-spin" : ""}`}
-                    />
-                    Repair Missing Order Line Items
-                  </Button>
-                  {canAdmin && (
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <label className="text-xs font-medium">Range</label>
+                    <select
+                      className="block h-9 w-40 rounded-md border bg-background px-2 text-sm"
+                      value={rangeMode}
+                      onChange={(e) => setRangeMode(e.target.value as RangeMode)}
+                    >
+                      <option value="today">Today</option>
+                      <option value="yesterday">Yesterday</option>
+                      <option value="last7">Last 7 days</option>
+                      <option value="last30">Last 30 days</option>
+                      <option value="month">Single month</option>
+                      <option value="custom">Custom range</option>
+                    </select>
+                  </div>
+                  {rangeMode === "month" && (
                     <>
-                      <Button
-                        variant="destructive"
-                        onClick={resetAndSync2026Orders}
-                        disabled={
-                          syncingRecent ||
-                          syncingBackfill ||
-                          resettingOrders ||
-                          resetSyncing2026 ||
-                          repairingMissingLineItems
-                        }
-                      >
-                        <RefreshCw
-                          className={`mr-2 h-4 w-4 ${resetSyncing2026 ? "animate-spin" : ""}`}
-                        />
-                        Reset & Sync 2026 Orders
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        onClick={resetAllLocalOrders}
-                        disabled={
-                          syncingRecent ||
-                          syncingBackfill ||
-                          resettingOrders ||
-                          resetSyncing2026 ||
-                          repairingMissingLineItems
-                        }
-                      >
-                        <Trash2
-                          className={`mr-2 h-4 w-4 ${resettingOrders ? "animate-pulse" : ""}`}
-                        />
-                        Reset All Local Orders
-                      </Button>
+                      <div>
+                        <label className="text-xs font-medium">Month</label>
+                        <select
+                          className="block h-9 w-32 rounded-md border bg-background px-2 text-sm"
+                          value={rangeMonth}
+                          onChange={(e) => setRangeMonth(e.target.value)}
+                        >
+                          {MONTH_LABELS.map((m, i) => (
+                            <option key={m} value={String(i)}>{m}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium">Year</label>
+                        <select
+                          className="block h-9 w-24 rounded-md border bg-background px-2 text-sm"
+                          value={rangeYear}
+                          onChange={(e) => setRangeYear(e.target.value)}
+                        >
+                          {yearsList.map((y) => (
+                            <option key={y} value={String(y)}>{y}</option>
+                          ))}
+                        </select>
+                      </div>
                     </>
                   )}
+                  {rangeMode === "custom" && (
+                    <>
+                      <div>
+                        <label className="text-xs font-medium">From</label>
+                        <input type="date" className="block h-9 w-40 rounded-md border bg-background px-2 text-sm" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium">To</label>
+                        <input type="date" className="block h-9 w-40 rounded-md border bg-background px-2 text-sm" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
+                      </div>
+                    </>
+                  )}
+                  <Button
+                    onClick={() => syncOrders("date_range")}
+                    disabled={syncingRecent || syncingBackfill || resettingOrders || !resolvedRange}
+                  >
+                    <RefreshCw className={`mr-2 h-4 w-4 ${syncingBackfill ? "animate-spin" : ""}`} />
+                    Full Backfill Orders
+                  </Button>
+                  {resolvedRange && (
+                    <span className="text-xs text-muted-foreground pb-2">
+                      {resolvedRange.from} → {resolvedRange.to}
+                    </span>
+                  )}
+                  {canAdmin && (
+                    <Button
+                      variant="destructive"
+                      onClick={resetAllLocalOrders}
+                      disabled={syncingRecent || syncingBackfill || resettingOrders}
+                    >
+                      <Trash2 className={`mr-2 h-4 w-4 ${resettingOrders ? "animate-pulse" : ""}`} />
+                      Reset All Local Orders
+                    </Button>
+                  )}
                 </div>
+
                 {ordersSyncResult && (
-                  <div className="space-y-3">
-                    {ordersSyncResult.failed === 0 &&
-                      ordersSyncResult.affected_orders_recalculated > 0 && (
-                        <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-700 dark:text-emerald-300">
-                          Recent orders synced and costs recalculated successfully.
-                        </div>
-                      )}
-                    {ordersSyncResult.order_items_missing_cost > 0 && (
-                      <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-300">
-                        Some order items are missing cost. Run Sync Inventory &amp; Cost and
-                        Backfill Order Item Costs if needed.
-                      </div>
-                    )}
-                    <div className="grid gap-3 rounded-md border bg-muted/30 p-4 sm:grid-cols-2 lg:grid-cols-4">
-                      <StatusItem label="Mode" value={ordersSyncResult.mode} />
-                      <StatusItem label="Created" value={String(ordersSyncResult.created)} />
-                      <StatusItem label="Updated" value={String(ordersSyncResult.updated)} />
-                      <StatusItem label="Failed" value={String(ordersSyncResult.failed)} />
-                      <StatusItem
-                        label="Items processed"
-                        value={String(ordersSyncResult.order_items_processed)}
-                      />
-                      <StatusItem
-                        label="Items with cost"
-                        value={String(ordersSyncResult.order_items_with_cost)}
-                      />
-                      <StatusItem
-                        label="Items missing cost"
-                        value={String(ordersSyncResult.order_items_missing_cost)}
-                      />
-                      <StatusItem
-                        label="Orders recalculated"
-                        value={String(ordersSyncResult.affected_orders_recalculated)}
-                      />
-                      <StatusItem
-                        label="Cost via variant id"
-                        value={String(ordersSyncResult.order_items_cost_assigned_by_variant_id)}
-                      />
-                      <StatusItem
-                        label="Cost via SKU"
-                        value={String(ordersSyncResult.order_items_cost_assigned_by_sku)}
-                      />
-                      <StatusItem
-                        label="Cost via SKU normalized"
-                        value={String(ordersSyncResult.order_items_cost_assigned_by_sku_normalized)}
-                      />
-                      <StatusItem
-                        label="Cost via remap"
-                        value={String(ordersSyncResult.order_items_cost_assigned_by_remap)}
-                      />
-                      <StatusItem
-                        label="Cost preserved"
-                        value={String(ordersSyncResult.order_items_cost_preserved)}
-                      />
-                      <StatusItem
-                        label="Total items cost after"
-                        value={ordersSyncResult.total_items_cost_after_recalc.toLocaleString()}
-                      />
+                  <div className="rounded-md border bg-muted/30 p-4 space-y-2">
+                    <div className="text-sm font-medium">
+                      Last sync result
+                      <span className="ml-2 text-xs text-muted-foreground">({ordersSyncResult.mode})</span>
                     </div>
-                  </div>
-                )}
-                {repairMissingLineItemsResult && (
-                  <div className="space-y-3 rounded-md border bg-muted/30 p-4">
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                      <StatusItem
-                        label="Orders checked"
-                        value={String(repairMissingLineItemsResult.orders_checked)}
-                      />
-                      <StatusItem
-                        label="Missing item orders"
-                        value={String(repairMissingLineItemsResult.missing_orders_found)}
-                      />
-                      <StatusItem
-                        label="Orders repaired"
-                        value={String(repairMissingLineItemsResult.repaired_orders)}
-                      />
-                      <StatusItem
-                        label="Line items inserted"
-                        value={String(repairMissingLineItemsResult.line_items_inserted)}
-                      />
-                      <StatusItem
-                        label="Items with cost"
-                        value={String(repairMissingLineItemsResult.line_items_with_cost)}
-                      />
-                      <StatusItem
-                        label="Items missing cost"
-                        value={String(repairMissingLineItemsResult.line_items_missing_cost)}
-                      />
-                      <StatusItem
-                        label="Schema fallbacks"
-                        value={String(repairMissingLineItemsResult.schema_fallbacks_used)}
-                      />
-                      <StatusItem
-                        label="Failed"
-                        value={String(repairMissingLineItemsResult.failed_count)}
-                      />
+                      <StatusItem label="Date range used" value={ordersSyncResult.date_range_used ? `${ordersSyncResult.date_range_used.from} → ${ordersSyncResult.date_range_used.to}` : "—"} />
+                      <StatusItem label="Shopify orders found" value={String(ordersSyncResult.shopify_orders_found)} />
+                      <StatusItem label="Orders created" value={String(ordersSyncResult.created)} />
+                      <StatusItem label="Orders updated" value={String(ordersSyncResult.updated)} />
+                      <StatusItem label="Items processed" value={String(ordersSyncResult.order_items_processed)} />
+                      <StatusItem label="Missing order line items repaired" value={String(ordersSyncResult.missing_order_line_items_repaired)} />
+                      <StatusItem label="Order items created" value={String(ordersSyncResult.order_items_inserted)} />
+                      <StatusItem label="Order items updated" value={String(ordersSyncResult.order_items_updated)} />
+                      <StatusItem label="Statuses updated" value={String(ordersSyncResult.statuses_updated)} />
+                      <StatusItem label="Customer fields preserved" value={String(ordersSyncResult.customer_fields_preserved)} />
+                      <StatusItem label="Customer fields repaired from external intake" value={String(ordersSyncResult.customer_fields_repaired_from_external_intake)} />
+                      <StatusItem label="Pending intake rows applied" value={String(ordersSyncResult.pending_intake_rows_applied)} />
+                      <StatusItem label="Still unknown count" value={ordersSyncResult.still_unknown_count == null ? "—" : String(ordersSyncResult.still_unknown_count)} />
+                      <StatusItem label="Failed count" value={String(ordersSyncResult.failed)} />
+                      <StatusItem label="Last synced" value={new Date(ordersSyncResult.finished_at).toLocaleString()} />
                     </div>
-                    {repairMissingLineItemsResult.repaired.length > 0 && (
-                      <div className="text-sm text-muted-foreground">
-                        Repaired:{" "}
-                        {repairMissingLineItemsResult.repaired
-                          .slice(0, 8)
-                          .map((row) => `${row.order_number ?? "order"} (${row.line_items_inserted})`)
-                          .join(", ")}
-                      </div>
-                    )}
-                    {repairMissingLineItemsResult.errors.length > 0 && (
-                      <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                        {repairMissingLineItemsResult.errors.slice(0, 3).join(" | ")}
-                      </div>
-                    )}
-                  </div>
-                )}
-                {canAdmin && (
-                  <p className="text-sm text-muted-foreground">
-                    Reset & Sync 2026 Orders deletes all local orders from Mansouj Sales Hub, then
-                    imports Shopify orders created in 2026 only. Shopify will not be changed.
-                  </p>
-                )}
-                {resetSync2026Result && (
-                  <div className="grid gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <StatusItem
-                      label="Previous local orders"
-                      value={String(resetSync2026Result.current_local_orders_count)}
-                    />
-                    <StatusItem
-                      label="Previous local items"
-                      value={String(resetSync2026Result.current_local_order_items_count)}
-                    />
-                    <StatusItem
-                      label="Deleted orders"
-                      value={String(resetSync2026Result.deleted_orders_count)}
-                    />
-                    <StatusItem
-                      label="Deleted items"
-                      value={String(resetSync2026Result.deleted_order_items_count)}
-                    />
-                    <StatusItem
-                      label="Deleted notes"
-                      value={String(resetSync2026Result.deleted_order_notes_count)}
-                    />
-                    <StatusItem
-                      label="Deleted activity"
-                      value={String(resetSync2026Result.deleted_order_activity_count)}
-                    />
-                    <StatusItem
-                      label="Records processed"
-                      value={String(resetSync2026Result.records_processed)}
-                    />
-                    <StatusItem label="Created" value={String(resetSync2026Result.created_count)} />
-                    <StatusItem label="Updated" value={String(resetSync2026Result.updated_count)} />
-                    <StatusItem label="Failed" value={String(resetSync2026Result.failed_count)} />
-                    <StatusItem
-                      label="Pages fetched"
-                      value={String(resetSync2026Result.pages_fetched)}
-                    />
-                    <StatusItem
-                      label="First imported"
-                      value={resetSync2026Result.first_order_number_imported ?? "None"}
-                    />
-                    <StatusItem
-                      label="Last imported"
-                      value={resetSync2026Result.last_order_number_imported ?? "None"}
-                    />
                   </div>
                 )}
                 {resetResult && (
                   <div className="grid gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4 sm:grid-cols-2 lg:grid-cols-5">
-                    <StatusItem
-                      label="Deleted orders"
-                      value={String(resetResult.deleted_orders_count)}
-                    />
-                    <StatusItem
-                      label="Deleted items"
-                      value={String(resetResult.deleted_order_items_count)}
-                    />
-                    <StatusItem
-                      label="Deleted notes"
-                      value={String(resetResult.deleted_order_notes_count)}
-                    />
-                    <StatusItem
-                      label="Deleted activity"
-                      value={String(resetResult.deleted_order_activity_count)}
-                    />
-                    <StatusItem
-                      label="Cursor reset"
-                      value={resetResult.cursor_reset ? "true" : "false"}
-                    />
+                    <StatusItem label="Deleted orders" value={String(resetResult.deleted_orders_count)} />
+                    <StatusItem label="Deleted items" value={String(resetResult.deleted_order_items_count)} />
+                    <StatusItem label="Deleted notes" value={String(resetResult.deleted_order_notes_count)} />
+                    <StatusItem label="Deleted activity" value={String(resetResult.deleted_order_activity_count)} />
+                    <StatusItem label="Cursor reset" value={resetResult.cursor_reset ? "true" : "false"} />
                   </div>
                 )}
               </CardContent>
             </Card>
+
 
             <details className="rounded-md border bg-muted/20 p-3">
               <summary className="cursor-pointer text-base font-medium">Advanced Tools</summary>
