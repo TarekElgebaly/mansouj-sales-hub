@@ -808,6 +808,9 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             missing_order_line_items_checked: missingOrderLineItemsChecked,
             missing_order_line_items_repaired: missingOrderLineItemsRepaired,
             date_range_used: mode === "date_range" && dateFrom && dateTo ? { from: dateFrom, to: dateTo } : null,
+            inventory_items_refreshed: inventoryItemsRefreshed,
+            inventory_refresh_failures: inventoryRefreshFailures,
+            queue_processing_time_ms: queueProcessingTimeMs,
             errors,
             pending_intake: pendingIntake,
           });
