@@ -46,6 +46,7 @@ import { Route as ApiOrdersApplyPendingIntakeRouteImport } from './routes/api/or
 import { Route as ApiInventoryRefreshFromOrderEventRouteImport } from './routes/api/inventory/refresh-from-order-event'
 import { Route as ApiFinanceUnlockRouteImport } from './routes/api/finance/unlock'
 import { Route as ApiAuthEnsureSignupProfileRouteImport } from './routes/api/auth/ensure-signup-profile'
+import { Route as ApiPublicInventoryFlushRefreshQueueRouteImport } from './routes/api/public/inventory/flush-refresh-queue'
 import { Route as ApiPublicShopifyWebhooksOrdersUpdatedRouteImport } from './routes/api/public/shopify/webhooks/orders-updated'
 import { Route as ApiPublicShopifyWebhooksOrdersCreateRouteImport } from './routes/api/public/shopify/webhooks/orders-create'
 import { Route as ApiPublicShopifyWebhooksOrdersCancelledRouteImport } from './routes/api/public/shopify/webhooks/orders-cancelled'
@@ -254,6 +255,12 @@ const ApiAuthEnsureSignupProfileRoute =
     path: '/api/auth/ensure-signup-profile',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicInventoryFlushRefreshQueueRoute =
+  ApiPublicInventoryFlushRefreshQueueRouteImport.update({
+    id: '/api/public/inventory/flush-refresh-queue',
+    path: '/api/public/inventory/flush-refresh-queue',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicShopifyWebhooksOrdersUpdatedRoute =
   ApiPublicShopifyWebhooksOrdersUpdatedRouteImport.update({
     id: '/api/public/shopify/webhooks/orders-updated',
@@ -322,6 +329,7 @@ export interface FileRoutesByFullPath {
   '/api/shopify/sync-products': typeof ApiShopifySyncProductsRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
   '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
+  '/api/public/inventory/flush-refresh-queue': typeof ApiPublicInventoryFlushRefreshQueueRoute
   '/api/public/shopify/webhooks/fulfillments-create': typeof ApiPublicShopifyWebhooksFulfillmentsCreateRoute
   '/api/public/shopify/webhooks/fulfillments-update': typeof ApiPublicShopifyWebhooksFulfillmentsUpdateRoute
   '/api/public/shopify/webhooks/orders-cancelled': typeof ApiPublicShopifyWebhooksOrdersCancelledRoute
@@ -365,6 +373,7 @@ export interface FileRoutesByTo {
   '/api/shopify/sync-products': typeof ApiShopifySyncProductsRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
   '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
+  '/api/public/inventory/flush-refresh-queue': typeof ApiPublicInventoryFlushRefreshQueueRoute
   '/api/public/shopify/webhooks/fulfillments-create': typeof ApiPublicShopifyWebhooksFulfillmentsCreateRoute
   '/api/public/shopify/webhooks/fulfillments-update': typeof ApiPublicShopifyWebhooksFulfillmentsUpdateRoute
   '/api/public/shopify/webhooks/orders-cancelled': typeof ApiPublicShopifyWebhooksOrdersCancelledRoute
@@ -410,6 +419,7 @@ export interface FileRoutesById {
   '/api/shopify/sync-products': typeof ApiShopifySyncProductsRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
   '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
+  '/api/public/inventory/flush-refresh-queue': typeof ApiPublicInventoryFlushRefreshQueueRoute
   '/api/public/shopify/webhooks/fulfillments-create': typeof ApiPublicShopifyWebhooksFulfillmentsCreateRoute
   '/api/public/shopify/webhooks/fulfillments-update': typeof ApiPublicShopifyWebhooksFulfillmentsUpdateRoute
   '/api/public/shopify/webhooks/orders-cancelled': typeof ApiPublicShopifyWebhooksOrdersCancelledRoute
@@ -455,6 +465,7 @@ export interface FileRouteTypes {
     | '/api/shopify/sync-products'
     | '/api/shopify/sync-status'
     | '/api/shopify/test-connection'
+    | '/api/public/inventory/flush-refresh-queue'
     | '/api/public/shopify/webhooks/fulfillments-create'
     | '/api/public/shopify/webhooks/fulfillments-update'
     | '/api/public/shopify/webhooks/orders-cancelled'
@@ -498,6 +509,7 @@ export interface FileRouteTypes {
     | '/api/shopify/sync-products'
     | '/api/shopify/sync-status'
     | '/api/shopify/test-connection'
+    | '/api/public/inventory/flush-refresh-queue'
     | '/api/public/shopify/webhooks/fulfillments-create'
     | '/api/public/shopify/webhooks/fulfillments-update'
     | '/api/public/shopify/webhooks/orders-cancelled'
@@ -542,6 +554,7 @@ export interface FileRouteTypes {
     | '/api/shopify/sync-products'
     | '/api/shopify/sync-status'
     | '/api/shopify/test-connection'
+    | '/api/public/inventory/flush-refresh-queue'
     | '/api/public/shopify/webhooks/fulfillments-create'
     | '/api/public/shopify/webhooks/fulfillments-update'
     | '/api/public/shopify/webhooks/orders-cancelled'
@@ -578,6 +591,7 @@ export interface RootRouteChildren {
   ApiShopifySyncProductsRoute: typeof ApiShopifySyncProductsRoute
   ApiShopifySyncStatusRoute: typeof ApiShopifySyncStatusRoute
   ApiShopifyTestConnectionRoute: typeof ApiShopifyTestConnectionRoute
+  ApiPublicInventoryFlushRefreshQueueRoute: typeof ApiPublicInventoryFlushRefreshQueueRoute
   ApiPublicShopifyWebhooksFulfillmentsCreateRoute: typeof ApiPublicShopifyWebhooksFulfillmentsCreateRoute
   ApiPublicShopifyWebhooksFulfillmentsUpdateRoute: typeof ApiPublicShopifyWebhooksFulfillmentsUpdateRoute
   ApiPublicShopifyWebhooksOrdersCancelledRoute: typeof ApiPublicShopifyWebhooksOrdersCancelledRoute
@@ -846,6 +860,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthEnsureSignupProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/inventory/flush-refresh-queue': {
+      id: '/api/public/inventory/flush-refresh-queue'
+      path: '/api/public/inventory/flush-refresh-queue'
+      fullPath: '/api/public/inventory/flush-refresh-queue'
+      preLoaderRoute: typeof ApiPublicInventoryFlushRefreshQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/shopify/webhooks/orders-updated': {
       id: '/api/public/shopify/webhooks/orders-updated'
       path: '/api/public/shopify/webhooks/orders-updated'
@@ -947,6 +968,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiShopifySyncProductsRoute: ApiShopifySyncProductsRoute,
   ApiShopifySyncStatusRoute: ApiShopifySyncStatusRoute,
   ApiShopifyTestConnectionRoute: ApiShopifyTestConnectionRoute,
+  ApiPublicInventoryFlushRefreshQueueRoute:
+    ApiPublicInventoryFlushRefreshQueueRoute,
   ApiPublicShopifyWebhooksFulfillmentsCreateRoute:
     ApiPublicShopifyWebhooksFulfillmentsCreateRoute,
   ApiPublicShopifyWebhooksFulfillmentsUpdateRoute:
