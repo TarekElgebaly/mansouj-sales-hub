@@ -1508,16 +1508,6 @@ function ShopifyPage() {
                       {resolvedRange.from} → {resolvedRange.to}
                     </span>
                   )}
-                  {canAdmin && (
-                    <Button
-                      variant="destructive"
-                      onClick={resetAllLocalOrders}
-                      disabled={syncingRecent || syncingBackfill || resettingOrders}
-                    >
-                      <Trash2 className={`mr-2 h-4 w-4 ${resettingOrders ? "animate-pulse" : ""}`} />
-                      Reset All Local Orders
-                    </Button>
-                  )}
                 </div>
 
                 {ordersSyncResult && (
