@@ -314,18 +314,25 @@ export async function runRefreshInventoryFromSourceOfTruth(
           });
 
           stoppedReason = "loading_synced_shopify_tables";
+          let variantsQuery = supabaseAdmin
+            .from("shopify_variants")
+            .select(
+              "id,shopify_variant_id,shopify_product_id,sku,barcode,title,option1,option2,option3,price,inventory_item_id,raw,shopify_products(title,product_type,status,image,raw)",
+            );
+          if (filterInventoryItemIds && filterInventoryItemIds.length > 0) {
+            variantsQuery = variantsQuery.in("inventory_item_id", filterInventoryItemIds);
+          } else if (filterVariantIds && filterVariantIds.length > 0) {
+            variantsQuery = variantsQuery.in("shopify_variant_id", filterVariantIds);
+          }
           const [variantsResult, itemsResult, levelsResult, localResult] = await Promise.all([
-            supabaseAdmin
-              .from("shopify_variants")
-              .select(
-                "id,shopify_variant_id,shopify_product_id,sku,barcode,title,option1,option2,option3,price,inventory_item_id,raw,shopify_products(title,product_type,status,image,raw)",
-              ),
+            variantsQuery,
             supabaseAdmin
               .from("shopify_inventory_items")
               .select("inventory_item_id,unit_cost_amount"),
             loadInventoryLevels(supabaseAdmin),
             loadLocalInventory(supabaseAdmin),
           ]);
+
 
           if (variantsResult.error) {
             throw new Error(`Could not load shopify_variants: ${variantsResult.error.message}`);
