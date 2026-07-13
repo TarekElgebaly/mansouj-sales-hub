@@ -242,6 +242,93 @@ export type Database = {
         }
         Relationships: []
       }
+      inventory_event_log: {
+        Row: {
+          created_at: string
+          event_time: string
+          event_type: string
+          id: string
+          inventory_item_ids: Json
+          last_error: string | null
+          order_number: string | null
+          processing_duration_ms: number | null
+          retry_count: number
+          shopify_order_id: string | null
+          success: boolean
+        }
+        Insert: {
+          created_at?: string
+          event_time?: string
+          event_type: string
+          id?: string
+          inventory_item_ids?: Json
+          last_error?: string | null
+          order_number?: string | null
+          processing_duration_ms?: number | null
+          retry_count?: number
+          shopify_order_id?: string | null
+          success?: boolean
+        }
+        Update: {
+          created_at?: string
+          event_time?: string
+          event_type?: string
+          id?: string
+          inventory_item_ids?: Json
+          last_error?: string | null
+          order_number?: string | null
+          processing_duration_ms?: number | null
+          retry_count?: number
+          shopify_order_id?: string | null
+          success?: boolean
+        }
+        Relationships: []
+      }
+      inventory_refresh_queue: {
+        Row: {
+          attempt_count: number
+          created_at: string
+          enqueued_at: string
+          id: string
+          inventory_item_id: string
+          last_error: string | null
+          processed_at: string | null
+          source_event_type: string
+          source_order_id: string | null
+          source_order_number: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string
+          enqueued_at?: string
+          id?: string
+          inventory_item_id: string
+          last_error?: string | null
+          processed_at?: string | null
+          source_event_type: string
+          source_order_id?: string | null
+          source_order_number?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string
+          enqueued_at?: string
+          id?: string
+          inventory_item_id?: string
+          last_error?: string | null
+          processed_at?: string | null
+          source_event_type?: string
+          source_order_id?: string | null
+          source_order_number?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       migration_logs: {
         Row: {
           created_at: string
@@ -1024,6 +1111,27 @@ export type Database = {
             referencedColumns: ["shopify_product_id"]
           },
         ]
+      }
+      shopify_webhook_deliveries: {
+        Row: {
+          received_at: string
+          shopify_order_id: string | null
+          topic: string | null
+          webhook_id: string
+        }
+        Insert: {
+          received_at?: string
+          shopify_order_id?: string | null
+          topic?: string | null
+          webhook_id: string
+        }
+        Update: {
+          received_at?: string
+          shopify_order_id?: string | null
+          topic?: string | null
+          webhook_id?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
