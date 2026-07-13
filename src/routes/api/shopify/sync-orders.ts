@@ -584,6 +584,9 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
                 if (result.processResult.status_changed) statusesUpdated++;
                 if (result.processResult.cancelled_now) cancelledOrdersUpdated++;
                 if (result.processResult.fulfillment_changed) fulfillmentUpdates++;
+                for (const li of (result.order.line_items ?? []) as { variant_id?: unknown }[]) {
+                  if (li?.variant_id != null) touchedVariantIds.add(String(li.variant_id));
+                }
                 for (const example of result.processResult.stale_order_item_examples) {
                   if (staleOrderItemExamples.length >= 10) break;
                   staleOrderItemExamples.push(example);
