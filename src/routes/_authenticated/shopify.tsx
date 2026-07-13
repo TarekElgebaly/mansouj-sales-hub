@@ -382,16 +382,53 @@ function ShopifyPage() {
     updated: number;
     failed: number;
     order_items_processed: number;
-    order_items_with_cost: number;
-    order_items_missing_cost: number;
-    order_items_cost_assigned_by_variant_id: number;
-    order_items_cost_assigned_by_sku: number;
-    order_items_cost_assigned_by_sku_normalized: number;
-    order_items_cost_assigned_by_remap: number;
-    order_items_cost_preserved: number;
-    affected_orders_recalculated: number;
-    total_items_cost_after_recalc: number;
+    order_items_inserted: number;
+    order_items_updated: number;
+    statuses_updated: number;
+    missing_order_line_items_repaired: number;
+    customer_fields_preserved: number;
+    customer_fields_repaired_from_external_intake: number;
+    pending_intake_rows_applied: number;
+    still_unknown_count: number | null;
+    shopify_orders_found: number;
+    date_range_used: { from: string; to: string } | null;
+    finished_at: string;
   } | null>(null);
+
+  type RangeMode = "today" | "yesterday" | "last7" | "last30" | "month" | "custom";
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+  const toIso = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d; };
+  const nowDate = new Date();
+  const [rangeMode, setRangeMode] = useState<RangeMode>("last7");
+  const [rangeMonth, setRangeMonth] = useState(String(nowDate.getMonth()));
+  const [rangeYear, setRangeYear] = useState(String(nowDate.getFullYear()));
+  const [customFrom, setCustomFrom] = useState(toIso(daysAgo(6)));
+  const [customTo, setCustomTo] = useState(toIso(nowDate));
+  const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const yearsList: number[] = (() => {
+    const y = new Date().getFullYear();
+    const out: number[] = [];
+    for (let i = y - 5; i <= y + 1; i++) out.push(i);
+    return out;
+  })();
+  const resolvedRange: { from: string; to: string } | null = (() => {
+    if (rangeMode === "today") { const t = toIso(new Date()); return { from: t, to: t }; }
+    if (rangeMode === "yesterday") { const t = toIso(daysAgo(1)); return { from: t, to: t }; }
+    if (rangeMode === "last7") return { from: toIso(daysAgo(6)), to: toIso(new Date()) };
+    if (rangeMode === "last30") return { from: toIso(daysAgo(29)), to: toIso(new Date()) };
+    if (rangeMode === "month") {
+      const y = Number(rangeYear); const m = Number(rangeMonth);
+      if (!Number.isFinite(y) || !Number.isFinite(m)) return null;
+      const first = new Date(y, m, 1); const last = new Date(y, m + 1, 0);
+      return { from: toIso(first), to: toIso(last) };
+    }
+    if (rangeMode === "custom") {
+      if (!customFrom || !customTo) return null;
+      return customFrom <= customTo ? { from: customFrom, to: customTo } : { from: customTo, to: customFrom };
+    }
+    return null;
+  })();
 
   const [dailyInventoryRunning, setDailyInventoryRunning] = useState(false);
   const [dailyInventoryResult, setDailyInventoryResult] =
