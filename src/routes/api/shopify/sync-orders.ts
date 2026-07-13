@@ -772,6 +772,8 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             cancelled_orders_updated: cancelledOrdersUpdated,
             fulfillment_updates: fulfillmentUpdates,
             shopify_orders_found: shopifyOrdersFound,
+            missing_order_line_items_checked: missingOrderLineItemsChecked,
+            missing_order_line_items_repaired: missingOrderLineItemsRepaired,
             date_range_used: mode === "date_range" && dateFrom && dateTo ? { from: dateFrom, to: dateTo } : null,
             errors,
             pending_intake: pendingIntake,
