@@ -10,6 +10,10 @@ import {
 import { requireRoles } from "@/lib/route-auth.server";
 import { applyPendingIntake, type PendingIntakeSummary } from "@/lib/order-intake.server";
 import { repairMissingOrderLineItems } from "@/lib/repair-missing-order-line-items.server";
+import {
+  enqueueInventoryRefresh,
+  processInventoryRefreshQueue,
+} from "@/lib/inventory-refresh-queue.server";
 
 type SyncMode = "incremental" | "full_backfill" | "date_range";
 type SyncStatus = "success" | "partial" | "error";
