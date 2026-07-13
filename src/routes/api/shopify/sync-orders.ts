@@ -620,6 +620,43 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             pageUrl = nextUrl;
           }
 
+          // Fold "repair missing order line items" into incremental + date_range paths.
+          if (mode === "incremental" || mode === "date_range") {
+            try {
+              const repairOpts: {
+                limit?: number;
+                createdAtMin?: string;
+                createdAtMax?: string;
+              } =
+                mode === "date_range" && dateFrom && dateTo
+                  ? {
+                      createdAtMin: `${dateFrom}T00:00:00Z`,
+                      createdAtMax: `${dateTo}T23:59:59Z`,
+                    }
+                  : { limit: 200 };
+              const repairResult = await repairMissingOrderLineItems(
+                supabaseAdmin,
+                repairOpts,
+              );
+              missingOrderLineItemsChecked = repairResult.orders_checked;
+              missingOrderLineItemsRepaired = repairResult.repaired_orders;
+              orderItemsInserted += repairResult.line_items_inserted;
+              orderItemsProcessed += repairResult.line_items_inserted;
+              orderItemsWithCost += repairResult.line_items_with_cost;
+              orderItemsMissingCost += repairResult.line_items_missing_cost;
+              if (repairResult.failed_count > 0) {
+                for (const err of repairResult.errors.slice(0, 3)) {
+                  errors.push(`repair-missing-line-items: ${err}`);
+                }
+              }
+            } catch (e) {
+              console.error("[sync-orders] repairMissingOrderLineItems failed", e);
+              errors.push(
+                `repair-missing-line-items: ${e instanceof Error ? e.message : String(e)}`,
+              );
+            }
+          }
+
           finishedAt = new Date().toISOString();
           if (
             mode === "full_backfill" &&
