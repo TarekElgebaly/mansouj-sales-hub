@@ -1550,156 +1550,182 @@ function ShopifyPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">New Brand Setup / Maintenance Tools</CardTitle>
+                <CardTitle className="text-lg">Setup &amp; Maintenance Tools</CardTitle>
                 <CardDescription>
-                  Use these tools only when onboarding a new brand, importing historical data,
-                  fixing old product links, or repairing missing costs. These tools are not for
-                  daily use.
+                  Use these tools only when onboarding a new brand, importing historical Shopify
+                  data, repairing historical product links, or fixing historical costs. These tools
+                  are NOT part of the normal daily workflow.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="whitespace-pre-line rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
                   {`For a new brand:
-1. First use "Sync Inventory from Shopify" from Daily Use to import products, variants, inventory, costs, prices, images, and statuses.
-2. Then use "Full Backfill Orders" to import historical orders by date range.
-3. Use the tools below only if historical order items have missing costs, changed SKUs, or need repair.`}
+1. First use "Sync Inventory from Shopify" from the Daily Workflow section to import: products, variants, inventory, prices, costs, images, product status.
+2. Then use "Full Backfill Orders" to import historical Shopify orders.
+3. Only if historical products don't match correctly, use the maintenance tools below.`}
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <SkuRemapSection />
-                  <AutoRemapSection />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  SKU Remaps — Use when old order item SKUs do not match current Shopify SKUs.
-                  Helpful when onboarding a brand with historical orders and changed SKUs. Local
-                  only. Does not modify Shopify.
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Auto-create exact remaps — Suggests exact SKU remaps based on product/variant
-                  matching. Always preview before creating. Local only. Does not modify Shopify.
-                </p>
-
-                <div className="border-t pt-4 space-y-3">
-                  <div>
-                    <h4 className="text-sm font-medium">Unmatched SKU Report</h4>
+                <details className="rounded-md border p-3 group">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    SKU Mapping
+                  </summary>
+                  <div className="mt-3 space-y-4">
                     <p className="text-xs text-muted-foreground">
-                      Read-only report showing order item SKUs that do not currently match Shopify
-                      products/variants. Use this before creating SKU Remaps for a new brand or
-                      historical data repair.
+                      Use these tools only when historical order SKUs no longer match current
+                      Shopify products or variants.
                     </p>
-                  </div>
-                  <UnmatchedSkuReportSection />
-                </div>
+                    <SkuRemapSection />
 
-                <div className="border-t pt-4 space-y-3">
-                  <div>
-                    <h4 className="text-sm font-medium">Backfill Order Item Costs</h4>
-                    <p className="text-xs text-muted-foreground">
-                      Use during new brand setup to fill missing order item costs using synced
-                      Shopify product costs. Does not modify Shopify.
-                    </p>
-                  </div>
-                  <Button
-                    onClick={backfillOrderItemCosts}
-                    disabled={!canOps || backfillingCosts}
-                    variant="secondary"
-                  >
-                    <RefreshCw
-                      className={`mr-2 h-4 w-4 ${backfillingCosts ? "animate-spin" : ""}`}
-                    />
-                    Backfill Order Item Costs
-                  </Button>
-                  {backfillError && (
-                    <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                      {backfillError}
+                    <div className="rounded-md border p-3 space-y-2">
+                      <div>
+                        <h4 className="text-sm font-medium">Preview Unmatched SKUs</h4>
+                        <p className="text-xs text-muted-foreground">
+                          Read-only report showing order item SKUs that do not currently match
+                          Shopify products/variants. Use this before creating SKU Remaps for a new
+                          brand or historical data repair.
+                        </p>
+                      </div>
+                      <UnmatchedSkuReportSection />
                     </div>
-                  )}
-                  {backfillResult && (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      <StatusItem label="Items checked" value={String(backfillResult.order_items_checked)} />
-                      <StatusItem label="Items updated" value={String(backfillResult.order_items_updated)} />
-                      <StatusItem label="Already had cost" value={String(backfillResult.order_items_already_had_cost)} />
-                      <StatusItem label="Missing variant match" value={String(backfillResult.order_items_missing_variant_match)} />
-                      <StatusItem label="Missing inventory cost" value={String(backfillResult.order_items_missing_inventory_cost)} />
-                      <StatusItem label="Remaining unmatched" value={String(backfillResult.remaining_unmatched)} />
-                      <StatusItem label="Failed" value={String(backfillResult.failed_count)} />
-                    </div>
-                  )}
-                </div>
 
-                <div className="border-t pt-4 space-y-3">
-                  <div>
-                    <h4 className="text-sm font-medium">Force Update Order Item Costs</h4>
-                    <p className="text-xs text-muted-foreground">
-                      Use only when you intentionally want existing order item costs to be replaced
-                      with current Shopify costs. This may change historical profit calculations.
-                      Does not modify Shopify.
-                    </p>
+                    <div className="rounded-md border p-3 space-y-2">
+                      <h4 className="text-sm font-medium">Auto-create Exact Remaps</h4>
+                      <AutoRemapSection />
+                    </div>
                   </div>
-                  <Button
-                    onClick={forceUpdateOrderItemCosts}
-                    disabled={!canOps || forcingCostUpdate}
-                    variant="secondary"
-                  >
-                    <RefreshCw
-                      className={`mr-2 h-4 w-4 ${forcingCostUpdate ? "animate-spin" : ""}`}
-                    />
-                    Force Update Order Item Costs
-                  </Button>
-                  {forceCostError && (
-                    <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                      {forceCostError}
-                    </div>
-                  )}
-                  {forceCostResult && (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      <StatusItem label="Items checked" value={String(forceCostResult.items_checked)} />
-                      <StatusItem label="Items updated" value={String(forceCostResult.items_updated)} />
-                      <StatusItem label="Orders recalculated" value={String(forceCostResult.orders_recalculated)} />
-                      <StatusItem label="Missing cost" value={String(forceCostResult.missing_cost)} />
-                      <StatusItem label="Failed" value={String(forceCostResult.failed_count)} />
-                    </div>
-                  )}
-                </div>
+                </details>
 
-                <div className="border-t pt-4 space-y-3">
-                  <div>
-                    <h4 className="text-sm font-medium">Recalculate Order &amp; Packaging Costs</h4>
+                <details className="rounded-md border p-3">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    Historical Cost Repair
+                  </summary>
+                  <div className="mt-3 space-y-4">
                     <p className="text-xs text-muted-foreground">
-                      Use only for one-time repair if order cost or packaging cost needs
-                      recalculation. Not for daily use. Does not modify Shopify.
+                      Repairs historical order item costs after importing an old brand or repairing
+                      SKU mappings.
                     </p>
+
+                    <div className="space-y-3">
+                      <div>
+                        <h4 className="text-sm font-medium">Backfill Order Item Costs</h4>
+                        <p className="text-xs text-muted-foreground">
+                          Fills missing historical order costs using synced Shopify product costs.
+                          Safe for imported brands.
+                        </p>
+                      </div>
+                      <Button
+                        onClick={backfillOrderItemCosts}
+                        disabled={!canOps || backfillingCosts}
+                        variant="secondary"
+                      >
+                        <RefreshCw
+                          className={`mr-2 h-4 w-4 ${backfillingCosts ? "animate-spin" : ""}`}
+                        />
+                        Backfill Order Item Costs
+                      </Button>
+                      {backfillError && (
+                        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                          {backfillError}
+                        </div>
+                      )}
+                      {backfillResult && (
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          <StatusItem label="Items checked" value={String(backfillResult.order_items_checked)} />
+                          <StatusItem label="Items updated" value={String(backfillResult.order_items_updated)} />
+                          <StatusItem label="Already had cost" value={String(backfillResult.order_items_already_had_cost)} />
+                          <StatusItem label="Missing variant match" value={String(backfillResult.order_items_missing_variant_match)} />
+                          <StatusItem label="Missing inventory cost" value={String(backfillResult.order_items_missing_inventory_cost)} />
+                          <StatusItem label="Remaining unmatched" value={String(backfillResult.remaining_unmatched)} />
+                          <StatusItem label="Failed" value={String(backfillResult.failed_count)} />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t pt-4 space-y-3">
+                      <div>
+                        <h4 className="text-sm font-medium">Force Update Order Item Costs</h4>
+                        <p className="text-xs text-muted-foreground">
+                          Replaces existing historical order costs with current Shopify product
+                          costs.
+                        </p>
+                        <p className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+                          Warning: This may change historical profit calculations.
+                        </p>
+                      </div>
+                      <Button
+                        onClick={forceUpdateOrderItemCosts}
+                        disabled={!canOps || forcingCostUpdate}
+                        variant="secondary"
+                      >
+                        <RefreshCw
+                          className={`mr-2 h-4 w-4 ${forcingCostUpdate ? "animate-spin" : ""}`}
+                        />
+                        Force Update Order Item Costs
+                      </Button>
+                      {forceCostError && (
+                        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                          {forceCostError}
+                        </div>
+                      )}
+                      {forceCostResult && (
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          <StatusItem label="Items checked" value={String(forceCostResult.items_checked)} />
+                          <StatusItem label="Items updated" value={String(forceCostResult.items_updated)} />
+                          <StatusItem label="Orders recalculated" value={String(forceCostResult.orders_recalculated)} />
+                          <StatusItem label="Missing cost" value={String(forceCostResult.missing_cost)} />
+                          <StatusItem label="Failed" value={String(forceCostResult.failed_count)} />
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <Button
-                    onClick={() => {
-                      if (window.confirm(RECALCULATE_FINANCE_COSTS_CONFIRMATION_MESSAGE)) {
-                        void recalculateOrderCosts();
-                      }
-                    }}
-                    disabled={!canOps || recalcingOrderCosts}
-                    variant="secondary"
-                  >
-                    <RefreshCw
-                      className={`mr-2 h-4 w-4 ${recalcingOrderCosts ? "animate-spin" : ""}`}
-                    />
-                    Recalculate Order &amp; Packaging Costs
-                  </Button>
-                  {recalcError && (
-                    <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                      {recalcError}
+                </details>
+
+                <details className="rounded-md border p-3">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    Order Maintenance
+                  </summary>
+                  <div className="mt-3 space-y-3">
+                    <p className="text-xs text-muted-foreground">
+                      One-time repair tools for recalculating historical order values.
+                    </p>
+                    <div>
+                      <h4 className="text-sm font-medium">Recalculate Order &amp; Packaging Costs</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Recalculates order costs and packaging costs after historical repairs. Not
+                        intended for daily use.
+                      </p>
                     </div>
-                  )}
-                  {recalcResult && (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      <StatusItem label="Orders checked" value={String(recalcResult.orders_checked)} />
-                      <StatusItem label="Orders updated" value={String(recalcResult.orders_updated)} />
-                      <StatusItem label="Items checked" value={String(recalcResult.order_items_checked)} />
-                      <StatusItem label="Packaging updated" value={String(recalcResult.packaging_costs_updated)} />
-                      <StatusItem label="Manual packaging preserved" value={String(recalcResult.packaging_costs_preserved_manual)} />
-                      <StatusItem label="Failed" value={String(recalcResult.failed_count)} />
-                    </div>
-                  )}
-                </div>
+                    <Button
+                      onClick={() => {
+                        if (window.confirm(RECALCULATE_FINANCE_COSTS_CONFIRMATION_MESSAGE)) {
+                          void recalculateOrderCosts();
+                        }
+                      }}
+                      disabled={!canOps || recalcingOrderCosts}
+                      variant="secondary"
+                    >
+                      <RefreshCw
+                        className={`mr-2 h-4 w-4 ${recalcingOrderCosts ? "animate-spin" : ""}`}
+                      />
+                      Recalculate Order &amp; Packaging Costs
+                    </Button>
+                    {recalcError && (
+                      <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                        {recalcError}
+                      </div>
+                    )}
+                    {recalcResult && (
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <StatusItem label="Orders checked" value={String(recalcResult.orders_checked)} />
+                        <StatusItem label="Orders updated" value={String(recalcResult.orders_updated)} />
+                        <StatusItem label="Items checked" value={String(recalcResult.order_items_checked)} />
+                        <StatusItem label="Packaging updated" value={String(recalcResult.packaging_costs_updated)} />
+                        <StatusItem label="Manual packaging preserved" value={String(recalcResult.packaging_costs_preserved_manual)} />
+                        <StatusItem label="Failed" value={String(recalcResult.failed_count)} />
+                      </div>
+                    )}
+                  </div>
+                </details>
               </CardContent>
             </Card>
 
