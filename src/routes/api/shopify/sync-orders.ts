@@ -230,6 +230,10 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
           reason: string;
         }> = [];
         const errors: string[] = [];
+        const touchedVariantIds = new Set<string>();
+        let inventoryItemsRefreshed = 0;
+        let inventoryRefreshFailures = 0;
+        let queueProcessingTimeMs = 0;
 
         const runMetadata = (extra: Record<string, unknown> = {}) => ({
           requested_mode: requestedMode ?? null,
