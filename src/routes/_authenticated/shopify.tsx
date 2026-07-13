@@ -1232,12 +1232,6 @@ function ShopifyPage() {
           <StatusBadge status={syncStatus} connected={connected} hasError={Boolean(lastProblem)} />
         </header>
 
-        <Alert>
-          <AlertDescription>
-            Use Full Backfill Orders once to import historical data. Use Pull from Shopify for daily
-            recent orders.
-          </AlertDescription>
-        </Alert>
 
         {isLoading ? (
           <Card>
