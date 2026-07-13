@@ -43,6 +43,7 @@ import { Route as ApiOrdersItemsRouteImport } from './routes/api/orders/items'
 import { Route as ApiOrdersExternalOrderIntakeStatusRouteImport } from './routes/api/orders/external-order-intake-status'
 import { Route as ApiOrdersExternalOrderIntakeRouteImport } from './routes/api/orders/external-order-intake'
 import { Route as ApiOrdersApplyPendingIntakeRouteImport } from './routes/api/orders/apply-pending-intake'
+import { Route as ApiInventoryRefreshFromOrderEventRouteImport } from './routes/api/inventory/refresh-from-order-event'
 import { Route as ApiFinanceUnlockRouteImport } from './routes/api/finance/unlock'
 import { Route as ApiAuthEnsureSignupProfileRouteImport } from './routes/api/auth/ensure-signup-profile'
 import { Route as ApiPublicShopifyWebhooksOrdersUpdatedRouteImport } from './routes/api/public/shopify/webhooks/orders-updated'
@@ -236,6 +237,12 @@ const ApiOrdersApplyPendingIntakeRoute =
     path: '/api/orders/apply-pending-intake',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiInventoryRefreshFromOrderEventRoute =
+  ApiInventoryRefreshFromOrderEventRouteImport.update({
+    id: '/api/inventory/refresh-from-order-event',
+    path: '/api/inventory/refresh-from-order-event',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiFinanceUnlockRoute = ApiFinanceUnlockRouteImport.update({
   id: '/api/finance/unlock',
   path: '/api/finance/unlock',
@@ -292,6 +299,7 @@ export interface FileRoutesByFullPath {
   '/shopify': typeof AuthenticatedShopifyRoute
   '/api/auth/ensure-signup-profile': typeof ApiAuthEnsureSignupProfileRoute
   '/api/finance/unlock': typeof ApiFinanceUnlockRoute
+  '/api/inventory/refresh-from-order-event': typeof ApiInventoryRefreshFromOrderEventRoute
   '/api/orders/apply-pending-intake': typeof ApiOrdersApplyPendingIntakeRoute
   '/api/orders/external-order-intake': typeof ApiOrdersExternalOrderIntakeRoute
   '/api/orders/external-order-intake-status': typeof ApiOrdersExternalOrderIntakeStatusRoute
@@ -334,6 +342,7 @@ export interface FileRoutesByTo {
   '/shopify': typeof AuthenticatedShopifyRoute
   '/api/auth/ensure-signup-profile': typeof ApiAuthEnsureSignupProfileRoute
   '/api/finance/unlock': typeof ApiFinanceUnlockRoute
+  '/api/inventory/refresh-from-order-event': typeof ApiInventoryRefreshFromOrderEventRoute
   '/api/orders/apply-pending-intake': typeof ApiOrdersApplyPendingIntakeRoute
   '/api/orders/external-order-intake': typeof ApiOrdersExternalOrderIntakeRoute
   '/api/orders/external-order-intake-status': typeof ApiOrdersExternalOrderIntakeStatusRoute
@@ -378,6 +387,7 @@ export interface FileRoutesById {
   '/_authenticated/shopify': typeof AuthenticatedShopifyRoute
   '/api/auth/ensure-signup-profile': typeof ApiAuthEnsureSignupProfileRoute
   '/api/finance/unlock': typeof ApiFinanceUnlockRoute
+  '/api/inventory/refresh-from-order-event': typeof ApiInventoryRefreshFromOrderEventRoute
   '/api/orders/apply-pending-intake': typeof ApiOrdersApplyPendingIntakeRoute
   '/api/orders/external-order-intake': typeof ApiOrdersExternalOrderIntakeRoute
   '/api/orders/external-order-intake-status': typeof ApiOrdersExternalOrderIntakeStatusRoute
@@ -422,6 +432,7 @@ export interface FileRouteTypes {
     | '/shopify'
     | '/api/auth/ensure-signup-profile'
     | '/api/finance/unlock'
+    | '/api/inventory/refresh-from-order-event'
     | '/api/orders/apply-pending-intake'
     | '/api/orders/external-order-intake'
     | '/api/orders/external-order-intake-status'
@@ -464,6 +475,7 @@ export interface FileRouteTypes {
     | '/shopify'
     | '/api/auth/ensure-signup-profile'
     | '/api/finance/unlock'
+    | '/api/inventory/refresh-from-order-event'
     | '/api/orders/apply-pending-intake'
     | '/api/orders/external-order-intake'
     | '/api/orders/external-order-intake-status'
@@ -507,6 +519,7 @@ export interface FileRouteTypes {
     | '/_authenticated/shopify'
     | '/api/auth/ensure-signup-profile'
     | '/api/finance/unlock'
+    | '/api/inventory/refresh-from-order-event'
     | '/api/orders/apply-pending-intake'
     | '/api/orders/external-order-intake'
     | '/api/orders/external-order-intake-status'
@@ -542,6 +555,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ApiAuthEnsureSignupProfileRoute: typeof ApiAuthEnsureSignupProfileRoute
   ApiFinanceUnlockRoute: typeof ApiFinanceUnlockRoute
+  ApiInventoryRefreshFromOrderEventRoute: typeof ApiInventoryRefreshFromOrderEventRoute
   ApiOrdersApplyPendingIntakeRoute: typeof ApiOrdersApplyPendingIntakeRoute
   ApiOrdersExternalOrderIntakeRoute: typeof ApiOrdersExternalOrderIntakeRoute
   ApiOrdersExternalOrderIntakeStatusRoute: typeof ApiOrdersExternalOrderIntakeStatusRoute
@@ -811,6 +825,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOrdersApplyPendingIntakeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/inventory/refresh-from-order-event': {
+      id: '/api/inventory/refresh-from-order-event'
+      path: '/api/inventory/refresh-from-order-event'
+      fullPath: '/api/inventory/refresh-from-order-event'
+      preLoaderRoute: typeof ApiInventoryRefreshFromOrderEventRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/finance/unlock': {
       id: '/api/finance/unlock'
       path: '/api/finance/unlock'
@@ -896,6 +917,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ApiAuthEnsureSignupProfileRoute: ApiAuthEnsureSignupProfileRoute,
   ApiFinanceUnlockRoute: ApiFinanceUnlockRoute,
+  ApiInventoryRefreshFromOrderEventRoute:
+    ApiInventoryRefreshFromOrderEventRoute,
   ApiOrdersApplyPendingIntakeRoute: ApiOrdersApplyPendingIntakeRoute,
   ApiOrdersExternalOrderIntakeRoute: ApiOrdersExternalOrderIntakeRoute,
   ApiOrdersExternalOrderIntakeStatusRoute:
