@@ -668,6 +668,28 @@ export const Route = createFileRoute("/api/shopify/sync-orders")({
             }
           }
 
+          // Enqueue and unconditionally flush inventory refresh (self-healing).
+          try {
+            if (touchedVariantIds.size > 0) {
+              await enqueueInventoryRefresh(supabaseAdmin, {
+                variantIds: Array.from(touchedVariantIds),
+                sourceEventType: `sync-orders:${mode}`,
+              });
+            }
+            const flushResult = await processInventoryRefreshQueue(supabaseAdmin, {
+              maxItems: mode === "incremental" ? 200 : 500,
+            });
+            inventoryItemsRefreshed = flushResult.inventory_items_refreshed;
+            inventoryRefreshFailures = flushResult.failures;
+            queueProcessingTimeMs = flushResult.duration_ms;
+          } catch (e) {
+            console.error("[sync-orders] inventory refresh queue failed", e);
+            errors.push(
+              `inventory-refresh-queue: ${e instanceof Error ? e.message : String(e)}`,
+            );
+          }
+
+
           finishedAt = new Date().toISOString();
           if (
             mode === "full_backfill" &&
