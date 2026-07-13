@@ -516,25 +516,54 @@ function ShopifyPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Shopify orders sync failed.");
 
+  const syncOrders = async (mode: "incremental" | "full_backfill" | "date_range") => {
+    if (
+      mode === "full_backfill" &&
+      !window.confirm("This will import all historical Shopify orders and may take time. Continue?")
+    ) {
+      return;
+    }
+
+    let body: Record<string, unknown> = { mode };
+    if (mode === "date_range") {
+      if (!resolvedRange) { toast.error("Please pick a valid date range."); return; }
+      body = { mode: "date_range", date_from: resolvedRange.from, date_to: resolvedRange.to };
+    }
+
+    const setBusy = mode === "incremental" ? setSyncingRecent : setSyncingBackfill;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/shopify/sync-orders", {
+        method: "POST",
+        headers: {
+          ...(await authHeader()),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) throw new Error(json.error ?? "Shopify orders sync failed.");
+
       setOrdersSyncResult({
         mode: json.mode ?? mode,
         created: json.created ?? 0,
         updated: json.updated ?? 0,
         failed: json.failed ?? 0,
         order_items_processed: json.order_items_processed ?? 0,
-        order_items_with_cost: json.order_items_with_cost ?? 0,
-        order_items_missing_cost: json.order_items_missing_cost ?? 0,
-        order_items_cost_assigned_by_variant_id: json.order_items_cost_assigned_by_variant_id ?? 0,
-        order_items_cost_assigned_by_sku: json.order_items_cost_assigned_by_sku ?? 0,
-        order_items_cost_assigned_by_sku_normalized:
-          json.order_items_cost_assigned_by_sku_normalized ?? 0,
-        order_items_cost_assigned_by_remap: json.order_items_cost_assigned_by_remap ?? 0,
-        order_items_cost_preserved: json.order_items_cost_preserved ?? 0,
-        affected_orders_recalculated: json.affected_orders_recalculated ?? 0,
-        total_items_cost_after_recalc: Number(json.total_items_cost_after_recalc ?? 0),
+        order_items_inserted: json.order_items_inserted ?? 0,
+        order_items_updated: json.order_items_updated ?? 0,
+        statuses_updated: json.statuses_updated ?? 0,
+        missing_order_line_items_repaired: json.missing_order_line_items_repaired ?? 0,
+        customer_fields_preserved: json.customer_fields_preserved ?? 0,
+        customer_fields_repaired_from_external_intake: json.customer_fields_repaired_from_external_intake ?? 0,
+        pending_intake_rows_applied: json.pending_intake_rows_applied ?? 0,
+        still_unknown_count: json.still_unknown_count ?? null,
+        shopify_orders_found: json.shopify_orders_found ?? 0,
+        date_range_used: json.date_range_used ?? null,
+        finished_at: new Date().toISOString(),
       });
 
-      const message = `${mode === "full_backfill" ? "Full backfill" : "Recent orders sync"} finished: ${json.created ?? 0} new, ${json.updated ?? 0} updated · items with cost ${json.order_items_with_cost ?? 0}/${json.order_items_processed ?? 0}.`;
+      const message = `Sync finished: ${json.created ?? 0} new, ${json.updated ?? 0} updated.`;
       if (json.completion_warning) toast.warning(json.completion_warning);
       else if (json.status === "partial") toast.warning(message);
       else toast.success(message);
