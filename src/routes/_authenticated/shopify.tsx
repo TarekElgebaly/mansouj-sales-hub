@@ -1011,25 +1011,73 @@ function ShopifyPage() {
         pages_fetched: invJson.pages_fetched ?? 0,
       });
 
+      toast.info("Refreshing inventory from Shopify source of truth…");
+      const refRes = await fetch("/api/shopify/refresh-inventory-source-of-truth", {
+        method: "POST",
+        headers,
+      });
+      const refJson = await refRes.json().catch(() => ({}));
+      if (!refRes.ok || !refJson.ok) {
+        throw new Error(refJson.error ?? "Inventory source-of-truth refresh failed.");
+      }
+      setInventorySourceRefreshResult({
+        status: refJson.status ?? "success",
+        variants_processed: refJson.variants_processed ?? 0,
+        inventory_rows_created: refJson.inventory_rows_created ?? 0,
+        inventory_rows_updated: refJson.inventory_rows_updated ?? 0,
+        stale_rows_marked: refJson.stale_rows_marked ?? 0,
+        missing_on_hand_count: refJson.missing_on_hand_count ?? 0,
+        source: refJson.source ?? "synced_shopify_products_variants_inventory_levels",
+        sku_remaps_used: Boolean(refJson.sku_remaps_used),
+        shopify_write_calls: Boolean(refJson.shopify_write_calls),
+      });
+
+      // Read-only aggregates against the inventory table (non-stale only).
+      let missingSalePriceCount: number | null = null;
+      let duplicateSkusFound: number | null = null;
+      try {
+        const { count: missingCount } = await supabase
+          .from("inventory")
+          .select("id", { count: "exact", head: true })
+          .eq("is_shopify_stale", false)
+          .or("sale_price.is.null,sale_price.eq.0");
+        missingSalePriceCount = missingCount ?? 0;
+
+        const { data: skuRows } = await supabase
+          .from("inventory")
+          .select("sku")
+          .eq("is_shopify_stale", false);
+        if (Array.isArray(skuRows)) {
+          const counts = new Map<string, number>();
+          for (const row of skuRows) {
+            const sku = (row as { sku: string | null }).sku;
+            if (!sku) continue;
+            counts.set(sku, (counts.get(sku) ?? 0) + 1);
+          }
+          let dupes = 0;
+          for (const v of counts.values()) if (v > 1) dupes++;
+          duplicateSkusFound = dupes;
+        }
+      } catch {
+        // Non-fatal — aggregates just stay as "—".
+      }
+
       const merged: DailyInventorySyncResult = {
         products_processed: prodJson.products_processed ?? 0,
-        variants_processed: prodJson.variants_processed ?? 0,
-        inventory_rows_created:
-          (prodJson.products_created ?? 0) + (prodJson.variants_created ?? 0),
-        inventory_rows_updated:
-          (prodJson.products_updated ?? 0) +
-          (prodJson.variants_updated ?? 0) +
-          (invJson.variant_on_hand_quantities_updated ?? 0),
-        rows_marked_stale: null,
+        variants_processed: refJson.variants_processed ?? prodJson.variants_processed ?? 0,
+        inventory_rows_created: refJson.inventory_rows_created ?? 0,
+        inventory_rows_updated: refJson.inventory_rows_updated ?? 0,
+        rows_marked_stale: refJson.stale_rows_marked ?? 0,
         missing_cost_count: invJson.inventory_items_missing_cost ?? 0,
-        missing_sale_price_count: null,
-        duplicate_skus_found: null,
-        failed_count: (prodJson.failed_count ?? 0) + (invJson.failed_count ?? 0),
+        missing_sale_price_count: missingSalePriceCount,
+        duplicate_skus_found: duplicateSkusFound,
+        failed_count:
+          (prodJson.failed_count ?? 0) + (invJson.failed_count ?? 0),
         last_synced_at: new Date().toISOString(),
       };
       setDailyInventoryResult(merged);
       toast.success(
-        `Inventory synced: ${merged.products_processed} products, ${merged.variants_processed} variants.`,
+        `Inventory synced: ${merged.products_processed} products, ${merged.variants_processed} variants, ${merged.inventory_rows_updated} rows updated.`,
       );
       await qc.invalidateQueries({ queryKey: ["shopify-settings"] });
       await qc.invalidateQueries({ queryKey: ["shopify-inventory-report"] });
