@@ -294,75 +294,14 @@ function OrdersPage() {
           <CardContent className="p-4 space-y-4">
             <div className="text-sm font-semibold">Orders Sync</div>
             <div className="flex flex-wrap items-end gap-3">
-              <Button size="sm" onClick={pullShopify} disabled={syncing || syncingRange}>
+              <Button size="sm" onClick={pullShopify} disabled={syncing}>
                 <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} />
                 {syncing ? "Syncing..." : "Sync Recent Orders"}
               </Button>
-
-              <div className="flex flex-wrap items-end gap-2">
-                <div>
-                  <Label className="text-xs">Range</Label>
-                  <Select value={rangeMode} onValueChange={(v) => setRangeMode(v as RangeMode)}>
-                    <SelectTrigger className="h-9 w-40"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="today">Today</SelectItem>
-                      <SelectItem value="yesterday">Yesterday</SelectItem>
-                      <SelectItem value="last7">Last 7 days</SelectItem>
-                      <SelectItem value="last30">Last 30 days</SelectItem>
-                      <SelectItem value="month">Single month</SelectItem>
-                      <SelectItem value="custom">Custom range</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {rangeMode === "month" && (
-                  <>
-                    <div>
-                      <Label className="text-xs">Month</Label>
-                      <Select value={rangeMonth} onValueChange={setRangeMonth}>
-                        <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {MONTHS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Year</Label>
-                      <Select value={rangeYear} onValueChange={setRangeYear}>
-                        <SelectTrigger className="h-9 w-24"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {yearsList.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </>
-                )}
-                {rangeMode === "custom" && (
-                  <>
-                    <div>
-                      <Label className="text-xs">From</Label>
-                      <Input type="date" className="h-9 w-40" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
-                    </div>
-                    <div>
-                      <Label className="text-xs">To</Label>
-                      <Input type="date" className="h-9 w-40" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
-                    </div>
-                  </>
-                )}
-                <Button size="sm" variant="outline" onClick={syncByDateRange} disabled={syncing || syncingRange || !resolvedRange}>
-                  <RefreshCw className={`h-4 w-4 mr-1 ${syncingRange ? "animate-spin" : ""}`} />
-                  {syncingRange ? "Syncing..." : "Sync Orders by Date Range"}
-                </Button>
-                {resolvedRange && (
-                  <span className="text-xs text-muted-foreground pb-2">
-                    {fmtRangeLabel(resolvedRange.from, resolvedRange.to)}
-                  </span>
-                )}
-              </div>
             </div>
 
-            <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground whitespace-pre-line">
-              {`Use "Sync Recent Orders" for daily updates, new orders, and Shopify status/item changes.
-Use "Sync Orders by Date Range" when you want to import or refresh all orders within a specific period.`}
+            <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              Use "Sync Recent Orders" for daily updates, new orders, and Shopify status/item changes.
             </div>
 
             {syncResult && (
@@ -376,31 +315,19 @@ Use "Sync Orders by Date Range" when you want to import or refresh all orders wi
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
-                {syncResult.date_range_used && (
-                  <div className="text-xs text-muted-foreground">
-                    Date range used: {syncResult.date_range_used.from} → {syncResult.date_range_used.to}
-                  </div>
-                )}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 text-xs">
                   <Stat label="Orders created" value={syncResult.created} />
                   <Stat label="Orders updated" value={syncResult.updated} />
                   <Stat label="Items processed" value={syncResult.order_items_processed} />
+                  <Stat label="Missing order line items repaired" value={syncResult.missing_order_line_items_repaired} />
                   <Stat label="Order items created" value={syncResult.order_items_inserted} />
                   <Stat label="Order items updated" value={syncResult.order_items_updated} />
-                  <Stat label="Order items removed" value={syncResult.stale_order_items_removed} />
-                  <Stat label="Orders recalculated" value={syncResult.affected_orders_recalculated} />
                   <Stat label="Statuses updated" value={syncResult.statuses_updated} />
-                  <Stat label="Cancelled orders updated" value={syncResult.cancelled_orders_updated} />
-                  <Stat label="Fulfillment/delivery updates" value={syncResult.fulfillment_updates} />
                   <Stat label="Customer fields preserved" value={syncResult.customer_fields_preserved} />
-                  <Stat label="Customer fields repaired (Shopify)" value={syncResult.customer_fields_repaired_from_shopify} />
-                  <Stat label="Customer fields repaired (external intake)" value={syncResult.customer_fields_repaired_from_external_intake} />
+                  <Stat label="Customer fields repaired from external intake" value={syncResult.customer_fields_repaired_from_external_intake} />
                   <Stat label="Pending intake rows applied" value={syncResult.pending_intake_rows_applied} />
-                  <Stat label="Still unknown" value={syncResult.still_unknown_count ?? "—"} />
-                  <Stat label="Failed" value={syncResult.failed} />
-                  {syncResult.date_range_used && (
-                    <Stat label="Shopify orders found" value={syncResult.shopify_orders_found ?? 0} />
-                  )}
+                  <Stat label="Still unknown count" value={syncResult.still_unknown_count ?? "—"} />
+                  <Stat label="Failed count" value={syncResult.failed} />
                   <Stat label="Last synced" value={new Date(syncResult.finished_at).toLocaleString()} />
                 </div>
               </div>
