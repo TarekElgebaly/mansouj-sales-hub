@@ -48,6 +48,7 @@ import { Route as ApiAuthEnsureSignupProfileRouteImport } from './routes/api/aut
 import { Route as ApiPublicShopifyWebhooksOrdersUpdatedRouteImport } from './routes/api/public/shopify/webhooks/orders-updated'
 import { Route as ApiPublicShopifyWebhooksOrdersCreateRouteImport } from './routes/api/public/shopify/webhooks/orders-create'
 import { Route as ApiPublicShopifyWebhooksOrdersCancelledRouteImport } from './routes/api/public/shopify/webhooks/orders-cancelled'
+import { Route as ApiPublicShopifyWebhooksFulfillmentsCreateRouteImport } from './routes/api/public/shopify/webhooks/fulfillments-create'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -263,6 +264,12 @@ const ApiPublicShopifyWebhooksOrdersCancelledRoute =
     path: '/api/public/shopify/webhooks/orders-cancelled',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicShopifyWebhooksFulfillmentsCreateRoute =
+  ApiPublicShopifyWebhooksFulfillmentsCreateRouteImport.update({
+    id: '/api/public/shopify/webhooks/fulfillments-create',
+    path: '/api/public/shopify/webhooks/fulfillments-create',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -300,6 +307,7 @@ export interface FileRoutesByFullPath {
   '/api/shopify/sync-products': typeof ApiShopifySyncProductsRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
   '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
+  '/api/public/shopify/webhooks/fulfillments-create': typeof ApiPublicShopifyWebhooksFulfillmentsCreateRoute
   '/api/public/shopify/webhooks/orders-cancelled': typeof ApiPublicShopifyWebhooksOrdersCancelledRoute
   '/api/public/shopify/webhooks/orders-create': typeof ApiPublicShopifyWebhooksOrdersCreateRoute
   '/api/public/shopify/webhooks/orders-updated': typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
@@ -340,6 +348,7 @@ export interface FileRoutesByTo {
   '/api/shopify/sync-products': typeof ApiShopifySyncProductsRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
   '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
+  '/api/public/shopify/webhooks/fulfillments-create': typeof ApiPublicShopifyWebhooksFulfillmentsCreateRoute
   '/api/public/shopify/webhooks/orders-cancelled': typeof ApiPublicShopifyWebhooksOrdersCancelledRoute
   '/api/public/shopify/webhooks/orders-create': typeof ApiPublicShopifyWebhooksOrdersCreateRoute
   '/api/public/shopify/webhooks/orders-updated': typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
@@ -382,6 +391,7 @@ export interface FileRoutesById {
   '/api/shopify/sync-products': typeof ApiShopifySyncProductsRoute
   '/api/shopify/sync-status': typeof ApiShopifySyncStatusRoute
   '/api/shopify/test-connection': typeof ApiShopifyTestConnectionRoute
+  '/api/public/shopify/webhooks/fulfillments-create': typeof ApiPublicShopifyWebhooksFulfillmentsCreateRoute
   '/api/public/shopify/webhooks/orders-cancelled': typeof ApiPublicShopifyWebhooksOrdersCancelledRoute
   '/api/public/shopify/webhooks/orders-create': typeof ApiPublicShopifyWebhooksOrdersCreateRoute
   '/api/public/shopify/webhooks/orders-updated': typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
@@ -424,6 +434,7 @@ export interface FileRouteTypes {
     | '/api/shopify/sync-products'
     | '/api/shopify/sync-status'
     | '/api/shopify/test-connection'
+    | '/api/public/shopify/webhooks/fulfillments-create'
     | '/api/public/shopify/webhooks/orders-cancelled'
     | '/api/public/shopify/webhooks/orders-create'
     | '/api/public/shopify/webhooks/orders-updated'
@@ -464,6 +475,7 @@ export interface FileRouteTypes {
     | '/api/shopify/sync-products'
     | '/api/shopify/sync-status'
     | '/api/shopify/test-connection'
+    | '/api/public/shopify/webhooks/fulfillments-create'
     | '/api/public/shopify/webhooks/orders-cancelled'
     | '/api/public/shopify/webhooks/orders-create'
     | '/api/public/shopify/webhooks/orders-updated'
@@ -505,6 +517,7 @@ export interface FileRouteTypes {
     | '/api/shopify/sync-products'
     | '/api/shopify/sync-status'
     | '/api/shopify/test-connection'
+    | '/api/public/shopify/webhooks/fulfillments-create'
     | '/api/public/shopify/webhooks/orders-cancelled'
     | '/api/public/shopify/webhooks/orders-create'
     | '/api/public/shopify/webhooks/orders-updated'
@@ -538,6 +551,7 @@ export interface RootRouteChildren {
   ApiShopifySyncProductsRoute: typeof ApiShopifySyncProductsRoute
   ApiShopifySyncStatusRoute: typeof ApiShopifySyncStatusRoute
   ApiShopifyTestConnectionRoute: typeof ApiShopifyTestConnectionRoute
+  ApiPublicShopifyWebhooksFulfillmentsCreateRoute: typeof ApiPublicShopifyWebhooksFulfillmentsCreateRoute
   ApiPublicShopifyWebhooksOrdersCancelledRoute: typeof ApiPublicShopifyWebhooksOrdersCancelledRoute
   ApiPublicShopifyWebhooksOrdersCreateRoute: typeof ApiPublicShopifyWebhooksOrdersCreateRoute
   ApiPublicShopifyWebhooksOrdersUpdatedRoute: typeof ApiPublicShopifyWebhooksOrdersUpdatedRoute
@@ -818,6 +832,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicShopifyWebhooksOrdersCancelledRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/shopify/webhooks/fulfillments-create': {
+      id: '/api/public/shopify/webhooks/fulfillments-create'
+      path: '/api/public/shopify/webhooks/fulfillments-create'
+      fullPath: '/api/public/shopify/webhooks/fulfillments-create'
+      preLoaderRoute: typeof ApiPublicShopifyWebhooksFulfillmentsCreateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -882,6 +903,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiShopifySyncProductsRoute: ApiShopifySyncProductsRoute,
   ApiShopifySyncStatusRoute: ApiShopifySyncStatusRoute,
   ApiShopifyTestConnectionRoute: ApiShopifyTestConnectionRoute,
+  ApiPublicShopifyWebhooksFulfillmentsCreateRoute:
+    ApiPublicShopifyWebhooksFulfillmentsCreateRoute,
   ApiPublicShopifyWebhooksOrdersCancelledRoute:
     ApiPublicShopifyWebhooksOrdersCancelledRoute,
   ApiPublicShopifyWebhooksOrdersCreateRoute:
