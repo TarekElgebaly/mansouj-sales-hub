@@ -64,22 +64,9 @@ function OrdersPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [openNew, setOpenNew] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [syncingRange, setSyncingRange] = useState(false);
   const [repairing, setRepairing] = useState(false);
   const [restoringLineItems, setRestoringLineItems] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
-
-  const now = new Date();
-  const [rangeMode, setRangeMode] = useState<RangeMode>("last7");
-  const [rangeMonth, setRangeMonth] = useState(String(now.getMonth()));
-  const [rangeYear, setRangeYear] = useState(String(now.getFullYear()));
-  const [customFrom, setCustomFrom] = useState(toIso(daysAgo(6)));
-  const [customTo, setCustomTo] = useState(toIso(now));
-
-  const resolvedRange = useMemo(
-    () => computeRange(rangeMode, rangeMonth, rangeYear, customFrom, customTo),
-    [rangeMode, rangeMonth, rangeYear, customFrom, customTo],
-  );
 
   const applySyncJson = (json: any) => {
     setSyncResult({
@@ -91,18 +78,12 @@ function OrdersPage() {
       order_items_processed: json.order_items_processed ?? 0,
       order_items_inserted: json.order_items_inserted ?? 0,
       order_items_updated: json.order_items_updated ?? 0,
-      stale_order_items_removed: json.stale_order_items_removed ?? 0,
-      affected_orders_recalculated: json.affected_orders_recalculated ?? 0,
       statuses_updated: json.statuses_updated ?? 0,
-      cancelled_orders_updated: json.cancelled_orders_updated ?? 0,
-      fulfillment_updates: json.fulfillment_updates ?? 0,
+      missing_order_line_items_repaired: json.missing_order_line_items_repaired ?? 0,
       customer_fields_preserved: json.customer_fields_preserved ?? 0,
-      customer_fields_repaired_from_shopify: json.customer_fields_repaired_from_shopify ?? 0,
       customer_fields_repaired_from_external_intake: json.customer_fields_repaired_from_external_intake ?? 0,
       pending_intake_rows_applied: json.pending_intake_rows_applied ?? 0,
       still_unknown_count: json.still_unknown_count ?? null,
-      shopify_orders_found: json.shopify_orders_found,
-      date_range_used: json.date_range_used ?? null,
       finished_at: new Date().toISOString(),
     });
     qc.invalidateQueries({ queryKey: ["orders"] });
@@ -136,38 +117,6 @@ function OrdersPage() {
     }
   };
 
-  const syncByDateRange = async () => {
-    if (!resolvedRange) {
-      toast.error("Please pick a valid date range.");
-      return;
-    }
-    setSyncingRange(true);
-    try {
-      const { data: sess } = await supabase.auth.getSession();
-      const token = sess.session?.access_token;
-      if (!token) { toast.error("Please sign in again."); return; }
-      const res = await fetch("/api/shopify/sync-orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          mode: "date_range",
-          date_from: resolvedRange.from,
-          date_to: resolvedRange.to,
-        }),
-      });
-      const json = await res.json();
-      if (json.ok) {
-        applySyncJson(json);
-        toast.success(`Synced ${json.shopify_orders_found ?? 0} Shopify orders in range — ${json.created ?? 0} new, ${json.updated ?? 0} updated`);
-      } else {
-        toast.error(json.error ?? "Date-range sync failed");
-      }
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setSyncingRange(false);
-    }
-  };
 
 
   const repairUnknownCustomers = async () => {
