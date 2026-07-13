@@ -1548,908 +1548,192 @@ function ShopifyPage() {
             </Card>
 
 
-            <details className="rounded-md border bg-muted/20 p-3">
-              <summary className="cursor-pointer text-base font-medium">Advanced Tools</summary>
-              <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
-                These tools are for debugging or one-time repairs. Daily use should only use the
-                two buttons above.
-              </div>
-              <div className="mt-3 grid gap-4 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Package className="h-5 w-5" />
-                    Products
-                  </CardTitle>
-                  <CardDescription>
-                    Sync Shopify products and variants. No Shopify data is modified.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">New Brand Setup / Maintenance Tools</CardTitle>
+                <CardDescription>
+                  Use these tools only when onboarding a new brand, importing historical data,
+                  fixing old product links, or repairing missing costs. These tools are not for
+                  daily use.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="whitespace-pre-line rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                  {`For a new brand:
+1. First use "Sync Inventory from Shopify" from Daily Use to import products, variants, inventory, costs, prices, images, and statuses.
+2. Then use "Full Backfill Orders" to import historical orders by date range.
+3. Use the tools below only if historical order items have missing costs, changed SKUs, or need repair.`}
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <SkuRemapSection />
+                  <AutoRemapSection />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  SKU Remaps — Use when old order item SKUs do not match current Shopify SKUs.
+                  Helpful when onboarding a brand with historical orders and changed SKUs. Local
+                  only. Does not modify Shopify.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Auto-create exact remaps — Suggests exact SKU remaps based on product/variant
+                  matching. Always preview before creating. Local only. Does not modify Shopify.
+                </p>
+
+                <div className="border-t pt-4 space-y-3">
+                  <div>
+                    <h4 className="text-sm font-medium">Unmatched SKU Report</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Read-only report showing order item SKUs that do not currently match Shopify
+                      products/variants. Use this before creating SKU Remaps for a new brand or
+                      historical data repair.
+                    </p>
+                  </div>
+                  <UnmatchedSkuReportSection />
+                </div>
+
+                <div className="border-t pt-4 space-y-3">
+                  <div>
+                    <h4 className="text-sm font-medium">Backfill Order Item Costs</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Use during new brand setup to fill missing order item costs using synced
+                      Shopify product costs. Does not modify Shopify.
+                    </p>
+                  </div>
                   <Button
-                    onClick={syncProducts}
-                    disabled={!canOps || syncingProducts || syncingInventoryCost}
+                    onClick={backfillOrderItemCosts}
+                    disabled={!canOps || backfillingCosts}
+                    variant="secondary"
                   >
                     <RefreshCw
-                      className={`mr-2 h-4 w-4 ${syncingProducts ? "animate-spin" : ""}`}
+                      className={`mr-2 h-4 w-4 ${backfillingCosts ? "animate-spin" : ""}`}
                     />
-                    Sync Products Only
+                    Backfill Order Item Costs
                   </Button>
-                  {!canOps && (
-                    <p className="text-sm text-muted-foreground">
-                      Admin or operations access is required to run this sync.
-                    </p>
-                  )}
-                  {productSyncError && (
+                  {backfillError && (
                     <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                      {productSyncError}
+                      {backfillError}
                     </div>
                   )}
-                  {productSyncResult && (
-                    <div className="space-y-3">
-                      {productSyncResult.message && (
-                        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                          {productSyncResult.message}
-                        </div>
-                      )}
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <StatusItem
-                          label="Products processed"
-                          value={String(productSyncResult.products_processed)}
-                        />
-                        <StatusItem
-                          label="Products created"
-                          value={String(productSyncResult.products_created)}
-                        />
-                        <StatusItem
-                          label="Products updated"
-                          value={String(productSyncResult.products_updated)}
-                        />
-                        <StatusItem
-                          label="Variants processed"
-                          value={String(productSyncResult.variants_processed)}
-                        />
-                        <StatusItem
-                          label="Variants created"
-                          value={String(productSyncResult.variants_created)}
-                        />
-                        <StatusItem
-                          label="Variants updated"
-                          value={String(productSyncResult.variants_updated)}
-                        />
-                        <StatusItem
-                          label="Pages fetched"
-                          value={String(productSyncResult.pages_fetched)}
-                        />
-                        <StatusItem label="Failed" value={String(productSyncResult.failed_count)} />
-                        <StatusItem
-                          label="Shop domain"
-                          value={productSyncResult.shop_domain_used ?? "-"}
-                        />
-                        <StatusItem
-                          label="API version"
-                          value={productSyncResult.api_version_used ?? "-"}
-                        />
-                        <StatusItem
-                          label="API method"
-                          value={productSyncResult.api_method_used ?? "-"}
-                        />
-                        <StatusItem
-                          label="First response count"
-                          value={String(productSyncResult.first_api_response_product_count ?? "-")}
-                        />
-                        <StatusItem
-                          label="Stopped reason"
-                          value={productSyncResult.stopped_reason ?? "-"}
-                        />
-                        <StatusItem
-                          label="Response shape"
-                          value={`keys: ${
-                            productSyncResult.raw_shopify_response_shape_summary?.response_keys?.join(
-                              ", ",
-                            ) || "-"
-                          }; products array: ${
-                            productSyncResult.raw_shopify_response_shape_summary
-                              ?.products_is_array === true
-                              ? "true"
-                              : productSyncResult.raw_shopify_response_shape_summary
-                                    ?.products_is_array === false
-                                ? "false"
-                                : "-"
-                          }`}
-                        />
-                      </div>
+                  {backfillResult && (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <StatusItem label="Items checked" value={String(backfillResult.order_items_checked)} />
+                      <StatusItem label="Items updated" value={String(backfillResult.order_items_updated)} />
+                      <StatusItem label="Already had cost" value={String(backfillResult.order_items_already_had_cost)} />
+                      <StatusItem label="Missing variant match" value={String(backfillResult.order_items_missing_variant_match)} />
+                      <StatusItem label="Missing inventory cost" value={String(backfillResult.order_items_missing_inventory_cost)} />
+                      <StatusItem label="Remaining unmatched" value={String(backfillResult.remaining_unmatched)} />
+                      <StatusItem label="Failed" value={String(backfillResult.failed_count)} />
                     </div>
                   )}
+                </div>
 
-                  <div className="border-t pt-4 space-y-3">
-                    <div>
-                      <h4 className="text-sm font-medium">Refresh Order Item Product Data</h4>
-                      <p className="text-xs text-muted-foreground">
-                        Updates existing local order items to display the latest synced Shopify SKU,
-                        product title, variant title, barcode, and product type. Does not change
-                        quantities, selling prices, costs, shipping, packaging, statuses, notes, or
-                        Shopify data.
-                      </p>
-                    </div>
-                    <Button
-                      onClick={refreshOrderItemProductData}
-                      disabled={!canOps || refreshingProductData || syncingProducts}
-                      variant="secondary"
-                    >
-                      <RefreshCw
-                        className={`mr-2 h-4 w-4 ${refreshingProductData ? "animate-spin" : ""}`}
-                      />
-                      Refresh Order Item Product Data
-                    </Button>
-                    {refreshProductDataError && (
-                      <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                        {refreshProductDataError}
-                      </div>
-                    )}
-                    {refreshProductDataResult && (
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <StatusItem
-                          label="Items checked"
-                          value={String(refreshProductDataResult.items_checked)}
-                        />
-                        <StatusItem
-                          label="Items updated"
-                          value={String(refreshProductDataResult.items_updated)}
-                        />
-                        <StatusItem
-                          label="Items skipped"
-                          value={String(refreshProductDataResult.items_skipped)}
-                        />
-                        <StatusItem
-                          label="Missing match"
-                          value={String(refreshProductDataResult.missing_match)}
-                        />
-                        <StatusItem
-                          label="Failed"
-                          value={String(refreshProductDataResult.failed_count)}
-                        />
-                      </div>
-                    )}
-                    {refreshProductDataResult &&
-                      Object.keys(refreshProductDataResult.match_counts).length > 0 && (
-                        <div className="space-y-2">
-                          <h5 className="text-sm font-medium">Product data match summary</h5>
-                          <div className="grid gap-2 sm:grid-cols-2">
-                            {Object.entries(refreshProductDataResult.match_counts).map(
-                              ([reason, count]) => (
-                                <div
-                                  key={reason}
-                                  className="flex items-center justify-between rounded border px-3 py-2 text-xs"
-                                >
-                                  <span className="text-muted-foreground">{reason}</span>
-                                  <span className="font-mono">{count}</span>
-                                </div>
-                              ),
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    {refreshProductDataResult &&
-                      Object.keys(refreshProductDataResult.mismatch_reasons).length > 0 && (
-                        <div className="space-y-2">
-                          <h5 className="text-sm font-medium">Unmatched product data reasons</h5>
-                          <div className="grid gap-2 sm:grid-cols-2">
-                            {Object.entries(refreshProductDataResult.mismatch_reasons).map(
-                              ([reason, count]) => (
-                                <div
-                                  key={reason}
-                                  className="flex items-center justify-between rounded border px-3 py-2 text-xs"
-                                >
-                                  <span className="text-muted-foreground">{reason}</span>
-                                  <span className="font-mono">{count}</span>
-                                </div>
-                              ),
-                            )}
-                          </div>
-                        </div>
-                      )}
+                <div className="border-t pt-4 space-y-3">
+                  <div>
+                    <h4 className="text-sm font-medium">Force Update Order Item Costs</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Use only when you intentionally want existing order item costs to be replaced
+                      with current Shopify costs. This may change historical profit calculations.
+                      Does not modify Shopify.
+                    </p>
                   </div>
-                </CardContent>
-              </Card>
+                  <Button
+                    onClick={forceUpdateOrderItemCosts}
+                    disabled={!canOps || forcingCostUpdate}
+                    variant="secondary"
+                  >
+                    <RefreshCw
+                      className={`mr-2 h-4 w-4 ${forcingCostUpdate ? "animate-spin" : ""}`}
+                    />
+                    Force Update Order Item Costs
+                  </Button>
+                  {forceCostError && (
+                    <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                      {forceCostError}
+                    </div>
+                  )}
+                  {forceCostResult && (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <StatusItem label="Items checked" value={String(forceCostResult.items_checked)} />
+                      <StatusItem label="Items updated" value={String(forceCostResult.items_updated)} />
+                      <StatusItem label="Orders recalculated" value={String(forceCostResult.orders_recalculated)} />
+                      <StatusItem label="Missing cost" value={String(forceCostResult.missing_cost)} />
+                      <StatusItem label="Failed" value={String(forceCostResult.failed_count)} />
+                    </div>
+                  )}
+                </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Warehouse className="h-5 w-5" />
-                    Inventory & Cost
-                  </CardTitle>
-                  <CardDescription>
-                    Sync Shopify locations, inventory levels, and InventoryItem unit cost.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      onClick={syncInventoryCost}
-                      disabled={
-                        !canOps ||
-                        syncingProducts ||
-                        syncingInventoryCost ||
-                        refreshingInventorySource ||
-                        reconcilingInventory
+                <div className="border-t pt-4 space-y-3">
+                  <div>
+                    <h4 className="text-sm font-medium">Recalculate Order &amp; Packaging Costs</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Use only for one-time repair if order cost or packaging cost needs
+                      recalculation. Not for daily use. Does not modify Shopify.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      if (window.confirm(RECALCULATE_FINANCE_COSTS_CONFIRMATION_MESSAGE)) {
+                        void recalculateOrderCosts();
                       }
-                    >
-                      <RefreshCw
-                        className={`mr-2 h-4 w-4 ${syncingInventoryCost ? "animate-spin" : ""}`}
-                      />
-                      Sync Inventory &amp; Cost Only
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Daily-use button. Syncs Shopify locations, inventory levels, and
-                    InventoryItem unit cost. The Inventory page uses Active products by default.
-                  </p>
-                  <details className="rounded-md border bg-muted/20 p-3">
-                    <summary className="cursor-pointer text-sm font-medium">
-                      Advanced Tools
-                    </summary>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Button
-                        onClick={refreshInventorySourceOfTruth}
-                        disabled={
-                          !canOps ||
-                          syncingProducts ||
-                          syncingInventoryCost ||
-                          refreshingInventorySource ||
-                          reconcilingInventory
-                        }
-                        variant="secondary"
-                      >
-                        <RefreshCw
-                          className={`mr-2 h-4 w-4 ${refreshingInventorySource ? "animate-spin" : ""}`}
-                        />
-                        Refresh Inventory From Shopify Source of Truth
-                      </Button>
-                      <Button
-                        onClick={runInventoryReconciliation}
-                        disabled={
-                          !canOps ||
-                          syncingProducts ||
-                          syncingInventoryCost ||
-                          refreshingInventorySource ||
-                          reconcilingInventory
-                        }
-                        variant="outline"
-                      >
-                        <RefreshCw
-                          className={`mr-2 h-4 w-4 ${reconcilingInventory ? "animate-spin" : ""}`}
-                        />
-                        Inventory Reconciliation
-                      </Button>
-                    </div>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Advanced flow: Sync Products → Sync Inventory from Shopify → Refresh Inventory
-                      From Shopify Source of Truth → Inventory Reconciliation.
-                    </p>
-                  </details>
-                  {!canOps && (
-                    <p className="text-sm text-muted-foreground">
-                      Admin or operations access is required to run this sync.
-                    </p>
-                  )}
-                  {inventoryCostSyncError && (
+                    }}
+                    disabled={!canOps || recalcingOrderCosts}
+                    variant="secondary"
+                  >
+                    <RefreshCw
+                      className={`mr-2 h-4 w-4 ${recalcingOrderCosts ? "animate-spin" : ""}`}
+                    />
+                    Recalculate Order &amp; Packaging Costs
+                  </Button>
+                  {recalcError && (
                     <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                      {inventoryCostSyncError}
+                      {recalcError}
                     </div>
                   )}
-                  {inventorySourceRefreshError && (
-                    <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                      {inventorySourceRefreshError}
+                  {recalcResult && (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <StatusItem label="Orders checked" value={String(recalcResult.orders_checked)} />
+                      <StatusItem label="Orders updated" value={String(recalcResult.orders_updated)} />
+                      <StatusItem label="Items checked" value={String(recalcResult.order_items_checked)} />
+                      <StatusItem label="Packaging updated" value={String(recalcResult.packaging_costs_updated)} />
+                      <StatusItem label="Manual packaging preserved" value={String(recalcResult.packaging_costs_preserved_manual)} />
+                      <StatusItem label="Failed" value={String(recalcResult.failed_count)} />
                     </div>
                   )}
-                  {inventoryReconciliationError && (
-                    <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                      {inventoryReconciliationError}
-                    </div>
-                  )}
-                  {inventoryCostSyncResult && (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <StatusItem
-                        label="Inventory items"
-                        value={String(inventoryCostSyncResult.inventory_items_processed)}
-                      />
-                      <StatusItem
-                        label="Items with cost"
-                        value={String(inventoryCostSyncResult.inventory_items_with_cost)}
-                      />
-                      <StatusItem
-                        label="Items missing cost"
-                        value={String(inventoryCostSyncResult.inventory_items_missing_cost)}
-                      />
-                      <StatusItem
-                        label="Locations"
-                        value={String(inventoryCostSyncResult.locations_processed)}
-                      />
-                      <StatusItem
-                        label="Inventory levels"
-                        value={String(inventoryCostSyncResult.inventory_levels_processed)}
-                      />
-                      <StatusItem
-                        label="Levels with on hand"
-                        value={String(inventoryCostSyncResult.inventory_levels_with_on_hand)}
-                      />
-                      <StatusItem
-                        label="Levels missing on hand"
-                        value={String(inventoryCostSyncResult.inventory_levels_missing_on_hand)}
-                      />
-                      <StatusItem
-                        label="On hand source"
-                        value={inventoryCostSyncResult.on_hand_quantity_source ?? "missing"}
-                      />
-                      <StatusItem
-                        label="On hand checked"
-                        value={String(inventoryCostSyncResult.variant_on_hand_quantities_processed)}
-                      />
-                      <StatusItem
-                        label="On hand updated"
-                        value={String(inventoryCostSyncResult.variant_on_hand_quantities_updated)}
-                      />
-                      <StatusItem
-                        label="Fallback used"
-                        value={inventoryCostSyncResult.on_hand_fallback_used ? "true" : "false"}
-                      />
-                      <StatusItem
-                        label="Pages fetched"
-                        value={String(inventoryCostSyncResult.pages_fetched)}
-                      />
-                      <StatusItem
-                        label="Failed"
-                        value={String(inventoryCostSyncResult.failed_count)}
-                      />
-                    </div>
-                  )}
-                  {inventorySourceRefreshResult && (
-                    <div className="space-y-3 rounded-md border bg-muted/30 p-4">
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <StatusItem
-                          label="Variants processed"
-                          value={String(inventorySourceRefreshResult.variants_processed)}
-                        />
-                        <StatusItem
-                          label="Rows created"
-                          value={String(inventorySourceRefreshResult.inventory_rows_created)}
-                        />
-                        <StatusItem
-                          label="Rows updated"
-                          value={String(inventorySourceRefreshResult.inventory_rows_updated)}
-                        />
-                        <StatusItem
-                          label="Stale rows marked"
-                          value={String(inventorySourceRefreshResult.stale_rows_marked)}
-                        />
-                        <StatusItem
-                          label="Missing on hand"
-                          value={String(inventorySourceRefreshResult.missing_on_hand_count)}
-                        />
-                        <StatusItem
-                          label="SKU remaps used"
-                          value={inventorySourceRefreshResult.sku_remaps_used ? "true" : "false"}
-                        />
-                      </div>
-                      {inventorySourceRefreshResult.missing_on_hand_count > 0 && (
-                        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                          Shopify did not return on-hand quantity for some variants. Those rows are
-                          not filled from stale local inventory.
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {inventoryReconciliationResult && (
-                    <div className="space-y-3 rounded-md border bg-muted/30 p-4">
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        <StatusItem
-                          label="Product status"
-                          value={inventoryReconciliationResult.product_status}
-                        />
-                        <StatusItem
-                          label="Shopify total SKUs"
-                          value={String(inventoryReconciliationResult.shopify_total_skus)}
-                        />
-                        <StatusItem
-                          label="Mansouj local SKUs"
-                          value={String(inventoryReconciliationResult.mansouj_local_total_skus)}
-                        />
-                        <StatusItem
-                          label="Shopify on hand"
-                          value={String(inventoryReconciliationResult.shopify_on_hand_quantity)}
-                        />
-                        <StatusItem
-                          label="Mansouj on hand"
-                          value={String(inventoryReconciliationResult.mansouj_on_hand_quantity)}
-                        />
-                        <StatusItem
-                          label="Quantity difference"
-                          value={String(inventoryReconciliationResult.difference_quantity)}
-                        />
-                        <StatusItem
-                          label="Shopify inventory cost"
-                          value={egp(inventoryReconciliationResult.shopify_inventory_cost_value)}
-                        />
-                        <StatusItem
-                          label="Mansouj inventory cost"
-                          value={egp(inventoryReconciliationResult.mansouj_inventory_cost_value)}
-                        />
-                        <StatusItem
-                          label="Cost difference"
-                          value={egp(inventoryReconciliationResult.difference_cost_value)}
-                        />
-                        <StatusItem
-                          label="Shopify retail value"
-                          value={egp(inventoryReconciliationResult.shopify_retail_value)}
-                        />
-                        <StatusItem
-                          label="Mansouj retail value"
-                          value={egp(inventoryReconciliationResult.mansouj_retail_value)}
-                        />
-                        <StatusItem
-                          label="Retail difference"
-                          value={egp(inventoryReconciliationResult.difference_retail_value)}
-                        />
-                      </div>
-                      {inventoryReconciliationResult.on_hand_missing_count > 0 && (
-                        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                          Shopify did not return on-hand quantity for{" "}
-                          {inventoryReconciliationResult.on_hand_missing_count} active variants.
-                        </div>
-                      )}
-                      {inventoryReconciliationResult.mismatches.length > 0 && (
-                        <div className="overflow-x-auto rounded border max-h-96">
-                          <table className="w-full text-xs">
-                            <thead className="bg-muted/40 sticky top-0">
-                              <tr>
-                                <th className="px-2 py-1 text-left">Product</th>
-                                <th className="px-2 py-1 text-left">Variant</th>
-                                <th className="px-2 py-1 text-left">SKU</th>
-                                <th className="px-2 py-1 text-left">Variant ID</th>
-                                <th className="px-2 py-1 text-left">Inventory Item</th>
-                                <th className="px-2 py-1 text-right">Shopify Qty</th>
-                                <th className="px-2 py-1 text-right">Mansouj Qty</th>
-                                <th className="px-2 py-1 text-right">Diff</th>
-                                <th className="px-2 py-1 text-right">Shopify Cost</th>
-                                <th className="px-2 py-1 text-right">Mansouj Cost</th>
-                                <th className="px-2 py-1 text-right">Shopify Price</th>
-                                <th className="px-2 py-1 text-right">Mansouj Price</th>
-                                <th className="px-2 py-1 text-left">Status</th>
-                                <th className="px-2 py-1 text-left">Reason</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {inventoryReconciliationResult.mismatches.map((row, idx) => (
-                                <tr key={`${row.shopify_variant_id}-${idx}`} className="border-t">
-                                  <td className="px-2 py-1">{row.product_title}</td>
-                                  <td className="px-2 py-1">{row.variant_title ?? "—"}</td>
-                                  <td className="px-2 py-1 font-mono">{row.sku}</td>
-                                  <td className="px-2 py-1 font-mono">{row.shopify_variant_id}</td>
-                                  <td className="px-2 py-1 font-mono">
-                                    {row.inventory_item_id ?? "—"}
-                                  </td>
-                                  <td className="px-2 py-1 text-right">{row.shopify_quantity}</td>
-                                  <td className="px-2 py-1 text-right">
-                                    {row.mansouj_quantity ?? "—"}
-                                  </td>
-                                  <td className="px-2 py-1 text-right">{row.difference}</td>
-                                  <td className="px-2 py-1 text-right">{egp(row.shopify_cost)}</td>
-                                  <td className="px-2 py-1 text-right">
-                                    {row.mansouj_cost == null ? "—" : egp(row.mansouj_cost)}
-                                  </td>
-                                  <td className="px-2 py-1 text-right">{egp(row.shopify_price)}</td>
-                                  <td className="px-2 py-1 text-right">
-                                    {row.mansouj_price == null ? "—" : egp(row.mansouj_price)}
-                                  </td>
-                                  <td className="px-2 py-1">{row.product_status ?? "—"}</td>
-                                  <td className="px-2 py-1">{row.reason}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                </div>
+              </CardContent>
+            </Card>
 
-                  <div className="border-t pt-4 space-y-3">
-                    <div>
-                      <h4 className="text-sm font-medium">Backfill Order Item Costs</h4>
-                      <p className="text-xs text-muted-foreground">
-                        Updates local order items with synced Shopify product cost. Does not modify
-                        Shopify.
-                      </p>
-                    </div>
-                    <Button
-                      onClick={backfillOrderItemCosts}
-                      disabled={!canOps || backfillingCosts}
-                      variant="secondary"
-                    >
-                      <RefreshCw
-                        className={`mr-2 h-4 w-4 ${backfillingCosts ? "animate-spin" : ""}`}
-                      />
-                      Backfill Order Item Costs
-                    </Button>
-                    {backfillError && (
-                      <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                        {backfillError}
-                      </div>
-                    )}
-                    {backfillResult && (
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <StatusItem
-                          label="Items checked"
-                          value={String(backfillResult.order_items_checked)}
-                        />
-                        <StatusItem
-                          label="Items updated"
-                          value={String(backfillResult.order_items_updated)}
-                        />
-                        <StatusItem
-                          label="Already had cost"
-                          value={String(backfillResult.order_items_already_had_cost)}
-                        />
-                        <StatusItem
-                          label="Missing variant match"
-                          value={String(backfillResult.order_items_missing_variant_match)}
-                        />
-                        <StatusItem
-                          label="Missing inventory cost"
-                          value={String(backfillResult.order_items_missing_inventory_cost)}
-                        />
-                        <StatusItem label="Failed" value={String(backfillResult.failed_count)} />
-                        <StatusItem
-                          label="Matched by variant ID"
-                          value={String(backfillResult.matched_by_variant_id)}
-                        />
-                        <StatusItem
-                          label="Matched by SKU (exact)"
-                          value={String(backfillResult.matched_by_sku)}
-                        />
-                        <StatusItem
-                          label="Matched by SKU (normalized)"
-                          value={String(backfillResult.matched_by_sku_normalized)}
-                        />
-                        <StatusItem
-                          label="Matched by barcode"
-                          value={String(backfillResult.matched_by_barcode)}
-                        />
-                        <StatusItem
-                          label="Matched by title (exact)"
-                          value={String(backfillResult.matched_by_title_exact)}
-                        />
-                      </div>
-                    )}
-                    {backfillResult &&
-                      backfillResult.mismatch_reasons &&
-                      Object.keys(backfillResult.mismatch_reasons).length > 0 && (
-                        <div className="space-y-2">
-                          <h5 className="text-sm font-medium">Mismatch reasons</h5>
-                          <div className="grid gap-2 sm:grid-cols-2">
-                            {Object.entries(backfillResult.mismatch_reasons).map(
-                              ([reason, count]) => (
-                                <div
-                                  key={reason}
-                                  className="flex items-center justify-between rounded border px-3 py-2 text-xs"
-                                >
-                                  <span className="text-muted-foreground">{reason}</span>
-                                  <span className="font-mono">{count}</span>
-                                </div>
-                              ),
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    {backfillResult && backfillResult.unmatched_samples.length > 0 && (
-                      <div className="space-y-2">
-                        <h5 className="text-sm font-medium">
-                          Unmatched preview (first {backfillResult.unmatched_samples.length})
-                        </h5>
-                        <div className="overflow-x-auto rounded border">
-                          <table className="w-full text-xs">
-                            <thead className="bg-muted/40">
-                              <tr>
-                                <th className="px-2 py-1 text-left">Order #</th>
-                                <th className="px-2 py-1 text-left">Item</th>
-                                <th className="px-2 py-1 text-left">Variant</th>
-                                <th className="px-2 py-1 text-left">SKU</th>
-                                <th className="px-2 py-1 text-left">Shopify variant ID</th>
-                                <th className="px-2 py-1 text-left">Reason</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {backfillResult.unmatched_samples.map((s, idx) => (
-                                <tr key={idx} className="border-t">
-                                  <td className="px-2 py-1">{s.order_number ?? "—"}</td>
-                                  <td className="px-2 py-1">{s.order_item_title ?? "—"}</td>
-                                  <td className="px-2 py-1">{s.variant ?? "—"}</td>
-                                  <td className="px-2 py-1 font-mono">{s.sku ?? "—"}</td>
-                                  <td className="px-2 py-1 font-mono">
-                                    {s.shopify_variant_id ?? "—"}
-                                  </td>
-                                  <td className="px-2 py-1">{s.reason}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
-                    {backfillResult && (
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        <StatusItem
-                          label="Matched by remap (variant ID)"
-                          value={String(backfillResult.matched_by_remap_variant_id)}
-                        />
-                        <StatusItem
-                          label="Matched by remap (SKU)"
-                          value={String(backfillResult.matched_by_remap_sku)}
-                        />
-                        <StatusItem
-                          label="Remap matches total"
-                          value={String(backfillResult.remap_matches_count)}
-                        />
-                        <StatusItem
-                          label="Remaining unmatched"
-                          value={String(backfillResult.remaining_unmatched)}
-                        />
-                      </div>
-                    )}
-                    {backfillResult &&
-                      backfillResult.unmatched_sku_report &&
-                      backfillResult.unmatched_sku_report.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <h5 className="text-sm font-medium">
-                              Unmatched SKU report ({backfillResult.unmatched_sku_report.length})
-                            </h5>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                exportUnmatchedSkuReportCsv(backfillResult.unmatched_sku_report)
-                              }
-                            >
-                              Export CSV
-                            </Button>
-                          </div>
-                          <div className="overflow-x-auto rounded border max-h-96">
-                            <table className="w-full text-xs">
-                              <thead className="bg-muted/40 sticky top-0">
-                                <tr>
-                                  <th className="px-2 py-1 text-left">Old SKU</th>
-                                  <th className="px-2 py-1 text-left">Item</th>
-                                  <th className="px-2 py-1 text-left">Variant</th>
-                                  <th className="px-2 py-1 text-left">Count</th>
-                                  <th className="px-2 py-1 text-left">Example orders</th>
-                                  <th className="px-2 py-1 text-left">Reason</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {backfillResult.unmatched_sku_report.map((r, idx) => (
-                                  <tr key={idx} className="border-t">
-                                    <td className="px-2 py-1 font-mono">{r.old_sku ?? "—"}</td>
-                                    <td className="px-2 py-1">{r.item_title ?? "—"}</td>
-                                    <td className="px-2 py-1">{r.variant ?? "—"}</td>
-                                    <td className="px-2 py-1 font-mono">{r.count}</td>
-                                    <td className="px-2 py-1 font-mono">
-                                      {r.example_order_numbers.join(", ") || "—"}
-                                    </td>
-                                    <td className="px-2 py-1">{r.reason}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
+            {canAdmin && (
+              <details className="rounded-md border border-destructive/40 bg-destructive/5 p-3">
+                <summary className="cursor-pointer text-base font-medium text-destructive">
+                  Dangerous Tools
+                </summary>
+                <div className="mt-3 space-y-3">
+                  <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                    Dangerous. This can delete local data. Do not use unless you intentionally want
+                    to reset local orders. Shopify data is not modified.
                   </div>
-
-                  <div className="border-t pt-4 space-y-3">
-                    <div>
-                      <h4 className="text-sm font-medium">
-                        Force Update Order Item Costs from Current Shopify Product Costs
-                      </h4>
-                      <p className="text-xs text-muted-foreground">
-                        Overwrites existing local order item unit costs with the latest synced
-                        Shopify InventoryItem costs. Does not modify Shopify or change selling
-                        price, shipping, packaging, statuses, notes, or customer data.
-                      </p>
+                  <Button
+                    variant="destructive"
+                    onClick={resetAllLocalOrders}
+                    disabled={syncingRecent || syncingBackfill || resettingOrders}
+                  >
+                    <Trash2 className={`mr-2 h-4 w-4 ${resettingOrders ? "animate-pulse" : ""}`} />
+                    Reset All Local Orders
+                  </Button>
+                  {resetResult && (
+                    <div className="grid gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4 sm:grid-cols-2 lg:grid-cols-5">
+                      <StatusItem label="Deleted orders" value={String(resetResult.deleted_orders_count)} />
+                      <StatusItem label="Deleted items" value={String(resetResult.deleted_order_items_count)} />
+                      <StatusItem label="Deleted notes" value={String(resetResult.deleted_order_notes_count)} />
+                      <StatusItem label="Deleted activity" value={String(resetResult.deleted_order_activity_count)} />
+                      <StatusItem label="Cursor reset" value={resetResult.cursor_reset ? "true" : "false"} />
                     </div>
-                    <Button
-                      onClick={forceUpdateOrderItemCosts}
-                      disabled={!canOps || forcingCostUpdate}
-                      variant="secondary"
-                    >
-                      <RefreshCw
-                        className={`mr-2 h-4 w-4 ${forcingCostUpdate ? "animate-spin" : ""}`}
-                      />
-                      Force Update Order Item Costs
-                    </Button>
-                    {!canOps && (
-                      <p className="text-sm text-muted-foreground">
-                        Admin or operations access is required.
-                      </p>
-                    )}
-                    {forceCostError && (
-                      <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                        {forceCostError}
-                      </div>
-                    )}
-                    {forceCostResult && (
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <StatusItem
-                          label="Items checked"
-                          value={String(forceCostResult.items_checked)}
-                        />
-                        <StatusItem
-                          label="Items updated"
-                          value={String(forceCostResult.items_updated)}
-                        />
-                        <StatusItem
-                          label="Items skipped"
-                          value={String(forceCostResult.items_skipped)}
-                        />
-                        <StatusItem
-                          label="Missing cost"
-                          value={String(forceCostResult.missing_cost)}
-                        />
-                        <StatusItem
-                          label="Missing match"
-                          value={String(forceCostResult.missing_match)}
-                        />
-                        <StatusItem
-                          label="Orders recalculated"
-                          value={String(forceCostResult.orders_recalculated)}
-                        />
-                        <StatusItem
-                          label="Total cost before"
-                          value={forceCostResult.total_cost_before.toFixed(2)}
-                        />
-                        <StatusItem
-                          label="Total cost after"
-                          value={forceCostResult.total_cost_after.toFixed(2)}
-                        />
-                        <StatusItem label="Failed" value={String(forceCostResult.failed_count)} />
-                      </div>
-                    )}
-                    {forceCostResult && Object.keys(forceCostResult.match_counts).length > 0 && (
-                      <div className="space-y-2">
-                        <h5 className="text-sm font-medium">Match summary</h5>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {Object.entries(forceCostResult.match_counts).map(([reason, count]) => (
-                            <div
-                              key={reason}
-                              className="flex items-center justify-between rounded border px-3 py-2 text-xs"
-                            >
-                              <span className="text-muted-foreground">{reason}</span>
-                              <span className="font-mono">{count}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {forceCostResult &&
-                      Object.keys(forceCostResult.mismatch_reasons).length > 0 && (
-                        <div className="space-y-2">
-                          <h5 className="text-sm font-medium">Skipped reasons</h5>
-                          <div className="grid gap-2 sm:grid-cols-2">
-                            {Object.entries(forceCostResult.mismatch_reasons).map(
-                              ([reason, count]) => (
-                                <div
-                                  key={reason}
-                                  className="flex items-center justify-between rounded border px-3 py-2 text-xs"
-                                >
-                                  <span className="text-muted-foreground">{reason}</span>
-                                  <span className="font-mono">{count}</span>
-                                </div>
-                              ),
-                            )}
-                          </div>
-                        </div>
-                      )}
-                  </div>
+                  )}
+                </div>
+              </details>
+            )}
 
-                  <div className="border-t pt-4 space-y-3">
-                    <div>
-                      <h4 className="text-sm font-medium">Recalculate Order & Packaging Costs</h4>
-                      <p className="text-xs text-muted-foreground">
-                        Recomputes each local order's items_cost from order_items (quantity ×
-                        unit_cost), and updates Packaging Cost to 140 EGP per eligible item.
-                        Fitted sheet sets with pillowcases are included; standalone pillows,
-                        pillowcases, and duvets are excluded. Manual packaging edits are preserved.
-                        Does not modify Shopify or change order revenue.
-                      </p>
-                    </div>
-                    <Button
-                      onClick={recalculateOrderCosts}
-                      disabled={!canOps || recalcingOrderCosts}
-                      variant="secondary"
-                    >
-                      <RefreshCw
-                        className={`mr-2 h-4 w-4 ${recalcingOrderCosts ? "animate-spin" : ""}`}
-                      />
-                      Recalculate Order & Packaging Costs
-                    </Button>
-                    {!canOps && (
-                      <p className="text-sm text-muted-foreground">
-                        Admin or operations access is required.
-                      </p>
-                    )}
-                    {recalcError && (
-                      <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                        {recalcError}
-                      </div>
-                    )}
-                    {recalcResult && (
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <StatusItem
-                          label="Orders checked"
-                          value={String(recalcResult.orders_checked)}
-                        />
-                        <StatusItem
-                          label="Orders updated"
-                          value={String(recalcResult.orders_updated)}
-                        />
-                        <StatusItem
-                          label="Items checked"
-                          value={String(recalcResult.order_items_checked)}
-                        />
-                        <StatusItem
-                          label="Items with cost"
-                          value={String(recalcResult.order_items_with_cost)}
-                        />
-                        <StatusItem
-                          label="Items missing cost"
-                          value={String(recalcResult.order_items_missing_cost)}
-                        />
-                        <StatusItem
-                          label="Orders missing cost"
-                          value={String(recalcResult.orders_with_missing_costs)}
-                        />
-                        <StatusItem
-                          label="Total items_cost before"
-                          value={recalcResult.total_items_cost_before.toFixed(2)}
-                        />
-                        <StatusItem
-                          label="Total items_cost after"
-                          value={recalcResult.total_items_cost_after.toFixed(2)}
-                        />
-                        <StatusItem
-                          label="Packaging checked"
-                          value={String(recalcResult.packaging_costs_checked)}
-                        />
-                        <StatusItem
-                          label="Packaging updated"
-                          value={String(recalcResult.packaging_costs_updated)}
-                        />
-                        <StatusItem
-                          label="Manual packaging preserved"
-                          value={String(recalcResult.packaging_costs_preserved_manual)}
-                        />
-                        <StatusItem
-                          label="Total packaging before"
-                          value={recalcResult.total_packaging_cost_before.toFixed(2)}
-                        />
-                        <StatusItem
-                          label="Total packaging after"
-                          value={recalcResult.total_packaging_cost_after.toFixed(2)}
-                        />
-                        <StatusItem label="Failed" value={String(recalcResult.failed_count)} />
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-              </div>
-            </details>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <SkuRemapSection />
-              <AutoRemapSection />
-              <UnmatchedSkuReportSection />
-            </div>
 
             <Card>
               <CardHeader>
