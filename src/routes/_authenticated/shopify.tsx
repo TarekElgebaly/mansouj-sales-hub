@@ -1394,287 +1394,127 @@ function ShopifyPage() {
                   Orders
                 </CardTitle>
                 <CardDescription>
-                  Recent sync uses the cursor and a small overlap. Full backfill imports all
-                  historical Shopify orders.
+                  Import or refresh all Shopify orders within a specific date range.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    onClick={() => syncOrders("incremental")}
-                    disabled={
-                      syncingRecent ||
-                      syncingBackfill ||
-                      resettingOrders ||
-                      resetSyncing2026 ||
-                      repairingMissingLineItems
-                    }
-                  >
-                    <RefreshCw className={`mr-2 h-4 w-4 ${syncingRecent ? "animate-spin" : ""}`} />
-                    Sync Recent Orders
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => syncOrders("full_backfill")}
-                    disabled={
-                      syncingRecent ||
-                      syncingBackfill ||
-                      resettingOrders ||
-                      resetSyncing2026 ||
-                      repairingMissingLineItems
-                    }
-                  >
-                    <RefreshCw
-                      className={`mr-2 h-4 w-4 ${syncingBackfill ? "animate-spin" : ""}`}
-                    />
-                    Full Backfill Orders
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={repairMissingOrderLineItems}
-                    disabled={
-                      syncingRecent ||
-                      syncingBackfill ||
-                      resettingOrders ||
-                      resetSyncing2026 ||
-                      repairingMissingLineItems
-                    }
-                  >
-                    <RefreshCw
-                      className={`mr-2 h-4 w-4 ${repairingMissingLineItems ? "animate-spin" : ""}`}
-                    />
-                    Repair Missing Order Line Items
-                  </Button>
-                  {canAdmin && (
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <label className="text-xs font-medium">Range</label>
+                    <select
+                      className="block h-9 w-40 rounded-md border bg-background px-2 text-sm"
+                      value={rangeMode}
+                      onChange={(e) => setRangeMode(e.target.value as RangeMode)}
+                    >
+                      <option value="today">Today</option>
+                      <option value="yesterday">Yesterday</option>
+                      <option value="last7">Last 7 days</option>
+                      <option value="last30">Last 30 days</option>
+                      <option value="month">Single month</option>
+                      <option value="custom">Custom range</option>
+                    </select>
+                  </div>
+                  {rangeMode === "month" && (
                     <>
-                      <Button
-                        variant="destructive"
-                        onClick={resetAndSync2026Orders}
-                        disabled={
-                          syncingRecent ||
-                          syncingBackfill ||
-                          resettingOrders ||
-                          resetSyncing2026 ||
-                          repairingMissingLineItems
-                        }
-                      >
-                        <RefreshCw
-                          className={`mr-2 h-4 w-4 ${resetSyncing2026 ? "animate-spin" : ""}`}
-                        />
-                        Reset & Sync 2026 Orders
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        onClick={resetAllLocalOrders}
-                        disabled={
-                          syncingRecent ||
-                          syncingBackfill ||
-                          resettingOrders ||
-                          resetSyncing2026 ||
-                          repairingMissingLineItems
-                        }
-                      >
-                        <Trash2
-                          className={`mr-2 h-4 w-4 ${resettingOrders ? "animate-pulse" : ""}`}
-                        />
-                        Reset All Local Orders
-                      </Button>
+                      <div>
+                        <label className="text-xs font-medium">Month</label>
+                        <select
+                          className="block h-9 w-32 rounded-md border bg-background px-2 text-sm"
+                          value={rangeMonth}
+                          onChange={(e) => setRangeMonth(e.target.value)}
+                        >
+                          {MONTH_LABELS.map((m, i) => (
+                            <option key={m} value={String(i)}>{m}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium">Year</label>
+                        <select
+                          className="block h-9 w-24 rounded-md border bg-background px-2 text-sm"
+                          value={rangeYear}
+                          onChange={(e) => setRangeYear(e.target.value)}
+                        >
+                          {yearsList.map((y) => (
+                            <option key={y} value={String(y)}>{y}</option>
+                          ))}
+                        </select>
+                      </div>
                     </>
                   )}
+                  {rangeMode === "custom" && (
+                    <>
+                      <div>
+                        <label className="text-xs font-medium">From</label>
+                        <input type="date" className="block h-9 w-40 rounded-md border bg-background px-2 text-sm" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium">To</label>
+                        <input type="date" className="block h-9 w-40 rounded-md border bg-background px-2 text-sm" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
+                      </div>
+                    </>
+                  )}
+                  <Button
+                    onClick={() => syncOrders("date_range")}
+                    disabled={syncingRecent || syncingBackfill || resettingOrders || !resolvedRange}
+                  >
+                    <RefreshCw className={`mr-2 h-4 w-4 ${syncingBackfill ? "animate-spin" : ""}`} />
+                    Full Backfill Orders
+                  </Button>
+                  {resolvedRange && (
+                    <span className="text-xs text-muted-foreground pb-2">
+                      {resolvedRange.from} → {resolvedRange.to}
+                    </span>
+                  )}
+                  {canAdmin && (
+                    <Button
+                      variant="destructive"
+                      onClick={resetAllLocalOrders}
+                      disabled={syncingRecent || syncingBackfill || resettingOrders}
+                    >
+                      <Trash2 className={`mr-2 h-4 w-4 ${resettingOrders ? "animate-pulse" : ""}`} />
+                      Reset All Local Orders
+                    </Button>
+                  )}
                 </div>
+
                 {ordersSyncResult && (
-                  <div className="space-y-3">
-                    {ordersSyncResult.failed === 0 &&
-                      ordersSyncResult.affected_orders_recalculated > 0 && (
-                        <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-700 dark:text-emerald-300">
-                          Recent orders synced and costs recalculated successfully.
-                        </div>
-                      )}
-                    {ordersSyncResult.order_items_missing_cost > 0 && (
-                      <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-300">
-                        Some order items are missing cost. Run Sync Inventory &amp; Cost and
-                        Backfill Order Item Costs if needed.
-                      </div>
-                    )}
-                    <div className="grid gap-3 rounded-md border bg-muted/30 p-4 sm:grid-cols-2 lg:grid-cols-4">
-                      <StatusItem label="Mode" value={ordersSyncResult.mode} />
-                      <StatusItem label="Created" value={String(ordersSyncResult.created)} />
-                      <StatusItem label="Updated" value={String(ordersSyncResult.updated)} />
-                      <StatusItem label="Failed" value={String(ordersSyncResult.failed)} />
-                      <StatusItem
-                        label="Items processed"
-                        value={String(ordersSyncResult.order_items_processed)}
-                      />
-                      <StatusItem
-                        label="Items with cost"
-                        value={String(ordersSyncResult.order_items_with_cost)}
-                      />
-                      <StatusItem
-                        label="Items missing cost"
-                        value={String(ordersSyncResult.order_items_missing_cost)}
-                      />
-                      <StatusItem
-                        label="Orders recalculated"
-                        value={String(ordersSyncResult.affected_orders_recalculated)}
-                      />
-                      <StatusItem
-                        label="Cost via variant id"
-                        value={String(ordersSyncResult.order_items_cost_assigned_by_variant_id)}
-                      />
-                      <StatusItem
-                        label="Cost via SKU"
-                        value={String(ordersSyncResult.order_items_cost_assigned_by_sku)}
-                      />
-                      <StatusItem
-                        label="Cost via SKU normalized"
-                        value={String(ordersSyncResult.order_items_cost_assigned_by_sku_normalized)}
-                      />
-                      <StatusItem
-                        label="Cost via remap"
-                        value={String(ordersSyncResult.order_items_cost_assigned_by_remap)}
-                      />
-                      <StatusItem
-                        label="Cost preserved"
-                        value={String(ordersSyncResult.order_items_cost_preserved)}
-                      />
-                      <StatusItem
-                        label="Total items cost after"
-                        value={ordersSyncResult.total_items_cost_after_recalc.toLocaleString()}
-                      />
+                  <div className="rounded-md border bg-muted/30 p-4 space-y-2">
+                    <div className="text-sm font-medium">
+                      Last sync result
+                      <span className="ml-2 text-xs text-muted-foreground">({ordersSyncResult.mode})</span>
                     </div>
-                  </div>
-                )}
-                {repairMissingLineItemsResult && (
-                  <div className="space-y-3 rounded-md border bg-muted/30 p-4">
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                      <StatusItem
-                        label="Orders checked"
-                        value={String(repairMissingLineItemsResult.orders_checked)}
-                      />
-                      <StatusItem
-                        label="Missing item orders"
-                        value={String(repairMissingLineItemsResult.missing_orders_found)}
-                      />
-                      <StatusItem
-                        label="Orders repaired"
-                        value={String(repairMissingLineItemsResult.repaired_orders)}
-                      />
-                      <StatusItem
-                        label="Line items inserted"
-                        value={String(repairMissingLineItemsResult.line_items_inserted)}
-                      />
-                      <StatusItem
-                        label="Items with cost"
-                        value={String(repairMissingLineItemsResult.line_items_with_cost)}
-                      />
-                      <StatusItem
-                        label="Items missing cost"
-                        value={String(repairMissingLineItemsResult.line_items_missing_cost)}
-                      />
-                      <StatusItem
-                        label="Schema fallbacks"
-                        value={String(repairMissingLineItemsResult.schema_fallbacks_used)}
-                      />
-                      <StatusItem
-                        label="Failed"
-                        value={String(repairMissingLineItemsResult.failed_count)}
-                      />
+                      <StatusItem label="Date range used" value={ordersSyncResult.date_range_used ? `${ordersSyncResult.date_range_used.from} → ${ordersSyncResult.date_range_used.to}` : "—"} />
+                      <StatusItem label="Shopify orders found" value={String(ordersSyncResult.shopify_orders_found)} />
+                      <StatusItem label="Orders created" value={String(ordersSyncResult.created)} />
+                      <StatusItem label="Orders updated" value={String(ordersSyncResult.updated)} />
+                      <StatusItem label="Items processed" value={String(ordersSyncResult.order_items_processed)} />
+                      <StatusItem label="Missing order line items repaired" value={String(ordersSyncResult.missing_order_line_items_repaired)} />
+                      <StatusItem label="Order items created" value={String(ordersSyncResult.order_items_inserted)} />
+                      <StatusItem label="Order items updated" value={String(ordersSyncResult.order_items_updated)} />
+                      <StatusItem label="Statuses updated" value={String(ordersSyncResult.statuses_updated)} />
+                      <StatusItem label="Customer fields preserved" value={String(ordersSyncResult.customer_fields_preserved)} />
+                      <StatusItem label="Customer fields repaired from external intake" value={String(ordersSyncResult.customer_fields_repaired_from_external_intake)} />
+                      <StatusItem label="Pending intake rows applied" value={String(ordersSyncResult.pending_intake_rows_applied)} />
+                      <StatusItem label="Still unknown count" value={ordersSyncResult.still_unknown_count == null ? "—" : String(ordersSyncResult.still_unknown_count)} />
+                      <StatusItem label="Failed count" value={String(ordersSyncResult.failed)} />
+                      <StatusItem label="Last synced" value={new Date(ordersSyncResult.finished_at).toLocaleString()} />
                     </div>
-                    {repairMissingLineItemsResult.repaired.length > 0 && (
-                      <div className="text-sm text-muted-foreground">
-                        Repaired:{" "}
-                        {repairMissingLineItemsResult.repaired
-                          .slice(0, 8)
-                          .map((row) => `${row.order_number ?? "order"} (${row.line_items_inserted})`)
-                          .join(", ")}
-                      </div>
-                    )}
-                    {repairMissingLineItemsResult.errors.length > 0 && (
-                      <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                        {repairMissingLineItemsResult.errors.slice(0, 3).join(" | ")}
-                      </div>
-                    )}
-                  </div>
-                )}
-                {canAdmin && (
-                  <p className="text-sm text-muted-foreground">
-                    Reset & Sync 2026 Orders deletes all local orders from Mansouj Sales Hub, then
-                    imports Shopify orders created in 2026 only. Shopify will not be changed.
-                  </p>
-                )}
-                {resetSync2026Result && (
-                  <div className="grid gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <StatusItem
-                      label="Previous local orders"
-                      value={String(resetSync2026Result.current_local_orders_count)}
-                    />
-                    <StatusItem
-                      label="Previous local items"
-                      value={String(resetSync2026Result.current_local_order_items_count)}
-                    />
-                    <StatusItem
-                      label="Deleted orders"
-                      value={String(resetSync2026Result.deleted_orders_count)}
-                    />
-                    <StatusItem
-                      label="Deleted items"
-                      value={String(resetSync2026Result.deleted_order_items_count)}
-                    />
-                    <StatusItem
-                      label="Deleted notes"
-                      value={String(resetSync2026Result.deleted_order_notes_count)}
-                    />
-                    <StatusItem
-                      label="Deleted activity"
-                      value={String(resetSync2026Result.deleted_order_activity_count)}
-                    />
-                    <StatusItem
-                      label="Records processed"
-                      value={String(resetSync2026Result.records_processed)}
-                    />
-                    <StatusItem label="Created" value={String(resetSync2026Result.created_count)} />
-                    <StatusItem label="Updated" value={String(resetSync2026Result.updated_count)} />
-                    <StatusItem label="Failed" value={String(resetSync2026Result.failed_count)} />
-                    <StatusItem
-                      label="Pages fetched"
-                      value={String(resetSync2026Result.pages_fetched)}
-                    />
-                    <StatusItem
-                      label="First imported"
-                      value={resetSync2026Result.first_order_number_imported ?? "None"}
-                    />
-                    <StatusItem
-                      label="Last imported"
-                      value={resetSync2026Result.last_order_number_imported ?? "None"}
-                    />
                   </div>
                 )}
                 {resetResult && (
                   <div className="grid gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4 sm:grid-cols-2 lg:grid-cols-5">
-                    <StatusItem
-                      label="Deleted orders"
-                      value={String(resetResult.deleted_orders_count)}
-                    />
-                    <StatusItem
-                      label="Deleted items"
-                      value={String(resetResult.deleted_order_items_count)}
-                    />
-                    <StatusItem
-                      label="Deleted notes"
-                      value={String(resetResult.deleted_order_notes_count)}
-                    />
-                    <StatusItem
-                      label="Deleted activity"
-                      value={String(resetResult.deleted_order_activity_count)}
-                    />
-                    <StatusItem
-                      label="Cursor reset"
-                      value={resetResult.cursor_reset ? "true" : "false"}
-                    />
+                    <StatusItem label="Deleted orders" value={String(resetResult.deleted_orders_count)} />
+                    <StatusItem label="Deleted items" value={String(resetResult.deleted_order_items_count)} />
+                    <StatusItem label="Deleted notes" value={String(resetResult.deleted_order_notes_count)} />
+                    <StatusItem label="Deleted activity" value={String(resetResult.deleted_order_activity_count)} />
+                    <StatusItem label="Cursor reset" value={resetResult.cursor_reset ? "true" : "false"} />
                   </div>
                 )}
               </CardContent>
             </Card>
+
 
             <details className="rounded-md border bg-muted/20 p-3">
               <summary className="cursor-pointer text-base font-medium">Advanced Tools</summary>
