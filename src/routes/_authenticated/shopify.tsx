@@ -494,27 +494,6 @@ function ShopifyPage() {
     }
   };
 
-  const syncOrders = async (mode: "incremental" | "full_backfill") => {
-    if (
-      mode === "full_backfill" &&
-      !window.confirm("This will import all historical Shopify orders and may take time. Continue?")
-    ) {
-      return;
-    }
-
-    const setBusy = mode === "full_backfill" ? setSyncingBackfill : setSyncingRecent;
-    setBusy(true);
-    try {
-      const res = await fetch("/api/shopify/sync-orders", {
-        method: "POST",
-        headers: {
-          ...(await authHeader()),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ mode }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.ok) throw new Error(json.error ?? "Shopify orders sync failed.");
 
   const syncOrders = async (mode: "incremental" | "full_backfill" | "date_range") => {
     if (
