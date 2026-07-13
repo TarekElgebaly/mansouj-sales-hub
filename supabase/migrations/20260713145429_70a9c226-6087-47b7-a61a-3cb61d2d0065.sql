@@ -1,0 +1,1 @@
+DELETE FROM public.inventory_refresh_queue WHERE source_event_type LIKE 'test_race_%';
