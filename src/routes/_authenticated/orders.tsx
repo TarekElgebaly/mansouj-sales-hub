@@ -24,7 +24,7 @@ import { OrderDetail } from "@/components/order-detail";
 import { saveOrderCosts } from "@/lib/order-costs";
 import { calculatePackagingCost } from "@/lib/packaging-cost";
 import { DateScopeFilter } from "@/components/date-scope-filter";
-import { createDefaultDateScope, dateInScope, getDateScopeRange, MONTHS } from "@/lib/date-scope";
+import { createDefaultDateScope, dateInScope, getDateScopeRange } from "@/lib/date-scope";
 import { calculateKashierFees } from "@/lib/kashier-fees";
 
 type SyncResult = {
