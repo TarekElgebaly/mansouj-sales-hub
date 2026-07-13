@@ -243,13 +243,28 @@ async function updateInventoryRowBySku(
   return false;
 }
 
-export const Route = createFileRoute("/api/shopify/refresh-inventory-source-of-truth")({
-  server: {
-    handlers: {
-      POST: async ({ request }) => {
-        const auth = await requireOpsUser(request);
-        if (!auth.ok) return auth.response;
-        const { supabaseAdmin } = auth;
+export type RefreshInventoryOptions = {
+  filterInventoryItemIds?: string[] | null;
+  filterVariantIds?: string[] | null;
+  skipStaleMarking?: boolean;
+  skipRunLog?: boolean;
+};
+
+export async function runRefreshInventoryFromSourceOfTruth(
+  supabaseAdmin: any,
+  options: RefreshInventoryOptions = {},
+) {
+  const filterInventoryItemIds =
+    options.filterInventoryItemIds?.filter((v): v is string => Boolean(v)) ?? null;
+  const filterVariantIds =
+    options.filterVariantIds?.filter((v): v is string => Boolean(v)) ?? null;
+  const hasFilter =
+    (filterInventoryItemIds && filterInventoryItemIds.length > 0) ||
+    (filterVariantIds && filterVariantIds.length > 0);
+  const skipStaleMarking = options.skipStaleMarking ?? Boolean(hasFilter);
+  const skipRunLog = options.skipRunLog ?? Boolean(hasFilter);
+
+
 
         const startedAt = new Date().toISOString();
         const syncType = "inventory_source_of_truth_refresh";
