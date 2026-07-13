@@ -306,12 +306,15 @@ export async function runRefreshInventoryFromSourceOfTruth(
         });
 
         try {
-          await updateShopifySyncSettings(supabaseAdmin, {
-            last_sync_mode: syncType,
-            last_sync_status: "running",
-            last_error: null,
-            updated_at: startedAt,
-          });
+          if (!skipRunLog) {
+            await updateShopifySyncSettings(supabaseAdmin, {
+              last_sync_mode: syncType,
+              last_sync_status: "running",
+              last_error: null,
+              updated_at: startedAt,
+            });
+          }
+
 
           stoppedReason = "loading_synced_shopify_tables";
           let variantsQuery = supabaseAdmin
